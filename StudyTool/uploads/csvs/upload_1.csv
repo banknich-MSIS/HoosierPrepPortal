@@ -1,0 +1,76 @@
+question,type,options,answer,concepts
+"According to the 'product team trio' concept, which role is primarily responsible for answering the question, 'Should we do this?'",mcq,Product Manager|Tech Lead|Product Designer|Project Manager,Product Manager,"Product Team Roles,Viability"
+"A team that is measured primarily by its ability to ship features on time, rather than the impact of those features, is characteristic of a _______ Team.",short,,Delivery,Product Team vs Delivery Team
+True or False: A 'Product Mindset' focuses primarily on adhering to a fixed project scope and delivering features as specified by stakeholders.,truefalse,,False,Product Mindset
+Which of the following is NOT listed as a key principle of a product mindset?,mcq,Customer Focus|Data-Driven Decisions|Ownership & Accountability|Stakeholder Satisfaction,Stakeholder Satisfaction,Product Mindset
+"What is the term for the process of identifying and validating customer problems, needs, and opportunities to guide product development?",short,,Discovery,Product Discovery
+"True or False: According to the SVPG discovery principles, we can generally count on our customers to tell us exactly what features to build.",truefalse,,False,"Product Discovery,Customer Needs"
+A product manager is comparing this month's user retention rate to last month's rate. Which characteristic of a good metric is being demonstrated?,mcq,Comparative|Understandable|A Ratio|Actionable,Comparative,Metrics
+The high-level view of where a product needs to go to meet the business's long-term strategy is called the Product _______.,short,,Vision,"Product Strategy,Product Vision"
+True or False: The role of a Product Owner in Scrum is identical to the job of a Product Manager.,truefalse,,False,Product Manager vs Product Owner
+"A company's overarching plan for how it will compete, grow, and achieve its financial goals is known as its:",mcq,Business Strategy|Product Strategy|Go-to-Market Strategy|Product Vision,Business Strategy,Business Strategy
+Data from user interviews and customer feedback provides what type of data?,short,,Qualitative,"Product Discovery,Data Types"
+True or False: A 'vanity metric' like 'total registered users' is a good indicator of a product's long-term success and user engagement.,truefalse,,False,"Metrics,Vanity Metrics"
+The 'Jobs to be Done' framework is most useful for shifting a team's focus from:,mcq,Building specific solutions to understanding the customer's root problem|Prioritizing the backlog to grooming the backlog|Quantitative data to qualitative data|Business goals to technical feasibility,Building specific solutions to understanding the customer's root problem,"Jobs to be Done,Customer Needs"
+"A problem that a customer is aware of and can clearly define, such as 'I need a report to show my client their savings,' is known as an _______ Need.",short,,Unmet,Customer Needs
+"True or False: According to the study material, a strong indicator of a significant customer problem is when customers are not actively trying to find a solution for it.",truefalse,,False,"Customer Needs,Problem Evaluation"
+"In the product team trio, which role is primarily focused on Desirability?",mcq,Product Manager|Tech Lead|Product Designer|Stakeholder,Product Designer,"Product Team Roles,Desirability"
+"Observing users, diving into frustrations during interviews, and analyzing quantitative data are methods used to find what type of customer need?",short,,Unrealized Need,"Customer Needs,Product Discovery"
+"True or False: Product management and project management are two terms for the same discipline, focused on creating project plans and monitoring milestones.",truefalse,,False,Product Management vs Project Management
+Which of the following best describes the goal of discovery as stated by Marty Cagan?,mcq,To gather a complete list of feature requirements from customers|To ensure engineering effort is not wasted on ideas that won't work|To create a detailed project plan and timeline for delivery|To secure funding and approval from stakeholders for a new project,To ensure engineering effort is not wasted on ideas that won't work,Product Discovery
+"The three key components that make up a Product Strategy, as shown in the diagram, are Markets and Needs, Business Goals, and Key _______.",short,,Features,Product Strategy
+True or False: A Product Team's success is primarily measured by its ability to validate solutions *after* building them.,truefalse,,False,"Product Team vs Delivery Team,Product Discovery"
+"Website analytics, app usage data, and A/B test results are all examples of what kind of data?",mcq,Qualitative Data|Quantitative Data|Subjective Data|Anecdotal Data,Quantitative Data,"Data Types,Metrics"
+The core competency that involves the ability to lead and influence without direct authority is described as the ability to _______.,short,,Inspire Trust,Product Manager Competencies
+"True or False: A JTBD (Jobs to be Done) story format is 'As a [user type], I want to [action], so that [benefit]'.",truefalse,,False,"Jobs to be Done,User Stories"
+Focusing on delivering real benefits to customers and the business is the definition of which product mindset principle?,mcq,Customer Focus|Outcome-Oriented|Value Creation|Iterative Development,Value Creation,Product Mindset
+"A tool that documents the steps, actions, pain points, and feelings of a customer as they interact with a product is called a Customer _______ Map.",short,,Journey,"Product Discovery,Customer Journey Map"
+True or False: Most product ideas will work as initially conceived and require minimal iteration.,truefalse,,False,"Product Discovery,Iterative Development"
+The Product Manager ensures the team has business context and empathy for the _______.,short,,customer,Product Manager Role
+Thinking strategically and prioritizing based on business outcomes is part of which core PM competency?,mcq,Empathy|Business Savvy|Technical Understanding|Communication,Business Savvy,Product Manager Competencies
+True or False: The 'Value Proposition Canvas' is a tool used for creating detailed project timelines.,truefalse,,False,Value Proposition Canvas
+"In the product team trio, the Tech Lead is primarily responsible for what aspect of a product's success?",short,,Feasibility,"Product Team Roles,Feasibility"
+"The principle of building and improving a product in small, incremental steps is known as:",mcq,Waterfall Development|Iterative Development|Value Creation|Cross-Functional Collaboration,Iterative Development,"Product Mindset,Iterative Development"
+True or False: A Product Owner's primary responsibility is to define the long-term product vision and strategy.,truefalse,,False,Product Manager vs Product Owner
+The statement 'Make Uber the cheap and efficient alternative to both owning a vehicle and taking public transportation' is an example of a Product _______.,short,,Vision,Product Vision
+Which of the following describes the 'product strategy trap'?,mcq,Focusing too much on business goals over customer needs|Ignoring technical feasibility during planning|Thinking of strategy as a plan to build specific features|Failing to secure enough budget for the product,Thinking of strategy as a plan to build specific features,Product Strategy
+"True or False: According to the material, solving big problems for customers creates big value for businesses.",truefalse,,True,"Value Creation,Product Strategy"
+Being flexible and able to change with market and customer dynamics is the principle of _______.,short,,Adaptability,Product Mindset
+A metric that is a ratio or a rate is considered good because:,mcq,They are always larger numbers and look more impressive|They are easier to calculate than absolute numbers|They are easier to act on and can measure opposing factors|They are the only type of metric that can be tracked over time,They are easier to act on and can measure opposing factors,Metrics
+True or False: The primary goal of a Delivery Team is to measure outcomes and iterate on deliverables if required.,truefalse,,False,Product Team vs Delivery Team
+The process of automating weekly habits where product teams continuously interview customers and rapidly form hypotheses is known as Continuous _______.,short,,Discovery,Product Discovery
+The question 'Do they want this?' relates to which of the three threats to a product's success?,mcq,Viability|Feasibility|Desirability|Scalability,Desirability,"Desirability,Product Team Roles"
+"True or False: Qualitative data helps a product manager understand the 'what' behind user behavior, while quantitative data explains the 'why'.",truefalse,,False,"Data Types,Product Discovery"
+What is the term for a high-level plan that helps a company realize its product vision?,short,,Product Strategy,Product Strategy
+Which of these is listed as a responsibility of a Product Owner in Scrum?,mcq,Defines the long-term product vision|Grooms and manages the Product Backlog|Conducts continuous user discovery interviews|Measures the overall market effectiveness of the product,Grooms and manages the Product Backlog,Product Manager vs Product Owner
+"True or False: A product team has a strong understanding of their customers and users, while a delivery team has a limited understanding.",truefalse,,True,Product Team vs Delivery Team
+Using evidence and metrics to guide product choices is the definition of which product mindset principle?,short,,Data-Driven Decisions,Product Mindset
+"If a customer has a frustration they don't yet understand is a problem, this is known as an:",mcq,Unmet Need|Unrealized Need|Latent Need|Stated Need,Unrealized Need,Customer Needs
+"True or False: According to SVPG principles, the user experience is generally less difficult and critical to success than the engineering work.",truefalse,,False,"Product Discovery,Desirability"
+The core PM competency related to understanding and conversing with engineering is called _______ Understanding.,short,,Technical,Product Manager Competencies
+The primary purpose of validating ideas as quickly and cheaply as possible during discovery is to:,mcq,Meet quarterly delivery targets|Impress stakeholders with rapid progress|Minimize wasted time and resources on bad ideas|Allow engineers to start coding sooner,Minimize wasted time and resources on bad ideas,Product Discovery
+True or False: A product manager's job includes defining and measuring success criteria for the product.,truefalse,,True,"Product Manager Role,Metrics"
+A metric must be _______ so that everyone is on the same page about its definition and how it is measured.,short,,Understandable,Metrics
+Which framework helps identify the needs and motivations behind a customer's problem and is often used when a team is stuck in 'solution mode'?,mcq,Business Model Canvas|Jobs to be Done (JTBD)|Customer Journey Map|Scrum,Jobs to be Done (JTBD),Jobs to be Done
+True or False: A product team moves on to the next task immediately after deploying a feature.,truefalse,,False,Product Team vs Delivery Team
+"The three stages shown in the Product Team workflow are Strategy, Discovery, and _______.",short,,Delivery,Product Team Workflow
+Which of the following would be considered a 'vanity metric' according to the study material?,mcq,Customer retention rate|Conversion rate|Time on page|Monthly recurring revenue,Time on page,"Metrics,Vanity Metrics"
+True or False: A key benefit of defining metrics is that it enables the business to be more focused and less reactive.,truefalse,,True,Metrics
+The question 'Can we do this?' relates to which of the three threats to a product's success?,short,,Feasibility,"Feasibility,Product Team Roles"
+A product team that aims for meaningful results like customer satisfaction and market growth is demonstrating which principle of a product mindset?,mcq,Ownership & Accountability|Outcome-Oriented|Value Creation|Data-Driven Decisions,Outcome-Oriented,Product Mindset
+True or False: The 'Business Canvas' is a tool used exclusively for mapping out the customer journey.,truefalse,,False,"Business Strategy,Business Model Canvas"
+A key difference between a JTBD story and a user story is that JTBD is agnostic of the _______.,short,,solution,"Jobs to be Done,User Stories"
+Which PM core competency is about the ability to relate to and work with many different personality types and roles?,mcq,Empathy|Communication|Soft Skills|Inspire Trust,Soft Skills,Product Manager Competencies
+"True or False: The goal of discovery is to validate ideas with actual customers, not just internal stakeholders.",truefalse,,True,Product Discovery
+What is the term for a problem a customer is aware of but for which no adequate solution exists?,short,,Unmet Need,Customer Needs
+"The entire organization, not just the product department, needs to adopt a product mindset to realize its full benefits.",truefalse,,True,Product Mindset
+Facilitating decision-making and ensuring the team has business context are key activities of what role?,mcq,Project Manager|Product Manager|Tech Lead|Product Designer,Product Manager,Product Manager Role
+"The quantifiable measure used to track and assess the status or performance of a specific process, activity, or objective is a _______.",short,,Metric,Metrics
+"True or False: When evaluating which customer problem to solve, a key question is 'How many customers have this problem?'",truefalse,,True,Problem Evaluation
+"Which of the following is an example of a project management task, not a product management task?",mcq,"Defining product vision and strategy|Identifying and assessing opportunities|Putting together project plans, budgets, and milestones|Defining and measuring success criteria","Putting together project plans, budgets, and milestones",Product Management vs Project Management
+The primary job of a Product Manager is to keep engineers and designers focused on work that provides the most benefit to customers and the _______.,short,,business,"Product Manager Role,Value Creation"
+True or False: 'Continuous Discovery' involves one large research phase at the beginning of a project.,truefalse,,False,Product Discovery
+A good indicator that a customer problem is strong is when they are...,mcq,Complaining about it on social media|Willing to talk about it in an interview|Trying many different ways to solve the problem|Unaware that the problem exists,Trying many different ways to solve the problem,"Problem Evaluation,Customer Needs"
+The PM competency that involves understanding stakeholder and user needs is called _______.,short,,Empathy,Product Manager Competencies
+True or False: A product's vision and its strategy are the same thing.,truefalse,,False,"Product Vision,Product Strategy"
+The principle of taking responsibility for the product's success is known as:,mcq,Customer Focus|Outcome-Oriented|Ownership & Accountability|Value Creation,Ownership & Accountability,Product Mindset

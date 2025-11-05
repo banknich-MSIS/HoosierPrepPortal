@@ -1,0 +1,480 @@
+"""
+Gemini API integration service for AI-powered exam generation.
+Handles API configuration, prompt building, and response parsing.
+"""
+import json
+import re
+from typing import Dict, List, Optional, Any, Union
+from pydantic import BaseModel
+import google.generativeai as genai
+from google.api_core import exceptions as google_exceptions
+
+
+class ExamConfig(BaseModel):
+    """Configuration for exam generation."""
+    question_count: int
+    difficulty: str
+    question_types: List[str]
+    focus_concepts: Optional[List[str]] = None
+
+
+class QuestionData(BaseModel):
+    """Structure for a single question."""
+    question: str
+    answer: Union[str, List[str]]  # Accept both string and array from Gemini
+    type: str
+    options: Optional[List[str]] = None
+    concepts: List[str] = []
+    explanation: Optional[str] = None
+
+
+class ExamMetadata(BaseModel):
+    """Metadata about the generated exam."""
+    topic: str
+    themes: List[str]
+    difficulty: str
+    estimated_time_minutes: int
+
+
+class GeneratedExam(BaseModel):
+    """Complete exam structure from Gemini."""
+    metadata: ExamMetadata
+    questions: List[QuestionData]
+
+
+# Prompt template for exam generation (matches GEMINI_PROMPT.md structure)
+EXAM_GENERATION_PROMPT = """
+You are an AI exam generator that transforms study materials into structured question sets.
+Your purpose is to process academic materials and produce well-formatted questions suitable for practice exams.
+
+Study Material:
+{content}
+
+Requirements:
+- Generate exactly {question_count} questions
+- Difficulty level: {difficulty}
+- Question types to include: {question_types}
+{focus_concepts_section}
+
+QUESTION TYPE DEFINITIONS:
+- mcq: Multiple choice with exactly ONE correct answer (provide 4 options)
+- multi: Multiple choice where user selects ALL correct answers (can be 1 or more, provide 4+ options)
+- short: Short text answer (single word or phrase)
+- truefalse: True or False question
+- cloze: Fill-in-the-blank question with one or more blanks
+
+QUESTION DIFFICULTY GUIDELINES:
+- Easy: Focus on definitions, basic concepts, direct recall. Use straightforward language and obvious distractors.
+- Medium: Require application of concepts, comparison, analysis. Use scenarios and require understanding beyond memorization.
+- Hard: Multi-step reasoning, edge cases, synthesis of multiple concepts. Use subtle distractors and complex scenarios.
+
+IMPORTANT RULES:
+1. For MCQ questions, provide exactly 4 options with the correct answer as ONE of them
+2. For MCQ, wrong options must be plausible (common misconceptions, similar concepts, not obviously wrong)
+3. Avoid obviously incorrect distractors (unrelated terms, nonsensical combinations, wrong units)
+4. For multi-select, provide 4+ options where 1 or more are correct
+5. For short answer, truefalse, and cloze questions, set options to null or empty array
+6. Each question should have 1-3 relevant concept tags
+7. Ensure high quality questions that test real understanding
+8. Distribute questions evenly across selected {question_types} types
+9. Vary difficulty within the {difficulty} level
+10. DO NOT include citation markers, references, or metadata in questions
+11. Questions should be clean text without [cite:XX] or similar annotations
+
+CRITICAL: Return ONLY valid JSON in this exact format (no markdown code blocks, just pure JSON):
+{{
+  "metadata": {{
+    "topic": "main topic extracted from material",
+    "themes": ["theme1", "theme2", "theme3"],
+    "difficulty": "{difficulty}",
+    "estimated_time_minutes": <number based on question count and types>
+  }},
+  "questions": [
+    {{
+      "question": "clear, specific question text",
+      "answer": "correct answer",
+      "type": "mcq|multi|short|truefalse|cloze",
+      "options": ["option1", "option2", "option3", "option4"],
+      "concepts": ["concept1", "concept2"],
+      "explanation": "brief explanation of correct answer"
+    }}
+  ]
+}}
+
+IMPORTANT: You MUST complete the entire exam generation. Generate ALL {{question_count}} questions requested.
+Do not stop early. Ensure the JSON is complete and valid with proper closing braces.
+
+ANSWER FIELD FORMATTING:
+- mcq: Single answer matching one option exactly (e.g., "Option text")
+- multi: Array with all correct options (e.g., ["Option A", "Option C"])
+- short: Simple text (e.g., "mitochondria")
+- truefalse: "True" or "False"
+- cloze: Array with answers for each blank in order (e.g., ["answer1", "answer2"])
+
+QUALITY CHECKLIST:
+✓ Questions test understanding, not just memorization
+✓ MCQ distractors are plausible and educational
+✓ Questions are clear and unambiguous
+✓ Answers are definitively correct
+✓ Concepts accurately tagged
+✓ No citation markers or annotations
+✓ Even distribution across question types
+✓ Appropriate difficulty level throughout
+"""
+
+
+def configure_gemini(api_key: str) -> None:
+    """Configure Gemini API with user's API key."""
+    try:
+        genai.configure(api_key=api_key)
+    except Exception as e:
+        raise ValueError(f"Failed to configure Gemini API: {str(e)}")
+
+
+def build_exam_prompt(content: str, config: ExamConfig) -> str:
+    """Build the prompt for Gemini based on content and configuration."""
+    
+    # Build focus concepts section if provided
+    focus_concepts_section = ""
+    if config.focus_concepts and len(config.focus_concepts) > 0:
+        concepts_list = ", ".join(config.focus_concepts)
+        focus_concepts_section = f"- Focus on these concepts: {concepts_list}"
+    
+    # Format question types for display
+    question_types_str = ", ".join(config.question_types)
+    
+    prompt = EXAM_GENERATION_PROMPT.format(
+        content=content[:15000],  # Limit content to avoid token limits
+        question_count=config.question_count,
+        difficulty=config.difficulty,
+        question_types=question_types_str,
+        focus_concepts_section=focus_concepts_section
+    )
+    
+    return prompt
+
+
+def extract_json_from_response(response_text: str) -> str:
+    """
+    Extract JSON from Gemini response, handling markdown code blocks and truncation.
+    """
+    # Log response length for debugging
+    print(f"DEBUG: Response length: {len(response_text)} characters")
+    
+    # Remove markdown code blocks if present
+    json_match = re.search(r'```(?:json)?\s*([\s\S]*?)\s*```', response_text)
+    if json_match:
+        extracted = json_match.group(1).strip()
+    else:
+        # Try to find JSON object directly
+        json_match = re.search(r'\{[\s\S]*\}', response_text)
+        if json_match:
+            extracted = json_match.group(0).strip()
+        else:
+            extracted = response_text.strip()
+    
+    # Check if JSON appears truncated (doesn't end with })
+    if not extracted.rstrip().endswith('}'):
+        # Try to find the last complete closing brace
+        last_brace = extracted.rfind('}')
+        if last_brace > 0:
+            extracted = extracted[:last_brace + 1]
+    
+    return extracted
+
+
+def parse_gemini_response(response_text: str) -> GeneratedExam:
+    """
+    Parse and validate Gemini's JSON response.
+    """
+    try:
+        # Extract JSON from response
+        json_str = extract_json_from_response(response_text)
+        
+        # Parse JSON
+        data = json.loads(json_str)
+        
+        # Validate structure and create Pydantic models
+        exam = GeneratedExam(**data)
+        
+        # Additional validation
+        if len(exam.questions) == 0:
+            raise ValueError("No questions generated")
+        
+        # Validate question types
+        valid_types = {'mcq', 'short', 'truefalse', 'cloze', 'multi'}
+        for q in exam.questions:
+            if q.type not in valid_types:
+                q.type = 'short'  # Default to short answer if invalid
+            
+            # Ensure MCQ questions have options
+            if q.type == 'mcq' and (not q.options or len(q.options) < 2):
+                raise ValueError(f"MCQ question missing valid options: {q.question}")
+        
+        return exam
+        
+    except json.JSONDecodeError as e:
+        # Check if response was likely truncated
+        if len(response_text) > 15000:
+            raise ValueError(
+                f"Gemini response appears to be truncated (too many questions requested). "
+                f"Try reducing the number of questions or simplifying the request.\n"
+                f"Error: {str(e)}"
+            )
+        raise ValueError(f"Failed to parse JSON from Gemini response: {str(e)}\nResponse: {response_text[:500]}")
+    except Exception as e:
+        raise ValueError(f"Failed to validate exam structure: {str(e)}")
+
+
+async def resolve_model_for_key(api_key: str) -> str:
+    """Resolve the best available Gemini model for the provided API key.
+
+    Preference order:
+    - gemini-2.5-pro (highest quality)
+    - gemini-2.5-flash
+    - gemini-2.0-flash (cheapest)
+
+    Returns the full model name (e.g., 'models/gemini-2.5-flash') that works with the API.
+    Falls back to 'models/gemini-2.5-flash' if discovery fails.
+    """
+    # Ensure SDK is configured with the key
+    configure_gemini(api_key)
+
+    preferred_order = [
+        'gemini-2.5-pro',
+        'gemini-2.5-flash',
+        'gemini-2.0-flash',
+    ]
+
+    try:
+        # Some SDKs return names like 'models/gemini-2.5-flash' and include supported methods
+        models = list(genai.list_models())
+        # Map plain name -> full name (e.g., 'gemini-2.5-flash' -> 'models/gemini-2.5-flash')
+        supported_models = {}
+        for m in models:
+            try:
+                methods = getattr(m, 'supported_generation_methods', []) or []
+                if 'generateContent' not in methods:
+                    continue
+                # Get the full model name and normalize to plain model id
+                name_raw = getattr(m, 'name', '') or ''
+                plain = name_raw.split('/')[-1]
+                if plain.endswith('-latest'):
+                    plain = plain[:-7]
+                # Store the mapping: plain name -> full name
+                supported_models[plain] = name_raw
+            except Exception:
+                continue
+
+        # Return full name for first matching preferred model
+        for candidate in preferred_order:
+            if candidate in supported_models:
+                return supported_models[candidate]  # Return full name that works with the API
+        
+        # If no preferred model found, return any available model's full name
+        if supported_models:
+            return next(iter(supported_models.values()))
+    except Exception:
+        # If listing models fails (network, permission), fall back to a sensible default
+        pass
+
+    # Fallback: return a full model name format
+    return 'models/gemini-2.5-flash'
+
+
+async def generate_exam_from_content(
+    content: str,
+    config: ExamConfig,
+    api_key: str
+) -> GeneratedExam:
+    """
+    Main function to generate exam from content using Gemini API.
+    
+    Args:
+        content: Extracted text from study materials
+        config: Exam configuration (question count, difficulty, types)
+        api_key: User's Gemini API key
+    
+    Returns:
+        GeneratedExam object with metadata and questions
+    """
+    try:
+        # Configure Gemini with user's API key
+        configure_gemini(api_key)
+        
+        # Build prompt
+        prompt = build_exam_prompt(content, config)
+        
+        # Resolve and initialize Gemini model
+        model_name = await resolve_model_for_key(api_key)
+        model = genai.GenerativeModel(model_name)
+        
+        # Generate content
+        response = model.generate_content(
+            prompt,
+            generation_config=genai.GenerationConfig(
+                temperature=0.7,
+                top_p=0.95,
+                top_k=40,
+                max_output_tokens=65536,  # Support up to 100 questions
+            )
+        )
+        
+        # Check if response was truncated by checking finish_reason
+        try:
+            if hasattr(response, 'candidates') and response.candidates and len(response.candidates) > 0:
+                candidate = response.candidates[0]
+                finish_reason = candidate.finish_reason
+                
+                # Log for debugging
+                print(f"DEBUG: Gemini finish_reason: {finish_reason}")
+                print(f"DEBUG: Response length: {len(response.text)} characters")
+                
+                # Check for truncation (finish_reason codes: 1=STOP, 2=MAX_TOKENS, 3=SAFETY, 4=RECITATION)
+                if finish_reason == 2 or str(finish_reason) == "MAX_TOKENS":
+                    raise ValueError(
+                        "Response truncated - too many questions requested. "
+                        "The Gemini model's per-request limit was reached. "
+                        "Try requesting 10-15 questions instead of 20+."
+                    )
+                elif finish_reason == 3 or str(finish_reason) == "SAFETY":
+                    raise ValueError(
+                        "Response blocked by safety filters. "
+                        "Try using different study material or requesting simpler questions."
+                    )
+                elif finish_reason == 4 or str(finish_reason) == "RECITATION":
+                    raise ValueError(
+                        "Response blocked due to recitation detection. "
+                        "Content may be too similar to copyrighted material."
+                    )
+                elif finish_reason not in [1, "STOP"]:
+                    raise ValueError(f"Unexpected finish_reason: {finish_reason}")
+        except AttributeError:
+            # Response structure doesn't have candidates (shouldn't happen but be safe)
+            pass
+        
+        # Parse response
+        exam = parse_gemini_response(response.text)
+
+        # Attach the chosen model name on the fly for upstream usage (stored in metadata by route)
+        # We return a tuple via an attribute to avoid breaking existing types elsewhere
+        setattr(exam, '_model_name', model_name)
+        return exam
+
+    except google_exceptions.NotFound as e:
+        raise ValueError(
+            "Requested model is not found or unsupported by your key. "
+            "The app automatically tries free models like 'gemini-2.5-flash'."
+        )
+    except google_exceptions.PermissionDenied as e:
+        raise ValueError(
+            "Your API key lacks access to the selected model. "
+            "Please check AI Studio quotas or try a free model like 'gemini-2.5-flash'."
+        )
+    except Exception as e:
+        raise ValueError(f"Failed to generate exam with Gemini: {str(e)}")
+
+
+async def validate_api_key(api_key: str) -> bool:
+    """
+    Validate that the provided Gemini API key works by discovering available models dynamically.
+    Returns True if key is valid; raises with a descriptive error otherwise.
+    
+    This function uses the same approach as resolve_model_for_key() to discover
+    what models are actually available rather than trying hardcoded names.
+    """
+    # Configure Gemini SDK with the provided API key
+    configure_gemini(api_key)
+    
+    try:
+        # Discover available models (same approach as resolve_model_for_key)
+        models = list(genai.list_models())
+        supported_models = []
+        
+        # Find models that support generateContent
+        for m in models:
+            try:
+                methods = getattr(m, 'supported_generation_methods', []) or []
+                if 'generateContent' in methods:
+                    name_raw = getattr(m, 'name', '') or ''
+                    # Normalize to plain model id without 'models/' prefix or '-latest' suffix
+                    plain = name_raw.split('/')[-1]
+                    if plain.endswith('-latest'):
+                        plain = plain[:-7]
+                    supported_models.append((plain, name_raw))
+            except Exception:
+                continue
+        
+        if not supported_models:
+            raise ValueError(
+                "No models with generateContent support found. "
+                "Please check your API key has proper permissions at: "
+                "https://aistudio.google.com/app/apikey"
+            )
+        
+        # Try the first available model
+        last_error = None
+        for plain_name, full_name in supported_models:
+            try:
+                model = genai.GenerativeModel(full_name)
+                response = model.generate_content(
+                    "Say 'OK' if you can read this.",
+                    generation_config=genai.GenerationConfig(
+                        max_output_tokens=10,
+                    )
+                )
+                
+                # Extract response text
+                text = getattr(response, 'text', None)
+                if not text:
+                    try:
+                        candidates = getattr(response, 'candidates', []) or []
+                        if candidates and candidates[0].content and candidates[0].content.parts:
+                            part0 = candidates[0].content.parts[0]
+                            text = getattr(part0, 'text', None)
+                    except Exception:
+                        pass
+                
+                if not text:
+                    last_error = f"Empty response from model '{full_name}'"
+                    continue
+                
+                # Success! This model works
+                return True
+                
+            except google_exceptions.NotFound:
+                last_error = f"Model '{full_name}' not found"
+                continue
+            except google_exceptions.PermissionDenied:
+                last_error = f"Permission denied for model '{full_name}'"
+                continue
+            except google_exceptions.GoogleAPIError as e:
+                last_error = f"Google API error with '{full_name}': {str(e)}"
+                continue
+            except Exception as e:
+                last_error = f"Error with '{full_name}': {str(e)}"
+                continue
+        
+        # All discovered models failed
+        error_msg = (
+            f"Unable to access any Gemini models. "
+            f"Tried {len(supported_models)} available models.\n"
+            f"Last error: {last_error}\n\n"
+            f"Please verify your API key is valid and active at: "
+            f"https://aistudio.google.com/app/apikey"
+        )
+        raise ValueError(error_msg)
+        
+    except Exception as e:
+        # If listing models fails, provide helpful error
+        error_msg = (
+            f"Failed to validate API key: {str(e)}\n\n"
+            f"Please ensure:\n"
+            f"  1. Your API key is valid and active\n"
+            f"  2. You have internet connectivity\n"
+            f"  3. Your firewall is not blocking Google APIs\n"
+            f"\n"
+            f"Get or verify your API key at: https://aistudio.google.com/app/apikey"
+        )
+        raise ValueError(error_msg)
+

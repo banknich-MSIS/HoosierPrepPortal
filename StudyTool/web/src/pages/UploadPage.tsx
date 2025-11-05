@@ -1,0 +1,752 @@
+import { useState } from "react";
+import { uploadCsv } from "../api/client";
+import { useNavigate, useOutletContext } from "react-router-dom";
+import type { UploadMetadata } from "../types";
+
+export default function UploadPage() {
+  const { darkMode, theme } = useOutletContext<{
+    darkMode: boolean;
+    theme: any;
+  }>();
+  const [file, setFile] = useState<File | null>(null);
+  const [studySetName, setStudySetName] = useState<string>("");
+  const [csvText, setCsvText] = useState<string>("");
+  const [uploadedFromPaste, setUploadedFromPaste] = useState(false);
+  const [stats, setStats] = useState<Record<string, unknown> | null>(null);
+  const [uploadId, setUploadId] = useState<number | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [hoveredButton, setHoveredButton] = useState<string | null>(null);
+  const nav = useNavigate();
+
+  const onUpload = async () => {
+    if (!file && !csvText.trim()) return;
+    setLoading(true);
+    setError(null);
+    try {
+      let fileToUpload = file;
+      const wasPasted = !file && csvText.trim();
+
+      // If CSV text is provided instead of file, convert it to a File
+      if (!fileToUpload && csvText.trim()) {
+        const blob = new Blob([csvText], { type: "text/csv" });
+        const safe = (studySetName || "study-set").replace(
+          /[^a-z0-9-_. ]/gi,
+          "_"
+        );
+        const filename = `${safe}.csv`;
+        fileToUpload = new File([blob], filename, { type: "text/csv" });
+      }
+
+      if (!fileToUpload) return;
+
+      const res = await uploadCsv(fileToUpload);
+      setUploadId(res.uploadId);
+      setStats(res.stats);
+      setUploadedFromPaste(wasPasted);
+      // Clear inputs after successful upload
+      setFile(null);
+      setCsvText("");
+    } catch (e: any) {
+      setError(e?.response?.data?.detail || e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const downloadPastedCsv = () => {
+    if (!stats) return;
+    const csvContent = stats.raw_csv_content || "No CSV content available";
+    const blob = new Blob([csvContent], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "generated-study-set.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const downloadTemplate = () => {
+    const csvContent = `# Hoosier Prep CSV Template with Detailed Formatting Rules
+# 
+# CRITICAL FORMATTING RULES FOR LLMs TO FOLLOW:
+#
+# 1. FIELD QUOTING:
+#    - question: ALWAYS quoted (contains text)
+#    - options: ALWAYS quoted if populated (contains pipes)
+#    - answer: Quote ONLY if contains commas or pipes
+#    - concepts: ALWAYS quoted (comma-separated)
+#
+# 2. OPTIONS (mcq/multi only):
+#    - Use pipes (|) to separate options
+#    - NO spaces around pipes
+#    - NO commas within options
+#    - Example: "Option A|Option B|Option C"
+#
+# 3. ANSWERS:
+#    - mcq: Single value matching ONE option exactly (case-sensitive)
+#    - multi: Pipe-separated, MUST be quoted (e.g., "A|B|C")
+#    - short: Simple text, quote if contains commas/pipes
+#    - truefalse: "True" or "False"
+#    - cloze: Pipe-separated for each blank, MUST be quoted
+#
+# 4. CONCEPTS:
+#    - Comma-separated tags
+#    - ALWAYS quoted
+#    - Example: "Networking,Router,OSI Model"
+#
+# 5. FORBIDDEN:
+#    - NO pipes in question stems (use other punctuation or rephrase)
+#    - NO commas in options or multi-answers (use pipes)
+#    - NO citation markers ([cite: XX])
+#    - NO special annotations or metadata
+#
+# 6. QUESTION TYPES:
+#    mcq = Single correct multiple choice
+#    multi = Multiple correct selections
+#    short = Text answer
+#    truefalse = True/False
+#    cloze = Fill-in-the-blank (use underscores in question)
+#
+# Example: "The _____ protocol operates at Layer 4" with answer "TCP"
+#
+
+#themes: Your Study Topic, Subtopic
+#suggested_types: mcq,short,multi
+#recommended_count: 10
+
+question,type,options,answer,concepts
+"What is 2+2?",short,,4,"Basic Math"
+"What is the capital of France?",mcq,"Paris|London|Berlin|Madrid",Paris,"Geography"
+"Which are programming languages?",multi,"Python|English|Java|C++","Python|Java|C++","Programming,Languages"
+"HTML is a programming language",truefalse,,False,"HTML,Web"
+"The _____ is the heart of a computer",cloze,,CPU,"Hardware,Components"`;
+
+    const blob = new Blob([csvContent], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "hoosier-prep-template.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const showTutorial = () => {
+    // This will be handled by the parent App component
+    window.dispatchEvent(new CustomEvent("showTutorial"));
+  };
+
+  const metadata = stats?.metadata as UploadMetadata | undefined;
+
+  return (
+    <div style={{ display: "grid", gap: 16 }}>
+      {/* Gemini Workflow Instructions - Glassmorphism */}
+      <div
+        style={{
+          background: theme.cardBg,
+          backdropFilter: theme.glassBlur,
+          WebkitBackdropFilter: theme.glassBlur,
+          padding: 20,
+          borderRadius: 12,
+          border: `1px solid ${theme.glassBorder}`,
+          boxShadow: theme.glassShadow,
+        }}
+      >
+        <h3
+          style={{
+            margin: "0 0 12px 0",
+            color: theme.crimson,
+            fontWeight: 600,
+            letterSpacing: "-0.3px",
+          }}
+        >
+          Manual Exam Creator
+        </h3>
+        <div style={{ marginBottom: 16 }}>
+          <div
+            style={{ fontWeight: 600, color: theme.crimson, marginBottom: 6 }}
+          >
+            About this page
+          </div>
+          <p
+            style={{
+              margin: "0 0 12px 0",
+              color: theme.text,
+              fontSize: 14,
+              lineHeight: 1.6,
+              paddingLeft: 12,
+            }}
+          >
+            This is the manual path to create a study set: upload a CSV you
+            already have or paste CSV generated by the Gemini Gem. After
+            uploading, you can configure and start an exam.
+          </p>
+        </div>
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontWeight: 600, color: theme.amber, marginBottom: 6 }}>
+            Prefer automated AI generation?
+          </div>
+          <p
+            style={{
+              margin: 0,
+              color: theme.text,
+              fontSize: 14,
+              lineHeight: 1.6,
+              paddingLeft: 12,
+            }}
+          >
+            Use the{" "}
+            <a
+              href="https://gemini.google.com/gem/582bd1e1e16d"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color: theme.amber, textDecoration: "underline" }}
+            >
+              Gemini Gem
+            </a>
+            ️ to produce CSV text, or try the AI Exam Creator page.
+          </p>
+        </div>
+        <div style={{ marginTop: 12, display: "flex", gap: 8 }}>
+          <button
+            onClick={showTutorial}
+            style={{
+              padding: "8px 14px",
+              background: "rgba(196, 30, 58, 0.08)",
+              color: theme.crimson,
+              border: `1px solid ${theme.glassBorder}`,
+              borderRadius: 6,
+              cursor: "pointer",
+              fontSize: 13,
+              fontWeight: 500,
+              transition: "0.2s",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "rgba(196, 30, 58, 0.15)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "rgba(196, 30, 58, 0.08)";
+            }}
+          >
+            View Guide
+          </button>
+          <button
+            onClick={downloadTemplate}
+            style={{
+              padding: "10px 20px",
+              border: "none",
+              borderRadius: 6,
+              background: theme.amber,
+              color: "white",
+              cursor: "pointer",
+              fontWeight: 600,
+              letterSpacing: "-0.2px",
+              transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+              boxShadow: "0 2px 8px rgba(212, 166, 80, 0.25)",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.boxShadow =
+                "0 4px 12px rgba(212, 166, 80, 0.35)";
+              e.currentTarget.style.transform = "translateY(-1px)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.boxShadow =
+                "0 2px 8px rgba(212, 166, 80, 0.25)";
+              e.currentTarget.style.transform = "translateY(0)";
+            }}
+          >
+            Download Template
+          </button>
+        </div>
+      </div>
+
+      {/* Study Set Name */}
+      <div
+        style={{
+          background: theme.cardBg,
+          backdropFilter: theme.glassBlur,
+          WebkitBackdropFilter: theme.glassBlur,
+          borderRadius: 12,
+          padding: 20,
+          border: `1px solid ${theme.glassBorder}`,
+          boxShadow: theme.glassShadow,
+        }}
+      >
+        <label
+          style={{
+            display: "block",
+            marginBottom: 8,
+            color: theme.text,
+            fontWeight: 600,
+          }}
+        >
+          Study Set Name
+        </label>
+        <input
+          type="text"
+          value={studySetName}
+          onChange={(e) => setStudySetName(e.target.value)}
+          placeholder="e.g., Zero Trust Architecture Set"
+          style={{
+            width: "100%",
+            padding: 12,
+            borderRadius: 8,
+            border: `1px solid ${theme.border}`,
+            background: theme.cardBgSolid,
+            color: theme.text,
+            fontSize: 14,
+          }}
+        />
+        <div style={{ marginTop: 8, color: theme.textSecondary, fontSize: 12 }}>
+          Used for naming the saved CSV when pasting text. For file uploads, the
+          original filename is kept.
+        </div>
+      </div>
+
+      {/* CSV Upload Section - Glassmorphism */}
+      <div
+        style={{
+          border: `2px dashed ${theme.glassBorder}`,
+          borderRadius: 12,
+          padding: 24,
+          textAlign: "center",
+          background: file ? theme.navHover : theme.cardBg,
+          backdropFilter: theme.glassBlur,
+          WebkitBackdropFilter: theme.glassBlur,
+          boxShadow: file ? theme.glassShadowHover : theme.glassShadow,
+          transition: "all 0.3s ease",
+        }}
+      >
+        <h3
+          style={{
+            margin: "0 0 16px 0",
+            color: theme.crimson,
+            fontWeight: 600,
+            textAlign: "center",
+          }}
+        >
+          Upload Study CSV
+        </h3>
+        <div style={{ display: "flex", justifyContent: "center" }}>
+          <input
+            type="file"
+            accept=".csv"
+            onChange={(e) => {
+              setFile(e.target.files?.[0] || null);
+              if (e.target.files?.[0]) setCsvText("");
+            }}
+            style={{
+              color: theme.text,
+              backgroundColor: theme.cardBgSolid,
+              padding: 16,
+              borderRadius: 8,
+              border: `2px solid ${theme.glassBorder}`,
+              fontSize: 15,
+              fontWeight: 500,
+              cursor: "pointer",
+              maxWidth: 400,
+            }}
+          />
+        </div>
+      </div>
+
+      {/* CSV Text Paste Section - Glassmorphism */}
+      <div
+        style={{
+          border: `2px dashed ${theme.glassBorder}`,
+          borderRadius: 12,
+          padding: 24,
+          background: csvText.trim() ? theme.navHover : theme.cardBg,
+          backdropFilter: theme.glassBlur,
+          WebkitBackdropFilter: theme.glassBlur,
+          boxShadow: csvText.trim()
+            ? theme.glassShadowHover
+            : theme.glassShadow,
+          transition: "all 0.3s ease",
+        }}
+      >
+        <h3
+          style={{
+            margin: "0 0 8px 0",
+            color: theme.crimson,
+            fontWeight: 600,
+          }}
+        >
+          Or Paste CSV Text (Gemini format)
+        </h3>
+        <p
+          style={{
+            margin: "0 0 12px 0",
+            fontSize: 14,
+            color: theme.textSecondary,
+            lineHeight: 1.5,
+          }}
+        >
+          Paste the CSV text code outputted in the format delivered from Gemini
+        </p>
+        <textarea
+          value={csvText}
+          onChange={(e) => {
+            setCsvText(e.target.value);
+            if (e.target.value.trim()) setFile(null);
+          }}
+          placeholder="Paste your CSV content here..."
+          style={{
+            width: "100%",
+            minHeight: 200,
+            padding: 16,
+            borderRadius: 8,
+            border: `1px solid ${theme.border}`,
+            background: theme.cardBgSolid,
+            color: theme.text,
+            fontFamily: "monospace",
+            fontSize: 13,
+            resize: "vertical",
+            outline: "none",
+          }}
+        />
+      </div>
+
+      {/* Upload Button - Glassmorphism */}
+      <div style={{ textAlign: "center" }}>
+        <button
+          onClick={onUpload}
+          disabled={(!file && !csvText.trim()) || loading}
+          style={{
+            padding: "12px 32px",
+            background: file || csvText.trim() ? theme.crimson : theme.border,
+            color: "white",
+            border: "none",
+            borderRadius: 6,
+            cursor: file || csvText.trim() ? "pointer" : "not-allowed",
+            fontSize: 16,
+            fontWeight: 600,
+            letterSpacing: "-0.2px",
+            transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+            boxShadow:
+              file || csvText.trim()
+                ? "0 2px 8px rgba(196, 30, 58, 0.25)"
+                : "none",
+            transform:
+              hoveredButton === "uploadCsv" ? "translateY(-1px)" : "none",
+          }}
+          onMouseEnter={(e) => {
+            if (file || csvText.trim()) {
+              e.currentTarget.style.boxShadow =
+                "0 4px 12px rgba(196, 30, 58, 0.35)";
+            }
+          }}
+          onMouseLeave={(e) => {
+            if (file || csvText.trim()) {
+              e.currentTarget.style.boxShadow =
+                "0 2px 8px rgba(196, 30, 58, 0.25)";
+            }
+          }}
+        >
+          {loading ? "Uploading..." : "Upload CSV"}
+        </button>
+      </div>
+
+      {error && (
+        <div
+          style={{
+            color: darkMode ? "#ef5350" : "#c41e3a",
+            padding: 16,
+            background: darkMode
+              ? "rgba(196, 30, 58, 0.1)"
+              : "rgba(196, 30, 58, 0.08)",
+            backdropFilter: theme.glassBlur,
+            WebkitBackdropFilter: theme.glassBlur,
+            borderRadius: 10,
+            border: `1px solid ${theme.crimson}`,
+            boxShadow: theme.glassShadow,
+            fontWeight: 500,
+          }}
+        >
+          {error}
+        </div>
+      )}
+
+      {uploadId && (
+        <div
+          style={{
+            background: theme.cardBg,
+            backdropFilter: theme.glassBlur,
+            WebkitBackdropFilter: theme.glassBlur,
+            borderRadius: 12,
+            padding: 20,
+            border: `1px solid ${theme.glassBorder}`,
+            boxShadow: theme.glassShadowHover,
+          }}
+        >
+          <h3
+            style={{
+              margin: "0 0 12px 0",
+              color: darkMode ? "#66bb6a" : "#28a745",
+            }}
+          >
+            Upload Successful!
+          </h3>
+          <div style={{ marginBottom: 12, color: theme.text }}>
+            <strong>Upload ID:</strong> {uploadId}
+          </div>
+
+          {/* Display Metadata */}
+          {metadata && (
+            <div style={{ marginBottom: 16, color: theme.text }}>
+              <h4 style={{ margin: "0 0 8px 0" }}>Study Configuration:</h4>
+              {metadata.themes && (
+                <div style={{ marginBottom: 8 }}>
+                  <strong>Themes:</strong> {metadata.themes.join(", ")}
+                </div>
+              )}
+              {metadata.suggested_types && (
+                <div style={{ marginBottom: 8 }}>
+                  <strong>Question Types:</strong>{" "}
+                  {metadata.suggested_types.join(", ")}
+                </div>
+              )}
+              {metadata.recommended_count && (
+                <div style={{ marginBottom: 8 }}>
+                  <strong>Recommended Questions:</strong>{" "}
+                  {metadata.recommended_count}
+                </div>
+              )}
+              {metadata.difficulty && (
+                <div style={{ marginBottom: 8 }}>
+                  <strong>Difficulty:</strong> {metadata.difficulty}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Friendly Stats */}
+          <div style={{ display: "grid", gap: 12 }}>
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+              <div
+                style={{
+                  padding: 12,
+                  borderRadius: 8,
+                  background: darkMode ? "#1e2e1e" : "#f0fdf4",
+                  border: `1px solid ${darkMode ? "#2e4e2e" : "#bbf7d0"}`,
+                  minWidth: 160,
+                }}
+              >
+                <div style={{ fontSize: 12, color: theme.textSecondary }}>
+                  Rows
+                </div>
+                <div
+                  style={{ fontSize: 20, fontWeight: 700, color: theme.text }}
+                >
+                  {(stats as any)?.rows}
+                </div>
+              </div>
+              <div
+                style={{
+                  padding: 12,
+                  borderRadius: 8,
+                  background: darkMode ? "#2e1e1e" : "#fef2f2",
+                  border: `1px solid ${darkMode ? "#4e2e2e" : "#fecaca"}`,
+                  minWidth: 160,
+                }}
+              >
+                <div style={{ fontSize: 12, color: theme.textSecondary }}>
+                  Questions
+                </div>
+                <div
+                  style={{ fontSize: 20, fontWeight: 700, color: theme.text }}
+                >
+                  {(stats as any)?.questions}
+                </div>
+              </div>
+              {(stats as any)?.metadata?.question_type_counts && (
+                <div
+                  style={{
+                    padding: 12,
+                    borderRadius: 8,
+                    background: theme.cardBg,
+                    border: `1px solid ${theme.glassBorder}`,
+                    minWidth: 220,
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 12,
+                      color: theme.textSecondary,
+                      marginBottom: 6,
+                    }}
+                  >
+                    Types
+                  </div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                    {Object.entries(
+                      (stats as any).metadata.question_type_counts
+                    ).map(([t, n]) => (
+                      <span
+                        key={t}
+                        style={{
+                          padding: "4px 8px",
+                          borderRadius: 999,
+                          background: darkMode ? "#2a4a62" : "#e3f2fd",
+                          color: darkMode ? "#90caf9" : "#1976d2",
+                          fontSize: 12,
+                        }}
+                      >
+                        {t}: {n as any}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div>
+              <div
+                style={{ fontWeight: 600, color: theme.text, marginBottom: 6 }}
+              >
+                Columns
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {((stats as any)?.columns || []).map((c: string) => (
+                  <span
+                    key={c}
+                    title={c}
+                    style={{
+                      padding: "4px 8px",
+                      borderRadius: 6,
+                      background: darkMode ? "#3d3d3d" : "#f1f5f9",
+                      color: theme.textSecondary,
+                      maxWidth: 200,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {c}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            {((stats as any)?.warnings || []).length > 0 && (
+              <div>
+                <div
+                  style={{
+                    fontWeight: 600,
+                    color: theme.text,
+                    marginBottom: 6,
+                  }}
+                >
+                  Warnings
+                </div>
+                <ul
+                  style={{
+                    margin: 0,
+                    paddingLeft: 18,
+                    color: theme.textSecondary,
+                  }}
+                >
+                  {((stats as any).warnings as string[]).map((w, i) => (
+                    <li
+                      key={i}
+                      title={w}
+                      style={{
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                        maxWidth: 800,
+                      }}
+                    >
+                      {w}
+                    </li>
+                  ))}
+                </ul>
+                <div
+                  style={{
+                    marginTop: 6,
+                    fontSize: 12,
+                    color: theme.textSecondary,
+                  }}
+                >
+                  Options must be pipe-delimited (|). If options include commas,
+                  quote the entire options cell.
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div style={{ display: "flex", gap: 12 }}>
+            {uploadedFromPaste && (
+              <button
+                onClick={downloadPastedCsv}
+                style={{
+                  padding: "12px 28px",
+                  background: theme.amber,
+                  color: "white",
+                  border: "none",
+                  borderRadius: 6,
+                  cursor: "pointer",
+                  fontSize: 16,
+                  fontWeight: 600,
+                  letterSpacing: "-0.2px",
+                  transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+                  boxShadow: "0 2px 8px rgba(212, 166, 80, 0.25)",
+                  transform:
+                    hoveredButton === "downloadCsv"
+                      ? "translateY(-1px)"
+                      : "none",
+                }}
+                onMouseEnter={(e) => {
+                  setHoveredButton("downloadCsv");
+                  e.currentTarget.style.boxShadow =
+                    "0 4px 12px rgba(212, 166, 80, 0.35)";
+                }}
+                onMouseLeave={(e) => {
+                  setHoveredButton(null);
+                  e.currentTarget.style.boxShadow =
+                    "0 2px 8px rgba(212, 166, 80, 0.25)";
+                }}
+              >
+                Download CSV File
+              </button>
+            )}
+            <button
+              onClick={() =>
+                nav("/settings", { state: { uploadId, metadata } })
+              }
+              style={{
+                padding: "12px 28px",
+                background: theme.btnSuccess,
+                color: "white",
+                border: "none",
+                borderRadius: 6,
+                cursor: "pointer",
+                fontSize: 16,
+                fontWeight: 600,
+                letterSpacing: "-0.2px",
+                transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+                boxShadow: "0 2px 8px rgba(40, 167, 69, 0.25)",
+                transform:
+                  hoveredButton === "continueToSettings"
+                    ? "translateY(-1px)"
+                    : "none",
+              }}
+              onMouseEnter={(e) => {
+                setHoveredButton("continueToSettings");
+                e.currentTarget.style.boxShadow =
+                  "0 4px 12px rgba(40, 167, 69, 0.35)";
+              }}
+              onMouseLeave={(e) => {
+                setHoveredButton(null);
+                e.currentTarget.style.boxShadow =
+                  "0 2px 8px rgba(40, 167, 69, 0.25)";
+              }}
+            >
+              Configure & Start Exam →
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

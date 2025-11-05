@@ -1,0 +1,37 @@
+# Ignore Virtual Environment
+venv/
+.venv/
+server/.venv/
+
+# Ignore compiled Python files
+__pycache__/
+**/__pycache__/
+*.pyc
+
+# Node / frontend
+web/node_modules/
+web/dist/
+web/.vite/
+web/node_modules/.vite/
+
+# Python caches (explicit server path)
+server/__pycache__/
+
+# Local database and logs
+exam.db
+*.log
+
+# PID files for process tracking
+server/.backend.pid
+web/.frontend.pid
+
+# Electron build artifacts
+server/dist/
+server/build/
+web/dist/electron/
+web/build/
+
+# PyInstaller output
+server/*.spec~$
+
+
