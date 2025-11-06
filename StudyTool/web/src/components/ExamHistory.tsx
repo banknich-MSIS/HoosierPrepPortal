@@ -180,7 +180,7 @@ export default function ExamHistory({
               color: theme.amber,
             }}
           >
-            {bestScore}%
+            {Math.round(bestScore)}%
           </div>
           <div
             style={{ fontSize: 14, color: theme.textSecondary, marginTop: 4 }}

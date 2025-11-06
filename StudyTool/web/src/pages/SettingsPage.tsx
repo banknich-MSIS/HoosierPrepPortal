@@ -41,7 +41,6 @@ export default function SettingsPage() {
   const setExam = useExamStore((s) => s.setExam);
 
   const [count, setCount] = useState(10);
-  const [examName, setExamName] = useState("");
   const [examMode, setExamMode] = useState<"exam" | "practice">("exam");
   const [selectedClassId, setSelectedClassId] = useState<number | null>(null);
   const [showCreateClass, setShowCreateClass] = useState(false);
@@ -610,33 +609,7 @@ export default function SettingsPage() {
               (Optional)
             </h3>
             <div style={{ display: "grid", gap: 12 }}>
-              <div>
-                <label
-                  style={{
-                    display: "block",
-                    marginBottom: 4,
-                    fontWeight: "bold",
-                    color: theme.text,
-                  }}
-                >
-                  Exam Name
-                </label>
-                <input
-                  type="text"
-                  value={examName}
-                  onChange={(e) => setExamName(e.target.value)}
-                  placeholder="Enter exam name (optional)"
-                  style={{
-                    width: "100%",
-                    padding: "8px 12px",
-                    border: `1px solid ${theme.border}`,
-                    borderRadius: 4,
-                    fontSize: 14,
-                    backgroundColor: theme.cardBg,
-                    color: theme.text,
-                  }}
-                />
-              </div>
+              {/* Exam Name removed; file name will be used */}
               <div>
                 <label
                   style={{

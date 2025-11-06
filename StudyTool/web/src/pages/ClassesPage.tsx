@@ -367,29 +367,8 @@ export default function ClassesPage() {
             No classes yet
           </h3>
           <p style={{ margin: "0 0 16px 0", color: theme.textSecondary }}>
-            Create your first class to organize your study materials.
+            Create your first class using the "Create New Class" button above.
           </p>
-          <button
-            onClick={() => setShowCreateModal(true)}
-            onMouseEnter={() => setHoveredButton("createNewEmpty")}
-            onMouseLeave={() => setHoveredButton(null)}
-            style={{
-              padding: "10px 20px",
-              backgroundColor: "#007bff",
-              color: "white",
-              border: "none",
-              borderRadius: 6,
-              cursor: "pointer",
-              fontSize: 15,
-              filter:
-                hoveredButton === "createNewEmpty"
-                  ? "brightness(0.85)"
-                  : "brightness(1)",
-              transition: "all 0.2s ease",
-            }}
-          >
-            Create New Class
-          </button>
         </div>
       )}
 

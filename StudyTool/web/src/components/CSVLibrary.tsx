@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import type { UploadSummary, ClassSummary, QuestionType } from "../types";
 import ClassTagSelector from "./ClassTagSelector";
-import { fetchClasses, updateUploadName } from "../api/client";
+import { fetchClasses, updateUploadName, createExam } from "../api/client";
 
 const QUESTION_TYPE_LABELS: Record<string, string> = {
   mcq: "Multiple Choice",
@@ -45,6 +45,9 @@ export default function CSVLibrary({
   );
   const [editingUploadId, setEditingUploadId] = useState<number | null>(null);
   const [editName, setEditName] = useState<string>("");
+  const [showStartModal, setShowStartModal] = useState(false);
+  const [modalUploadIds, setModalUploadIds] = useState<number[]>([]);
+  const [selectedMode, setSelectedMode] = useState<"exam" | "practice">("exam");
 
   // Load classes to get actual colors
   useEffect(() => {
@@ -112,12 +115,54 @@ export default function CSVLibrary({
     setSelectedUploads(newSelection);
   };
 
-  const handleCreateExamFromSelected = () => {
+  const openStartModal = (ids: number[]) => {
+    setModalUploadIds(ids);
+    setSelectedMode("exam");
+    setShowStartModal(true);
+  };
+
+  const handleStartFromSelected = () => {
     if (selectedUploads.size > 0) {
       const uploadIds = Array.from(selectedUploads);
-      const firstUpload = uploads.find((u) => u.id === uploadIds[0]);
-      onCreateExam(uploadIds, firstUpload);
+      openStartModal(uploadIds);
+    }
+  };
+
+  const getTotalQuestionsForIds = (ids: number[]) => {
+    return ids
+      .map((id) => uploads.find((u) => u.id === id)?.question_count || 0)
+      .reduce((a, b) => a + b, 0);
+  };
+
+  const startExam = async () => {
+    if (modalUploadIds.length === 0) return;
+    try {
+      const totalQuestions = getTotalQuestionsForIds(modalUploadIds);
+      if (totalQuestions <= 0) {
+        alert("No questions available in the selected uploads.");
+        return;
+      }
+      const params: any = {
+        includeConceptIds: [],
+        questionTypes: [],
+        count: totalQuestions,
+      };
+      if (modalUploadIds.length === 1) {
+        params.uploadId = modalUploadIds[0];
+      } else {
+        params.uploadIds = modalUploadIds;
+      }
+      const exam = await createExam(params);
+      setShowStartModal(false);
       setSelectedUploads(new Set());
+      // Navigate directly
+      if (selectedMode === "practice") {
+        navigate(`/practice/${exam.examId}`);
+      } else {
+        navigate(`/exam/${exam.examId}`);
+      }
+    } catch (e: any) {
+      alert(e?.response?.data?.detail || e?.message || "Failed to start exam.");
     }
   };
 
@@ -357,7 +402,7 @@ export default function CSVLibrary({
           </div>
           {selectedUploads.size > 0 && (
             <button
-              onClick={handleCreateExamFromSelected}
+              onClick={handleStartFromSelected}
               style={{
                 padding: "10px 24px",
                 background: theme.crimson,
@@ -386,7 +431,7 @@ export default function CSVLibrary({
                   "0 2px 8px rgba(196, 30, 58, 0.25)";
               }}
             >
-              Create Exam from Selected
+              Start Exam
             </button>
           )}
         </div>
@@ -746,7 +791,7 @@ export default function CSVLibrary({
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    onCreateExam([upload.id], upload);
+                    openStartModal([upload.id]);
                   }}
                   onMouseEnter={() => setHoveredButton(`create-${upload.id}`)}
                   onMouseLeave={() => setHoveredButton(null)}
@@ -780,7 +825,7 @@ export default function CSVLibrary({
                     <line x1="12" y1="5" x2="12" y2="19" />
                     <line x1="5" y1="12" x2="19" y2="12" />
                   </svg>
-                  Create Exam
+                  Start Exam
                 </button>
 
                 {/* Download - icon only */}
@@ -871,6 +916,137 @@ export default function CSVLibrary({
           </div>
         ))}
       </div>
+
+    {/* Start Exam Modal */}
+    {showStartModal && (
+      <div
+        style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: "rgba(0,0,0,0.5)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 2000,
+        }}
+        onClick={() => setShowStartModal(false)}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") setShowStartModal(false);
+        }}
+      >
+        <div
+          style={{
+            background: theme.modalBg,
+            borderRadius: 12,
+            padding: 24,
+            width: "90%",
+            maxWidth: 420,
+            border: `1px solid ${theme.glassBorder}`,
+            boxShadow: theme.glassShadowHover,
+          }}
+          onClick={(e) => e.stopPropagation()}
+          role="dialog"
+          aria-modal="true"
+        >
+          <h3
+            style={{
+              margin: "0 0 12px 0",
+              fontSize: 20,
+              fontWeight: 700,
+              color: theme.text,
+            }}
+          >
+            Start Exam
+          </h3>
+          <p style={{ margin: "0 0 16px 0", color: theme.textSecondary }}>
+            This will use all questions from the selected upload
+            {modalUploadIds.length > 1 ? "s" : ""}. You can choose the mode
+            below.
+          </p>
+          <div style={{ marginBottom: 16, color: theme.text }}>
+            Total questions:{" "}
+            <strong>{getTotalQuestionsForIds(modalUploadIds)}</strong>
+          </div>
+
+          <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
+            <button
+              onClick={() => setSelectedMode("exam")}
+              style={{
+                padding: "10px 14px",
+                borderRadius: 8,
+                border: `2px solid ${
+                  selectedMode === "exam" ? theme.crimson : theme.glassBorder
+                }`,
+                background:
+                  selectedMode === "exam"
+                    ? darkMode
+                      ? "rgba(196, 30, 58, 0.15)"
+                      : "rgba(196, 30, 58, 0.08)"
+                    : "transparent",
+                color: theme.text,
+                cursor: "pointer",
+                flex: 1,
+              }}
+            >
+              📝 Exam Mode
+            </button>
+            <button
+              onClick={() => setSelectedMode("practice")}
+              style={{
+                padding: "10px 14px",
+                borderRadius: 8,
+                border: `2px solid ${
+                  selectedMode === "practice" ? theme.amber : theme.glassBorder
+                }`,
+                background:
+                  selectedMode === "practice"
+                    ? darkMode
+                      ? "rgba(212, 166, 80, 0.15)"
+                      : "rgba(212, 166, 80, 0.1)"
+                    : "transparent",
+                color: theme.text,
+                cursor: "pointer",
+                flex: 1,
+              }}
+            >
+              🎯 Practice Mode
+            </button>
+          </div>
+
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+            <button
+              onClick={() => setShowStartModal(false)}
+              style={{
+                padding: "10px 16px",
+                background: "transparent",
+                border: `1px solid ${theme.glassBorder}`,
+                borderRadius: 8,
+                color: theme.text,
+                cursor: "pointer",
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={startExam}
+              style={{
+                padding: "10px 16px",
+                background: theme.crimson,
+                border: "none",
+                borderRadius: 8,
+                color: "white",
+                cursor: "pointer",
+              }}
+            >
+              Start
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
     </div>
   );
 }
