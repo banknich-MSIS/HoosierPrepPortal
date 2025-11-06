@@ -1,0 +1,48 @@
+# OS / Editor junk
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# Node / Vite (web)
+StudyTool/web/node_modules/
+StudyTool/web/dist/
+StudyTool/web/dist-vite/
+StudyTool/web/.env
+StudyTool/web/.env.*
+
+# Python / FastAPI (server)
+StudyTool/server/.venv/
+StudyTool/server/**/__pycache__/
+StudyTool/server/**/*.py[cod]
+StudyTool/server/.env
+StudyTool/server/.env.*
+
+# User data and local DB
+StudyTool/uploads/**
+!StudyTool/uploads/.gitkeep
+StudyTool/exam.db
+*.db
+
+# Logs / caches / coverage
+*.log
+.cache/
+.pytest_cache/
+.coverage
+coverage/
+
+# Electron build outputs
+StudyTool/web/electron/dist/
+
+# Optional: process pid files
+StudyTool/server/.backend.pid
+StudyTool/web/.frontend.pid
+
+# Optional: other build outputs
+StudyTool/server/dist/
+StudyTool/server/build/
+StudyTool/web/dist/electron/
+StudyTool/web/build/
+
+

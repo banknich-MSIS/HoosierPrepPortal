@@ -206,6 +206,7 @@ async def generate_exam_from_files(
     focus_concepts: Optional[str] = Form(None),  # Comma-separated
     exam_name: Optional[str] = Form(None),  # Optional exam name
     exam_mode: Optional[str] = Form("exam"),  # exam or practice
+    generation_mode: Optional[str] = Form("strict"),  # strict | mixed | creative
     class_id: Optional[int] = Form(None),  # Optional class assignment
     x_gemini_api_key: str = Header(..., alias="X-Gemini-API-Key")
 ):
@@ -231,6 +232,10 @@ async def generate_exam_from_files(
                 detail="Could not extract enough content from files. Please ensure files contain text."
             )
         
+        # Validate exam name (required by product requirements)
+        if not exam_name or not exam_name.strip():
+            raise HTTPException(status_code=400, detail="Exam title is required")
+
         # Step 2: Build configuration
         question_types_list = [qt.strip() for qt in question_types.split(",") if qt.strip()]
         focus_concepts_list = None
@@ -241,7 +246,8 @@ async def generate_exam_from_files(
             question_count=question_count,
             difficulty=difficulty,
             question_types=question_types_list,
-            focus_concepts=focus_concepts_list
+            focus_concepts=focus_concepts_list,
+            generation_mode=(generation_mode or "strict").lower()
         )
         
         # Step 3: Generate exam with Gemini
@@ -257,9 +263,10 @@ async def generate_exam_from_files(
         # Determine model used (service attaches _model_name on the returned object)
         used_model = getattr(generated_exam, '_model_name', 'gemini-2.5-flash')
 
-        # Count existing AI-generated uploads and increment
+        # Count existing AI-generated uploads and increment (fallback naming only)
         ai_upload_count = db.query(Upload).filter(Upload.file_type == "ai_generated").count()
-        filename = f"AI Generated Quiz {ai_upload_count + 1}"
+        # Use provided exam name for the upload filename so it appears in dashboard/CSV library
+        filename = exam_name.strip() if exam_name and exam_name.strip() else f"AI Generated Quiz {ai_upload_count + 1}"
 
         upload = Upload(
             filename=filename,
@@ -348,6 +355,7 @@ async def generate_exam_from_files(
             "question_types": question_types_list,
             "exam_name": exam_name,
             "exam_mode": exam_mode,
+            "generation_mode": (generation_mode or "strict").lower(),
         }
         
         exam = Exam(

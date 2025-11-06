@@ -266,7 +266,7 @@ export default function ExamPage() {
                   question={question}
                   darkMode={darkMode}
                   theme={theme}
-                  disabled={answeredQuestions.has(question.id)}
+                  disabled={false}
                 />
               </div>
             ))}

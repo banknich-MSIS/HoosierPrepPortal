@@ -28,6 +28,21 @@ export default function Dashboard() {
     loadDashboardData();
   }, []);
 
+  // Targeted refresh of CSV Library while page is visible
+  useEffect(() => {
+    let cancelled = false;
+    const interval = setInterval(async () => {
+      try {
+        const uploadsData = await fetchAllUploads();
+        if (!cancelled) setUploads(uploadsData);
+      } catch {}
+    }, 5000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, []);
+
   const loadDashboardData = async () => {
     try {
       setLoading(true);

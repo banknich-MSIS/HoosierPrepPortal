@@ -5,6 +5,7 @@ import TutorialModal from "./components/TutorialModal";
 // import BackendStatus from "./components/BackendStatus";
 import IURedLogo from "./assets/IURedLogo.svg";
 import IUGreyLogo from "./assets/IUGreyLogo.svg";
+import JobToaster from "./components/JobToaster";
 
 export default function App() {
   const navigate = useNavigate();
@@ -451,6 +452,9 @@ export default function App() {
           darkMode={darkMode}
           theme={theme}
         />
+
+        {/* Background job toaster */}
+        <JobToaster theme={theme} />
 
         {/* Floating Dark Mode Toggle - Bottom Left - Glassmorphism */}
         <div

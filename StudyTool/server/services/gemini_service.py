@@ -16,6 +16,7 @@ class ExamConfig(BaseModel):
     difficulty: str
     question_types: List[str]
     focus_concepts: Optional[List[str]] = None
+    generation_mode: str = "strict"  # strict | mixed | creative
 
 
 class QuestionData(BaseModel):
@@ -140,6 +141,22 @@ def build_exam_prompt(content: str, config: ExamConfig) -> str:
         concepts_list = ", ".join(config.focus_concepts)
         focus_concepts_section = f"- Focus on these concepts: {concepts_list}"
     
+    # Generation mode guidance
+    mode = (config.generation_mode or "strict").lower()
+    if mode == "strict":
+        source_strategy = (
+            "- STRICT SOURCE MODE: All questions MUST be grounded strictly and explicitly in the provided Study Material. "
+            "Do NOT introduce facts or topics that are not present in the material."
+        )
+    elif mode == "creative":
+        source_strategy = (
+            "- CREATIVE MODE: You may include related or adjacent concepts that are not explicitly in the Study Material as long as they are closely relevant and pedagogically helpful."
+        )
+    else:  # mixed
+        source_strategy = (
+            "- MIXED MODE: About half of questions should be grounded strictly in the Study Material, and the rest may include closely-related adjacent concepts to broaden coverage."
+        )
+    
     # Format question types for display
     question_types_str = ", ".join(config.question_types)
     
@@ -148,7 +165,7 @@ def build_exam_prompt(content: str, config: ExamConfig) -> str:
         question_count=config.question_count,
         difficulty=config.difficulty,
         question_types=question_types_str,
-        focus_concepts_section=focus_concepts_section
+        focus_concepts_section=f"{focus_concepts_section}\n{source_strategy}"
     )
     
     return prompt

@@ -1,10 +1,10 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useOutletContext } from "react-router-dom";
 import {
-  generateExamFromFiles,
   fetchClasses,
   getExam,
   createClass,
+  startExamGenerationJob,
 } from "../api/client";
 import { useExamStore } from "../store/examStore";
 import type { ClassSummary } from "../types";
@@ -44,6 +44,9 @@ export default function SmartExamCreator() {
   const [focusConcepts, setFocusConcepts] = useState("");
   const [examName, setExamName] = useState("");
   const [examMode, setExamMode] = useState<"exam" | "practice">("exam");
+  const [generationMode, setGenerationMode] = useState<
+    "strict" | "mixed" | "creative"
+  >("strict");
   const [selectedClassId, setSelectedClassId] = useState<number | null>(null);
   const [classes, setClasses] = useState<ClassSummary[]>([]);
   const [showCreateClassModal, setShowCreateClassModal] = useState(false);
@@ -106,6 +109,11 @@ export default function SmartExamCreator() {
       return;
     }
 
+    if (!examName.trim()) {
+      setError("Please enter an exam title");
+      return;
+    }
+
     if (files.length === 0) {
       setError("Please upload at least one file");
       return;
@@ -127,16 +135,8 @@ export default function SmartExamCreator() {
       const formData = new FormData();
       files.forEach((file) => formData.append("files", file));
 
-      // Step 2: Upload and process
-      setProgressMessage("Uploading and extracting content...");
-      setProgress(30);
-      await new Promise((resolve) => setTimeout(resolve, 500));
-
-      // Step 3: Generate with AI
-      setProgressMessage("Generating exam with AI (this may take a minute)...");
-      setProgress(50);
-
-      const response = await generateExamFromFiles({
+      // Start async background job for generation
+      const job = await startExamGenerationJob({
         files: formData,
         questionCount,
         difficulty,
@@ -145,28 +145,16 @@ export default function SmartExamCreator() {
           .split(",")
           .map((c) => c.trim())
           .filter((c) => c.length > 0),
-        examName: examName || undefined,
+        examName: examName,
         examMode,
+        generationMode,
         selectedClassId: selectedClassId || undefined,
         apiKey,
       });
 
-      setProgressMessage("Creating exam in database...");
-      setProgress(90);
-      await new Promise((resolve) => setTimeout(resolve, 300));
-
-      setProgress(100);
-      setProgressMessage("Exam created successfully!");
-
-      // Fetch exam data and load into store
-      const examData = await getExam(response.exam_id);
-      setExam(response.exam_id, examData.questions);
-
-      // Store exam ID and show success dialog
-      setGeneratedExamId(response.exam_id);
-      setShowSuccessDialog(true);
-      setProgress(0);
-      setProgressMessage("");
+      // Store job id so global toaster can pick it up
+      localStorage.setItem("active_exam_job", job.jobId);
+      setProgressMessage("Generation started in background.");
     } catch (e: any) {
       setError(
         e?.response?.data?.detail ||
@@ -528,6 +516,82 @@ export default function SmartExamCreator() {
             </div>
           </div>
 
+          {/* Generation Mode */}
+          <div>
+            <label
+              style={{
+                display: "block",
+                marginBottom: 8,
+                color: theme.text,
+                fontWeight: 500,
+              }}
+            >
+              Question Source Strategy
+            </label>
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+              <label
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  padding: 10,
+                  border: `1px solid ${theme.glassBorder}`,
+                  borderRadius: 8,
+                  background:
+                    generationMode === "strict" ? "rgba(196, 30, 58, 0.06)" : "transparent",
+                }}
+              >
+                <input
+                  type="radio"
+                  name="generation-mode"
+                  checked={generationMode === "strict"}
+                  onChange={() => setGenerationMode("strict")}
+                />
+                <span style={{ color: theme.text }}>Strict (from provided content only)</span>
+              </label>
+              <label
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  padding: 10,
+                  border: `1px solid ${theme.glassBorder}`,
+                  borderRadius: 8,
+                  background:
+                    generationMode === "mixed" ? "rgba(196, 30, 58, 0.06)" : "transparent",
+                }}
+              >
+                <input
+                  type="radio"
+                  name="generation-mode"
+                  checked={generationMode === "mixed"}
+                  onChange={() => setGenerationMode("mixed")}
+                />
+                <span style={{ color: theme.text }}>Mixed (approx. 50/50 blend)</span>
+              </label>
+              <label
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  padding: 10,
+                  border: `1px solid ${theme.glassBorder}`,
+                  borderRadius: 8,
+                  background:
+                    generationMode === "creative" ? "rgba(196, 30, 58, 0.06)" : "transparent",
+                }}
+              >
+                <input
+                  type="radio"
+                  name="generation-mode"
+                  checked={generationMode === "creative"}
+                  onChange={() => setGenerationMode("creative")}
+                />
+                <span style={{ color: theme.text }}>Creative (concept-adjacent improvisation)</span>
+              </label>
+            </div>
+          </div>
+
           {/* Focus Concepts */}
           <div>
             <label
@@ -567,7 +631,7 @@ export default function SmartExamCreator() {
             </p>
           </div>
 
-          {/* Exam Name */}
+          {/* Exam Title (required) */}
           <div>
             <label
               style={{
@@ -577,7 +641,7 @@ export default function SmartExamCreator() {
                 fontWeight: 500,
               }}
             >
-              Exam Name (optional)
+              Exam Title
             </label>
             <input
               type="text"
@@ -594,6 +658,17 @@ export default function SmartExamCreator() {
                 fontSize: 14,
               }}
             />
+            {!examName.trim() && (
+              <p
+                style={{
+                  margin: "6px 0 0 0",
+                  fontSize: 12,
+                  color: theme.btnDanger,
+                }}
+              >
+                Title is required
+              </p>
+            )}
           </div>
 
           {/* Class Assignment */}
@@ -615,27 +690,6 @@ export default function SmartExamCreator() {
                 >
                   Assign to Class (optional)
                 </label>
-                <button
-                  onClick={() => setShowCreateClassModal(true)}
-                  style={{
-                    padding: "4px 8px",
-                    borderRadius: 6,
-                    border: `1px solid ${theme.border}`,
-                    background: darkMode
-                      ? "rgba(194, 155, 74, 0.1)"
-                      : "rgba(212, 166, 80, 0.15)",
-                    cursor: "pointer",
-                    color: theme.text,
-                    fontSize: 16,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    lineHeight: 1,
-                  }}
-                  title="Create new class"
-                >
-                  +
-                </button>
               </div>
               <select
                 value={selectedClassId || ""}
@@ -917,18 +971,18 @@ export default function SmartExamCreator() {
       <div style={{ textAlign: "center" }}>
         <button
           onClick={generateExam}
-          disabled={!hasApiKey || files.length === 0 || loading}
+          disabled={!hasApiKey || !examName.trim() || files.length === 0 || loading}
           style={{
             padding: "12px 32px",
             background:
-              hasApiKey && files.length > 0 && !loading
+              hasApiKey && examName.trim() && files.length > 0 && !loading
                 ? theme.crimson
                 : theme.border,
             color: "white",
             border: "none",
             borderRadius: 6,
             cursor:
-              hasApiKey && files.length > 0 && !loading
+              hasApiKey && examName.trim() && files.length > 0 && !loading
                 ? "pointer"
                 : "not-allowed",
             fontSize: 16,
@@ -936,7 +990,7 @@ export default function SmartExamCreator() {
             letterSpacing: "-0.2px",
             transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
             boxShadow:
-              hasApiKey && files.length > 0 && !loading
+              hasApiKey && examName.trim() && files.length > 0 && !loading
                 ? "0 2px 8px rgba(196, 30, 58, 0.25)"
                 : "none",
             transform:
@@ -947,14 +1001,14 @@ export default function SmartExamCreator() {
             margin: "0 auto",
           }}
           onMouseEnter={(e) => {
-            if (hasApiKey && files.length > 0 && !loading) {
+            if (hasApiKey && examName.trim() && files.length > 0 && !loading) {
               e.currentTarget.style.boxShadow =
                 "0 4px 12px rgba(196, 30, 58, 0.35)";
               e.currentTarget.style.filter = "brightness(1.1)";
             }
           }}
           onMouseLeave={(e) => {
-            if (hasApiKey && files.length > 0 && !loading) {
+            if (hasApiKey && examName.trim() && files.length > 0 && !loading) {
               e.currentTarget.style.boxShadow =
                 "0 2px 8px rgba(196, 30, 58, 0.25)";
               e.currentTarget.style.filter = "brightness(1)";
@@ -983,50 +1037,17 @@ export default function SmartExamCreator() {
         </button>
       </div>
 
-      {/* Progress Bar */}
-      {loading && (
-        <div
-          style={{
-            background: theme.cardBg,
-            backdropFilter: theme.glassBlur,
-            WebkitBackdropFilter: theme.glassBlur,
-            borderRadius: 12,
-            padding: 20,
-            border: `1px solid ${theme.glassBorder}`,
-            boxShadow: theme.glassShadow,
-          }}
-        >
-          <div style={{ marginBottom: 12 }}>
-            <div
-              style={{
-                height: 8,
-                background: theme.border,
-                borderRadius: 4,
-                overflow: "hidden",
-              }}
-            >
-              <div
-                style={{
-                  height: "100%",
-                  width: `${progress}%`,
-                  background: `linear-gradient(90deg, ${theme.crimson}, ${theme.crimsonLight})`,
-                  transition: "width 0.3s ease",
-                }}
-              />
-            </div>
-          </div>
-          <p
-            style={{
-              margin: 0,
-              textAlign: "center",
-              color: theme.text,
-              fontSize: 14,
-            }}
-          >
-            {progressMessage}
-          </p>
-        </div>
-      )}
+      {/* Background generation hint */}
+      <div
+        style={{
+          marginTop: 12,
+          textAlign: "center",
+          color: theme.textSecondary,
+          fontSize: 13,
+        }}
+      >
+        You can browse around while your exam is generating.
+      </div>
 
       {/* Success Dialog */}
       {showSuccessDialog && (

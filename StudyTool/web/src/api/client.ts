@@ -231,6 +231,7 @@ export async function generateExamFromFiles(params: {
   focusConcepts: string[];
   examName?: string;
   examMode?: string;
+  generationMode?: "strict" | "mixed" | "creative";
   selectedClassId?: number;
   apiKey: string;
 }): Promise<{ exam_id: number; upload_id: number; stats: any }> {
@@ -247,6 +248,9 @@ export async function generateExamFromFiles(params: {
   if (params.examMode) {
     formData.append("exam_mode", params.examMode);
   }
+  if (params.generationMode) {
+    formData.append("generation_mode", params.generationMode);
+  }
   if (params.selectedClassId) {
     formData.append("class_id", params.selectedClassId.toString());
   }
@@ -262,5 +266,56 @@ export async function generateExamFromFiles(params: {
 
 export async function getSupportedFormats(): Promise<{ formats: string[] }> {
   const { data } = await api.get("/ai/supported-formats");
+  return data;
+}
+
+// Async job-based generation
+export async function startExamGenerationJob(params: {
+  files: FormData;
+  questionCount: number;
+  difficulty: string;
+  questionTypes: string[];
+  focusConcepts: string[];
+  examName: string;
+  examMode?: string;
+  generationMode?: "strict" | "mixed" | "creative";
+  selectedClassId?: number;
+  apiKey: string;
+}): Promise<{ jobId: string }> {
+  const formData = params.files;
+  formData.append("question_count", params.questionCount.toString());
+  formData.append("difficulty", params.difficulty);
+  formData.append("question_types", params.questionTypes.join(","));
+  if (params.focusConcepts.length > 0) {
+    formData.append("focus_concepts", params.focusConcepts.join(","));
+  }
+  formData.append("exam_name", params.examName);
+  if (params.examMode) {
+    formData.append("exam_mode", params.examMode);
+  }
+  if (params.generationMode) {
+    formData.append("generation_mode", params.generationMode);
+  }
+  if (params.selectedClassId) {
+    formData.append("class_id", params.selectedClassId.toString());
+  }
+
+  const { data } = await api.post("/exams/generate", formData, {
+    headers: {
+      "X-Gemini-API-Key": params.apiKey,
+      "Content-Type": "multipart/form-data",
+    },
+    validateStatus: (status) => status === 202 || status === 200,
+  });
+  return data;
+}
+
+export async function getJobStatus(jobId: string): Promise<{
+  status: "queued" | "running" | "succeeded" | "failed";
+  progress: number;
+  resultId?: number;
+  error?: string;
+}> {
+  const { data } = await api.get(`/jobs/${jobId}`);
   return data;
 }
