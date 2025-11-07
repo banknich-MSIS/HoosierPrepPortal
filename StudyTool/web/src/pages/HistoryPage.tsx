@@ -44,13 +44,7 @@ export default function HistoryPage() {
     }
   };
 
-  if (loading) {
-    return (
-      <div style={{ padding: 24, textAlign: "center" }}>
-        <div>Loading history...</div>
-      </div>
-    );
-  }
+  // Do not block entire page on loading; show section skeletons below
 
   if (error) {
     return (
@@ -107,7 +101,21 @@ export default function HistoryPage() {
         </button>
       </div>
 
-      {attempts.length > 0 ? (
+      {loading ? (
+        <div
+          style={{
+            padding: 48,
+            background: theme.cardBg,
+            borderRadius: 12,
+            border: "1px solid " + theme.glassBorder,
+            boxShadow: theme.glassShadow,
+            color: theme.textSecondary,
+            textAlign: "center",
+          }}
+        >
+          Loading history...
+        </div>
+      ) : attempts.length > 0 ? (
         <ExamHistory
           attempts={attempts}
           onReviewAttempt={handleReviewAttempt}
@@ -124,7 +132,7 @@ export default function HistoryPage() {
             backdropFilter: theme.glassBlur,
             WebkitBackdropFilter: theme.glassBlur,
             borderRadius: 12,
-            border: `2px dashed ${theme.glassBorder}`,
+            border: "2px dashed " + theme.glassBorder,
             boxShadow: theme.glassShadow,
           }}
         >

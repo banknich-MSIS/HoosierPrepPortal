@@ -616,7 +616,7 @@ export default function CSVLibrary({
               </div>
             </div>
 
-            {/* Filename and Class Tags */}
+            {/* Filename */}
             <div style={{ marginBottom: 12 }}>
               {editingUploadId === upload.id ? (
                 <input
@@ -668,32 +668,39 @@ export default function CSVLibrary({
                 </div>
               )}
             </div>
-
-            {/* Class Tags under header */}
+            {/* Class Tags relocated under top-right action buttons */}
             {upload.class_tags && upload.class_tags.length > 0 && (
-              <div style={{ marginBottom: 12 }}>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                  {upload.class_tags.map((tag, index) => {
-                    const classColor = getClassColor(tag);
-                    const textColor = getContrastTextColor(classColor);
-                    return (
-                      <span
-                        key={index}
-                        style={{
-                          padding: "3px 8px",
-                          backgroundColor: classColor,
-                          color: textColor,
-                          borderRadius: 4,
-                          fontSize: 11,
-                          fontWeight: "bold",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {tag.length > 12 ? `${tag.slice(0, 12)}…` : tag}
-                      </span>
-                    );
-                  })}
-                </div>
+              <div
+                style={{
+                  position: "absolute",
+                  top: 44,
+                  right: 8,
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: 4,
+                  justifyContent: "flex-end",
+                }}
+              >
+                {upload.class_tags.map((tag, index) => {
+                  const classColor = getClassColor(tag);
+                  const textColor = getContrastTextColor(classColor);
+                  return (
+                    <span
+                      key={index}
+                      style={{
+                        padding: "3px 8px",
+                        backgroundColor: classColor,
+                        color: textColor,
+                        borderRadius: 4,
+                        fontSize: 11,
+                        fontWeight: "bold",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {tag.length > 12 ? `${tag.slice(0, 12)}…` : tag}
+                    </span>
+                  );
+                })}
               </div>
             )}
 
@@ -707,7 +714,7 @@ export default function CSVLibrary({
             >
               <div>Uploaded: {formatDate(upload.created_at)}</div>
               <div>Questions: {upload.question_count}</div>
-              <div>Exams Created: {upload.exam_count}</div>
+              <div>Exams Taken: {upload.exam_count}</div>
             </div>
 
             {/* Themes */}

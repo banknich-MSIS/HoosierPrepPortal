@@ -154,6 +154,12 @@ export default function SmartExamCreator() {
 
       // Store job id so global toaster can pick it up
       localStorage.setItem("active_exam_job", job.jobId);
+      // Signal immediately for the toaster
+      window.dispatchEvent(
+        new CustomEvent("exam-job-started", { detail: { jobId: job.jobId } })
+      );
+      // Redirect to dashboard while generation proceeds in background
+      navigate("/");
       setProgressMessage("Generation started in background.");
     } catch (e: any) {
       setError(
@@ -538,7 +544,9 @@ export default function SmartExamCreator() {
                   border: `1px solid ${theme.glassBorder}`,
                   borderRadius: 8,
                   background:
-                    generationMode === "strict" ? "rgba(196, 30, 58, 0.06)" : "transparent",
+                    generationMode === "strict"
+                      ? "rgba(196, 30, 58, 0.06)"
+                      : "transparent",
                 }}
               >
                 <input
@@ -547,7 +555,9 @@ export default function SmartExamCreator() {
                   checked={generationMode === "strict"}
                   onChange={() => setGenerationMode("strict")}
                 />
-                <span style={{ color: theme.text }}>Strict (from provided content only)</span>
+                <span style={{ color: theme.text }}>
+                  Strict (from provided content only)
+                </span>
               </label>
               <label
                 style={{
@@ -558,7 +568,9 @@ export default function SmartExamCreator() {
                   border: `1px solid ${theme.glassBorder}`,
                   borderRadius: 8,
                   background:
-                    generationMode === "mixed" ? "rgba(196, 30, 58, 0.06)" : "transparent",
+                    generationMode === "mixed"
+                      ? "rgba(196, 30, 58, 0.06)"
+                      : "transparent",
                 }}
               >
                 <input
@@ -567,7 +579,9 @@ export default function SmartExamCreator() {
                   checked={generationMode === "mixed"}
                   onChange={() => setGenerationMode("mixed")}
                 />
-                <span style={{ color: theme.text }}>Mixed (approx. 50/50 blend)</span>
+                <span style={{ color: theme.text }}>
+                  Mixed (approx. 50/50 blend)
+                </span>
               </label>
               <label
                 style={{
@@ -578,7 +592,9 @@ export default function SmartExamCreator() {
                   border: `1px solid ${theme.glassBorder}`,
                   borderRadius: 8,
                   background:
-                    generationMode === "creative" ? "rgba(196, 30, 58, 0.06)" : "transparent",
+                    generationMode === "creative"
+                      ? "rgba(196, 30, 58, 0.06)"
+                      : "transparent",
                 }}
               >
                 <input
@@ -587,7 +603,9 @@ export default function SmartExamCreator() {
                   checked={generationMode === "creative"}
                   onChange={() => setGenerationMode("creative")}
                 />
-                <span style={{ color: theme.text }}>Creative (concept-adjacent improvisation)</span>
+                <span style={{ color: theme.text }}>
+                  Creative (concept-adjacent improvisation)
+                </span>
               </label>
             </div>
           </div>
@@ -713,6 +731,16 @@ export default function SmartExamCreator() {
                   backgroundRepeat: "no-repeat",
                   backgroundPosition: "right 10px center",
                   paddingRight: "35px",
+                  outline: "none",
+                }}
+                onFocus={(e) => {
+                  e.currentTarget.style.boxShadow =
+                    "0 0 0 3px rgba(196, 30, 58, 0.15)";
+                  e.currentTarget.style.borderColor = theme.crimson;
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.boxShadow = "none";
+                  e.currentTarget.style.borderColor = theme.border;
                 }}
               >
                 <option value="">None</option>
@@ -971,7 +999,9 @@ export default function SmartExamCreator() {
       <div style={{ textAlign: "center" }}>
         <button
           onClick={generateExam}
-          disabled={!hasApiKey || !examName.trim() || files.length === 0 || loading}
+          disabled={
+            !hasApiKey || !examName.trim() || files.length === 0 || loading
+          }
           style={{
             padding: "12px 32px",
             background:

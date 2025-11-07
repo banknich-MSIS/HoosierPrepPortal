@@ -114,13 +114,7 @@ export default function ClassesPage() {
     setShowEditModal(true);
   };
 
-  if (loading) {
-    return (
-      <div style={{ padding: 24, textAlign: "center" }}>
-        <div style={{ color: theme.text }}>Loading classes...</div>
-      </div>
-    );
-  }
+  // Do not block entire page; show inline placeholder later
 
   if (error) {
     return (
@@ -232,7 +226,20 @@ export default function ClassesPage() {
       </div>
 
       {/* Classes Grid */}
-      {classes.length > 0 ? (
+      {loading ? (
+        <div
+          style={{
+            padding: 24,
+            textAlign: "center",
+            background: theme.cardBg,
+            border: `1px solid ${theme.glassBorder}`,
+            borderRadius: 8,
+            color: theme.textSecondary,
+          }}
+        >
+          Loading classes...
+        </div>
+      ) : classes.length > 0 ? (
         <div
           style={{
             display: "grid",

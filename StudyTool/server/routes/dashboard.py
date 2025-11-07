@@ -64,6 +64,13 @@ def get_all_uploads(db: Session = Depends(get_db)) -> List[UploadSummary]:
             qtype = question.qtype
             question_type_counts[qtype] = question_type_counts.get(qtype, 0) + 1
         
+        # Exams taken = number of completed attempts across all exams from this upload
+        attempts_taken = 0
+        if upload.exams:
+            for ex in upload.exams:
+                if ex.attempts:
+                    attempts_taken += sum(1 for at in ex.attempts if at.finished_at is not None)
+
         result.append(
             UploadSummary(
                 id=upload.id,
@@ -71,7 +78,7 @@ def get_all_uploads(db: Session = Depends(get_db)) -> List[UploadSummary]:
                 created_at=upload.created_at,
                 question_count=len(upload.questions),
                 themes=themes,
-                exam_count=len(upload.exams),
+                exam_count=attempts_taken,
                 file_type=upload.file_type,
                 class_tags=class_tags,
                 question_type_counts=question_type_counts if question_type_counts else None,

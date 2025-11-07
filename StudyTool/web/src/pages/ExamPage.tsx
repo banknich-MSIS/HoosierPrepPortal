@@ -13,7 +13,7 @@ export default function ExamPage() {
     darkMode: boolean;
     theme: any;
   }>();
-  const { questions, examId: storeExamId, answers, setExam } = useExamStore();
+  const { questions, examId: storeExamId, answers, setExam, reset } = useExamStore();
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
   const [showUnansweredAlert, setShowUnansweredAlert] = useState(false);
   const [unansweredCount, setUnansweredCount] = useState(0);
@@ -28,11 +28,12 @@ export default function ExamPage() {
     const loadExam = async () => {
       if (!examId) return;
 
-      // Always reload if examId doesn't match store or no questions
-      if (
-        questions.length === 0 ||
-        (storeExamId && Number(examId) !== storeExamId)
-      ) {
+      // If switching to a different exam, clear any stale in-memory state first
+      if (storeExamId && Number(examId) !== storeExamId) {
+        reset();
+      }
+      // Load when empty or after reset
+      if (questions.length === 0) {
         setLoading(true);
         try {
           const { getExam } = await import("../api/client");
@@ -50,15 +51,14 @@ export default function ExamPage() {
     };
 
     loadExam();
-  }, [examId, questions.length, storeExamId, setExam]);
+  }, [examId, questions.length, storeExamId, setExam, reset]);
 
+  // Clear in-memory exam only on unmount (not on every re-render)
   useEffect(() => {
-    if (!storeExamId) return;
-    if (examId && Number(examId) !== storeExamId) {
-      // If URL and store diverge, let URL win by reloading (simple approach)
-      nav(`/exam/${storeExamId}`, { replace: true });
-    }
-  }, [examId, storeExamId, nav]);
+    return () => {
+      reset();
+    };
+  }, [reset]);
 
   // Track which questions have been answered (for permanent locking)
   useEffect(() => {

@@ -11,7 +11,7 @@ export default function PracticeModePage() {
     darkMode: boolean;
     theme: any;
   }>();
-  const { questions, examId: storeExamId, answers, setExam } = useExamStore();
+  const { questions, examId: storeExamId, answers, setExam, reset } = useExamStore();
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [showAnswer, setShowAnswer] = useState(false);
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
@@ -33,11 +33,10 @@ export default function PracticeModePage() {
     const loadExam = async () => {
       if (!examId) return;
 
-      // Always reload if examId doesn't match store or no questions
-      if (
-        questions.length === 0 ||
-        (storeExamId && Number(examId) !== storeExamId)
-      ) {
+      if (storeExamId && Number(examId) !== storeExamId) {
+        reset();
+      }
+      if (questions.length === 0) {
         setLoading(true);
         try {
           const { getExam } = await import("../api/client");
@@ -55,14 +54,13 @@ export default function PracticeModePage() {
     };
 
     loadExam();
-  }, [examId, questions.length, storeExamId, setExam]);
+  }, [examId, questions.length, storeExamId, setExam, reset]);
 
   useEffect(() => {
-    if (!storeExamId) return;
-    if (examId && Number(examId) !== storeExamId) {
-      nav(`/practice/${storeExamId}`, { replace: true });
-    }
-  }, [examId, storeExamId, nav]);
+    return () => {
+      reset();
+    };
+  }, [reset]);
 
   // Fetch correct answers for practice mode
   useEffect(() => {

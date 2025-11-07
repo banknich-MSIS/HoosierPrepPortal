@@ -297,7 +297,7 @@ export default function ExamHistory({
               gridTemplateColumns: "1fr 1fr 1fr 1fr 80px",
               padding: 12,
               borderBottom: `1px solid ${theme.border}`,
-              backgroundColor: theme.cardBg,
+              backgroundColor: darkMode ? theme.cardBg : "rgba(38, 38, 38, 0.04)",
               transition: "background-color 0.2s ease",
               alignItems: "center",
               cursor: "pointer",
@@ -306,7 +306,7 @@ export default function ExamHistory({
               e.currentTarget.style.backgroundColor = theme.navHover;
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = theme.cardBg;
+              e.currentTarget.style.backgroundColor = darkMode ? theme.cardBg : "rgba(38, 38, 38, 0.04)";
             }}
           >
             <div style={{ fontSize: 14, color: theme.text }}>

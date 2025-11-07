@@ -21,6 +21,7 @@ export default function Dashboard() {
   const [uploads, setUploads] = useState<UploadSummary[]>([]);
   const [attempts, setAttempts] = useState<AttemptSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hoveredButton, setHoveredButton] = useState<string | null>(null);
 
@@ -56,8 +57,21 @@ export default function Dashboard() {
       setError(e?.message || "Failed to load dashboard data");
     } finally {
       setLoading(false);
+      setLoaded(true);
     }
   };
+
+  // Refresh uploads when a generation job completes
+  useEffect(() => {
+    const onCompleted = async () => {
+      try {
+        const uploadsData = await fetchAllUploads();
+        setUploads(uploadsData);
+      } catch {}
+    };
+    window.addEventListener("exam-job-completed", onCompleted as any);
+    return () => window.removeEventListener("exam-job-completed", onCompleted as any);
+  }, []);
 
   const handleCreateExam = (
     uploadIds: number[],
@@ -115,25 +129,7 @@ export default function Dashboard() {
     window.dispatchEvent(new CustomEvent("showTutorial"));
   };
 
-  if (loading) {
-    return (
-      <div
-        style={{
-          padding: 48,
-          textAlign: "center",
-          background: theme.cardBg,
-          backdropFilter: theme.glassBlur,
-          WebkitBackdropFilter: theme.glassBlur,
-          borderRadius: 12,
-          boxShadow: theme.glassShadow,
-        }}
-      >
-        <div style={{ color: theme.text, fontSize: 18, fontWeight: 500 }}>
-          Loading dashboard...
-        </div>
-      </div>
-    );
-  }
+  // Note: do not block the entire page during loading; show section skeletons below
 
   if (error) {
     return (
@@ -187,13 +183,24 @@ export default function Dashboard() {
   return (
     <div style={{ display: "grid", gap: 24 }}>
       {/* Performance Analytics */}
-      {attempts.length > 0 && (
+      {(!loaded && (
+        <div
+          style={{
+            height: 120,
+            borderRadius: 12,
+            background: theme.cardBg,
+            border: "1px solid " + theme.glassBorder,
+            boxShadow: theme.glassShadow,
+          }}
+        />
+      )) ||
+        (attempts.length > 0 && (
         <PerformanceAnalytics
           attempts={attempts}
           darkMode={darkMode}
           theme={theme}
         />
-      )}
+        ))}
 
       {/* Recent Exam History */}
       <section>
@@ -208,7 +215,21 @@ export default function Dashboard() {
         >
           Recent Exam History
         </h2>
-        {attempts.length > 0 ? (
+        {!loaded ? (
+          <div
+            style={{
+              padding: 48,
+              background: theme.cardBg,
+              borderRadius: 12,
+              border: "1px solid " + theme.glassBorder,
+              boxShadow: theme.glassShadow,
+              color: theme.textSecondary,
+              textAlign: "center",
+            }}
+          >
+            Loading recent history...
+          </div>
+        ) : attempts.length > 0 ? (
           <ExamHistory
             attempts={attempts}
             onReviewAttempt={handleReviewAttempt}
@@ -260,15 +281,31 @@ export default function Dashboard() {
         >
           CSV Library
         </h2>
-        <CSVLibrary
-          uploads={uploads}
-          onCreateExam={handleCreateExam}
-          onDelete={handleDeleteUpload}
-          onDownload={handleDownloadCSV}
-          onUpdate={loadDashboardData}
-          darkMode={darkMode}
-          theme={theme}
-        />
+        {!loaded ? (
+          <div
+            style={{
+              padding: 48,
+              background: theme.cardBg,
+              borderRadius: 12,
+              border: "1px solid " + theme.glassBorder,
+              boxShadow: theme.glassShadow,
+              color: theme.textSecondary,
+              textAlign: "center",
+            }}
+          >
+            Loading CSV library...
+          </div>
+        ) : (
+          <CSVLibrary
+            uploads={uploads}
+            onCreateExam={handleCreateExam}
+            onDelete={handleDeleteUpload}
+            onDownload={handleDownloadCSV}
+            onUpdate={loadDashboardData}
+            darkMode={darkMode}
+            theme={theme}
+          />
+        )}
       </section>
     </div>
   );
