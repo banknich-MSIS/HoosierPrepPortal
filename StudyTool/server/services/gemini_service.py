@@ -171,6 +171,37 @@ def build_exam_prompt(content: str, config: ExamConfig) -> str:
     return prompt
 
 
+def build_additional_prompt(
+    content: str,
+    base_config: ExamConfig,
+    missing_count: int,
+    existing_stems: Optional[List[str]] = None,
+) -> str:
+    """Build a prompt to request ONLY additional questions, avoiding duplicates.
+
+    Keeps the same structure and constraints but emphasizes generating the remaining
+    number of questions and avoiding overlap with provided stems.
+    """
+    cfg = ExamConfig(
+        question_count=missing_count,
+        difficulty=base_config.difficulty,
+        question_types=base_config.question_types,
+        focus_concepts=base_config.focus_concepts,
+        generation_mode=base_config.generation_mode,
+    )
+    base = build_exam_prompt(content, cfg)
+    avoid_section = ""
+    if existing_stems:
+        # Include a compact list of stems to avoid duplicates
+        stems_sample = existing_stems[:50]
+        joined = "\n- ".join(stems_sample)
+        avoid_section = (
+            "\n\nAVOID DUPLICATES:\nDo NOT repeat any of these existing question stems.\n- "
+            + joined
+        )
+    return base + avoid_section + "\n\nGenerate additional questions only."
+
+
 def extract_json_from_response(response_text: str) -> str:
     """
     Extract JSON from Gemini response, handling markdown code blocks and truncation.
@@ -326,16 +357,19 @@ async def generate_exam_from_content(
         model_name = await resolve_model_for_key(api_key)
         model = genai.GenerativeModel(model_name)
         
-        # Generate content
-        response = model.generate_content(
-            prompt,
-            generation_config=genai.GenerationConfig(
-                temperature=0.7,
-                top_p=0.95,
-                top_k=40,
-                max_output_tokens=65536,  # Support up to 100 questions
+        # Generate content (run in a worker thread to avoid blocking event loop)
+        def _gen(prompt_text: str):
+            return model.generate_content(
+                prompt_text,
+                generation_config=genai.GenerationConfig(
+                    temperature=0.7,
+                    top_p=0.95,
+                    top_k=40,
+                    max_output_tokens=65536,
+                ),
             )
-        )
+        import asyncio as _asyncio
+        response = await _asyncio.to_thread(_gen, prompt)
         
         # Check if response was truncated by checking finish_reason
         try:
@@ -390,6 +424,89 @@ async def generate_exam_from_content(
         )
     except Exception as e:
         raise ValueError(f"Failed to generate exam with Gemini: {str(e)}")
+
+
+async def generate_additional_questions(
+    content: str,
+    base_config: ExamConfig,
+    missing_count: int,
+    api_key: str,
+    existing_stems: Optional[List[str]] = None,
+) -> List[QuestionData]:
+    """Request additional questions to top up to the desired count.
+
+    Returns a list of QuestionData (may be empty). Uses the same model and threading
+    approach as generate_exam_from_content.
+    """
+    if missing_count <= 0:
+        return []
+
+    try:
+        configure_gemini(api_key)
+        prompt = build_additional_prompt(content, base_config, missing_count, existing_stems)
+        model_name = await resolve_model_for_key(api_key)
+        model = genai.GenerativeModel(model_name)
+
+        def _gen(prompt_text: str):
+            return model.generate_content(
+                prompt_text,
+                generation_config=genai.GenerationConfig(
+                    temperature=0.7,
+                    top_p=0.95,
+                    top_k=40,
+                    max_output_tokens=65536,
+                ),
+            )
+
+        import asyncio as _asyncio
+        response = await _asyncio.to_thread(_gen, prompt)
+        exam = parse_gemini_response(response.text)
+        return exam.questions or []
+    except Exception:
+        return []
+
+
+def dedupe_questions(questions: List[QuestionData]) -> List[QuestionData]:
+    """Remove duplicate questions by normalized stem text."""
+    seen = set()
+    result: List[QuestionData] = []
+    for q in questions:
+        key = (q.question or "").strip().lower()
+        if key and key not in seen:
+            seen.add(key)
+            result.append(q)
+    return result
+
+
+def synthesize_variants(base_questions: List[QuestionData], needed: int) -> List[QuestionData]:
+    """Create simple local variants to fill remaining count safely.
+
+    - MCQ/MULTI: rotate options to produce a different ordering while keeping the
+      same correct answer text.
+    - Other types: prepend a light rephrase to the stem.
+    """
+    variants: List[QuestionData] = []
+    if needed <= 0 or not base_questions:
+        return variants
+
+    idx = 0
+    while len(variants) < needed and idx < len(base_questions) * 3:
+        src = base_questions[idx % len(base_questions)]
+        idx += 1
+        new_q = QuestionData(
+            question=f"Rephrase: {src.question}",
+            answer=src.answer,
+            type=src.type,
+            options=src.options[:] if src.options else None,
+            concepts=src.concepts[:] if src.concepts else [],
+            explanation=src.explanation,
+        )
+        if new_q.type in {"mcq", "multi"} and new_q.options and len(new_q.options) > 1:
+            # rotate options by 1
+            new_q.options = new_q.options[1:] + new_q.options[:1]
+        variants.append(new_q)
+
+    return variants[:needed]
 
 
 async def validate_api_key(api_key: str) -> bool:

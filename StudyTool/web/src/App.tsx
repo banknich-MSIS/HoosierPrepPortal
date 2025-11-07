@@ -119,8 +119,6 @@ export default function App() {
     { path: "/", label: "Dashboard" },
     { path: "/ai-exam-creator", label: "AI Exam Creator" },
     { path: "/upload", label: "Manual Creator" },
-    { path: "/classes", label: "Classes" },
-    { path: "/history", label: "History" },
     { path: "/api-keys", label: "API Keys" },
   ];
 
@@ -196,7 +194,9 @@ export default function App() {
                       border:
                         location.pathname === item.path
                           ? "none"
-                          : `1px solid ${theme.glassBorder}`,
+                          : `1px solid ${
+                              darkMode ? theme.glassBorder : "#D1D5DB"
+                            }`,
                       borderRadius: 8,
                       cursor: "pointer",
                       fontSize: 14,
@@ -217,7 +217,9 @@ export default function App() {
                     }}
                     onMouseEnter={(e) => {
                       if (location.pathname !== item.path) {
-                        e.currentTarget.style.background = theme.navHover;
+                        e.currentTarget.style.background = darkMode
+                          ? theme.navHover
+                          : "rgba(0, 0, 0, 0.03)"; // very light grey in light mode
                       } else {
                         e.currentTarget.style.background = theme.crimsonDark;
                       }

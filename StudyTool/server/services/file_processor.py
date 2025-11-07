@@ -2,6 +2,7 @@
 File processing utilities for extracting text from various file formats.
 Supports PDF, DOCX, PPTX, and images.
 """
+import asyncio
 import io
 from typing import List
 from fastapi import UploadFile
@@ -15,17 +16,20 @@ async def extract_text_from_pdf(file: UploadFile) -> str:
     """Extract text content from a PDF file."""
     try:
         content = await file.read()
-        pdf_file = io.BytesIO(content)
-        pdf_reader = PyPDF2.PdfReader(pdf_file)
-        
-        text_parts = []
-        for page in pdf_reader.pages:
-            text = page.extract_text()
-            if text:
-                text_parts.append(text)
-        
+
+        def _parse_pdf_bytes(data: bytes) -> str:
+            pdf_file = io.BytesIO(data)
+            pdf_reader = PyPDF2.PdfReader(pdf_file)
+            text_parts = []
+            for page in pdf_reader.pages:
+                text = page.extract_text()
+                if text:
+                    text_parts.append(text)
+            return "\n\n".join(text_parts)
+
+        text = await asyncio.to_thread(_parse_pdf_bytes, content)
         await file.seek(0)  # Reset file pointer
-        return "\n\n".join(text_parts)
+        return text
     except Exception as e:
         raise ValueError(f"Failed to extract text from PDF: {str(e)}")
 
@@ -34,16 +38,19 @@ async def extract_text_from_docx(file: UploadFile) -> str:
     """Extract text content from a Word document."""
     try:
         content = await file.read()
-        doc_file = io.BytesIO(content)
-        doc = Document(doc_file)
-        
-        text_parts = []
-        for paragraph in doc.paragraphs:
-            if paragraph.text.strip():
-                text_parts.append(paragraph.text)
-        
+
+        def _parse_docx_bytes(data: bytes) -> str:
+            doc_file = io.BytesIO(data)
+            doc = Document(doc_file)
+            text_parts = []
+            for paragraph in doc.paragraphs:
+                if paragraph.text.strip():
+                    text_parts.append(paragraph.text)
+            return "\n\n".join(text_parts)
+
+        text = await asyncio.to_thread(_parse_docx_bytes, content)
         await file.seek(0)  # Reset file pointer
-        return "\n\n".join(text_parts)
+        return text
     except Exception as e:
         raise ValueError(f"Failed to extract text from DOCX: {str(e)}")
 
@@ -52,21 +59,23 @@ async def extract_text_from_pptx(file: UploadFile) -> str:
     """Extract text content from a PowerPoint presentation."""
     try:
         content = await file.read()
-        ppt_file = io.BytesIO(content)
-        presentation = Presentation(ppt_file)
-        
-        text_parts = []
-        for slide_num, slide in enumerate(presentation.slides, 1):
-            slide_text = []
-            for shape in slide.shapes:
-                if hasattr(shape, "text") and shape.text.strip():
-                    slide_text.append(shape.text)
-            
-            if slide_text:
-                text_parts.append(f"Slide {slide_num}:\n" + "\n".join(slide_text))
-        
+
+        def _parse_pptx_bytes(data: bytes) -> str:
+            ppt_file = io.BytesIO(data)
+            presentation = Presentation(ppt_file)
+            text_parts = []
+            for slide_num, slide in enumerate(presentation.slides, 1):
+                slide_text = []
+                for shape in slide.shapes:
+                    if hasattr(shape, "text") and shape.text.strip():
+                        slide_text.append(shape.text)
+                if slide_text:
+                    text_parts.append(f"Slide {slide_num}:\n" + "\n".join(slide_text))
+            return "\n\n".join(text_parts)
+
+        text = await asyncio.to_thread(_parse_pptx_bytes, content)
         await file.seek(0)  # Reset file pointer
-        return "\n\n".join(text_parts)
+        return text
     except Exception as e:
         raise ValueError(f"Failed to extract text from PPTX: {str(e)}")
 
@@ -79,11 +88,17 @@ async def extract_text_from_image(file: UploadFile) -> str:
     """
     try:
         content = await file.read()
-        # Verify it's a valid image
-        image = Image.open(io.BytesIO(content))
-        
+
+        def _verify_image(data: bytes) -> str:
+            # Verify it's a valid image
+            image = Image.open(io.BytesIO(data))
+            return f"[Image file: ?, Size: {image.size}, Format: {image.format}]"
+
+        _ = await asyncio.to_thread(_verify_image, content)
+
         await file.seek(0)  # Reset file pointer
-        return f"[Image file: {file.filename}, Size: {image.size}, Format: {image.format}]"
+        # Keep original message with filename
+        return f"[Image file: {file.filename}]"
     except Exception as e:
         raise ValueError(f"Failed to process image: {str(e)}")
 

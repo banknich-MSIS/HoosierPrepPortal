@@ -51,6 +51,13 @@ class JobManager:
                 return
             job.error = error
 
+    async def set_metadata(self, job_id: str, updates: Dict[str, Any]) -> None:
+        async with self._lock:
+            job = self._jobs.get(job_id)
+            if not job:
+                return
+            job.metadata.update(updates or {})
+
     async def get(self, job_id: str) -> Optional[JobRecord]:
         async with self._lock:
             return self._jobs.get(job_id)

@@ -118,7 +118,16 @@ export async function fetchAttemptDetail(
 }
 
 export async function deleteUpload(uploadId: number): Promise<void> {
-  await api.delete(`/uploads/${uploadId}`);
+  try {
+    await api.delete(`/uploads/${uploadId}`);
+  } catch (e: any) {
+    const status = e?.response?.status;
+    // Treat missing upload as already deleted (idempotent behavior)
+    if (status === 404) {
+      return;
+    }
+    throw e;
+  }
 }
 
 export async function downloadCSV(uploadId: number): Promise<Blob> {
@@ -315,6 +324,10 @@ export async function getJobStatus(jobId: string): Promise<{
   progress: number;
   resultId?: number;
   error?: string;
+  requestedCount?: number;
+  generatedCount?: number;
+  shortfall?: boolean;
+  shortfallReason?: string;
 }> {
   const { data } = await api.get(`/jobs/${jobId}`);
   return data;

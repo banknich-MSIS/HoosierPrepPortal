@@ -12,7 +12,6 @@ import PracticeModePage from "./pages/PracticeModePage";
 import ReviewPage from "./pages/ReviewPage";
 import AttemptReviewPage from "./pages/AttemptReviewPage";
 import HistoryPage from "./pages/HistoryPage";
-import ClassesPage from "./pages/ClassesPage";
 import SupportPage from "./pages/SupportPage";
 import UtilitiesPage from "./pages/UtilitiesPage";
 import ApiKeyManagementPage from "./pages/ApiKeyManagementPage";
@@ -29,8 +28,9 @@ const router = createBrowserRouter([
       { path: "exam/:examId", element: <ExamPage /> },
       { path: "practice/:examId", element: <PracticeModePage /> },
       { path: "review/:examId", element: <ReviewPage /> },
-      { path: "classes", element: <ClassesPage /> },
-      { path: "history", element: <HistoryPage /> },
+      // History list removed from nav; keep attempt review via direct link
+      // Optionally, we could add a redirect from /history to /
+      // { path: "history", element: <Dashboard /> },
       { path: "history/:attemptId", element: <AttemptReviewPage /> },
       { path: "support", element: <SupportPage /> },
       { path: "utilities", element: <UtilitiesPage /> },

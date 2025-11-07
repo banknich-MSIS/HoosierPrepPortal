@@ -26,6 +26,10 @@ class JobStatusResponse(BaseModel):
     progress: float
     resultId: Optional[int] = None
     error: Optional[str] = None
+    requestedCount: Optional[int] = None
+    generatedCount: Optional[int] = None
+    shortfall: Optional[bool] = None
+    shortfallReason: Optional[str] = None
 
 
 class _AsyncBytesUpload:
@@ -106,6 +110,37 @@ async def start_exam_generation_job(
                 api_key=x_gemini_api_key,
             )
 
+            # Top-up logic to ensure requested count
+            questions_list = list(generated_exam.questions)
+            missing = max(0, question_count - len(questions_list))
+            shortfall_reason: Optional[str] = None
+            if missing > 0:
+                await job_manager.set_status(job_id, "running", progress=0.62)
+                existing_stems = [q.question for q in questions_list]
+                extra = await gemini_service.generate_additional_questions(
+                    content=content,
+                    base_config=config,
+                    missing_count=missing,
+                    api_key=x_gemini_api_key,
+                    existing_stems=existing_stems,
+                )
+                questions_list.extend(extra)
+                # Dedupe
+                questions_list = gemini_service.dedupe_questions(questions_list)
+                missing = max(0, question_count - len(questions_list))
+
+            if missing > 0:
+                await job_manager.set_status(job_id, "running", progress=0.68)
+                variants = gemini_service.synthesize_variants(questions_list, missing)
+                questions_list.extend(variants)
+                questions_list = gemini_service.dedupe_questions(questions_list)
+                missing = max(0, question_count - len(questions_list))
+                if missing > 0:
+                    shortfall_reason = "variant_fallback_insufficient"
+            # If still missing after LLM top-up (without variants), mark reason
+            if shortfall_reason is None and len(questions_list) < question_count:
+                shortfall_reason = "llm_shortfall"
+
             # Create upload
             await job_manager.set_status(job_id, "running", progress=0.75)
             ai_upload_count = db.query(Upload).filter(Upload.file_type == "ai_generated").count()
@@ -128,7 +163,7 @@ async def start_exam_generation_job(
 
             # Create questions
             created_questions = []
-            for q_data in generated_exam.questions:
+            for q_data in questions_list:
                 options_dict = None
                 if q_data.options and len(q_data.options) > 0:
                     options_dict = {"list": q_data.options}
@@ -180,6 +215,16 @@ async def start_exam_generation_job(
             db.commit()
             db.refresh(exam)
 
+            # Record metadata about counts/shortfall on the job
+            requested = question_count
+            generated = len(questions_list)
+            await job_manager.set_metadata(job_id, {
+                "requestedCount": requested,
+                "generatedCount": generated,
+                "shortfall": generated < requested,
+                "shortfallReason": shortfall_reason,
+            })
+
             await job_manager.set_result(job_id, exam.id)
             await job_manager.set_status(job_id, "succeeded", progress=1.0)
         except HTTPException as he:
@@ -207,6 +252,10 @@ async def get_job_status(job_id: str):
         progress=job.progress,
         resultId=job.result_id,
         error=job.error,
+        requestedCount=job.metadata.get("requestedCount"),
+        generatedCount=job.metadata.get("generatedCount"),
+        shortfall=job.metadata.get("shortfall"),
+        shortfallReason=job.metadata.get("shortfallReason"),
     )
 
 

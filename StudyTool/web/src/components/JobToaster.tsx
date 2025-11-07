@@ -9,6 +9,11 @@ export default function JobToaster({ theme }: { theme: any }) {
   const [error, setError] = useState<string | null>(null);
   const [visible, setVisible] = useState<boolean>(false);
   const [message, setMessage] = useState<string>("Queued");
+  const [shortfallInfo, setShortfallInfo] = useState<
+    | { requested: number; generated: number; reason?: string }
+    | null
+  >(null);
+  // Persistent toaster: no auto-hide. Dismiss controls visibility & cleanup.
 
   useEffect(() => {
     const active = localStorage.getItem("active_exam_job");
@@ -31,14 +36,15 @@ export default function JobToaster({ theme }: { theme: any }) {
   useEffect(() => {
     if (!jobId) return;
     let cancelled = false;
+    let intervalId: any = null;
     const tick = async () => {
       try {
         const s = await getJobStatus(jobId);
         if (cancelled) return;
-        setStatus(s.status);
-        setProgress(Math.round((s.progress || 0) * 100));
-        // Compute friendly message
         const pct = Math.round((s.progress || 0) * 100);
+        setStatus(s.status);
+        setProgress(pct);
+        // Friendly message
         let msg = "Queued";
         if (s.status === "running") {
           if (pct < 15) msg = "Preparing files";
@@ -54,29 +60,35 @@ export default function JobToaster({ theme }: { theme: any }) {
         setMessage(msg);
         if (s.resultId) setResultId(s.resultId);
         if (s.error) setError(s.error);
-        if (s.status === "succeeded" || s.status === "failed") {
-          // Clear active job
-          localStorage.removeItem("active_exam_job");
-          // Auto-hide after a short delay on success
-          if (s.status === "succeeded") {
-            // Emit completion for targeted refresh
-            window.dispatchEvent(
-              new CustomEvent("exam-job-completed", {
-                detail: { jobId, resultId: s.resultId },
-              })
-            );
-            setTimeout(() => setVisible(false), 4000);
-          }
+        if (s.status === "succeeded" && s.shortfall && s.requestedCount && s.generatedCount !== undefined) {
+          setShortfallInfo({
+            requested: s.requestedCount,
+            generated: s.generatedCount,
+            reason: s.shortfallReason,
+          });
+        }
+        // Emit completion but do not hide or clear; user must Dismiss
+        if (s.status === "succeeded" && !cancelled) {
+          window.dispatchEvent(
+            new CustomEvent("exam-job-completed", {
+              detail: { jobId, resultId: s.resultId },
+            })
+          );
+          // Stop polling on terminal state
+          if (intervalId) clearInterval(intervalId);
+        }
+        if (s.status === "failed" && intervalId) {
+          clearInterval(intervalId);
         }
       } catch (e: any) {
-        // ignore transient errors
+        // keep toaster visible; retry on next tick
       }
     };
     tick();
-    const id = setInterval(tick, 2500);
+    intervalId = setInterval(tick, 2500);
     return () => {
       cancelled = true;
-      clearInterval(id);
+      if (intervalId) clearInterval(intervalId);
     };
   }, [jobId]);
 
@@ -119,6 +131,21 @@ export default function JobToaster({ theme }: { theme: any }) {
     >
       <div style={{ fontWeight: 600, marginBottom: 4 }}>Exam generation</div>
       <div style={{ fontSize: 12, color: theme.textSecondary, marginBottom: 8 }}>{message}</div>
+      {status === "succeeded" && shortfallInfo && (
+        <div
+          style={{
+            marginBottom: 10,
+            padding: "8px 10px",
+            borderRadius: 8,
+            background: "rgba(0,0,0,0.05)",
+            color: theme.text,
+            border: `1px solid ${theme.glassBorder}`,
+            fontSize: 12,
+          }}
+        >
+          Requested {shortfallInfo.requested}, generated {shortfallInfo.generated}. Content is still close to target.
+        </div>
+      )}
       {status !== "succeeded" && (
         <div
           style={{
@@ -161,23 +188,11 @@ export default function JobToaster({ theme }: { theme: any }) {
           You can browse around while your exam generates.
         </small>
         <div style={{ display: "flex", gap: 8 }}>
-          {status === "succeeded" && resultId && (
-            <a
-              href={`#/exam/${resultId}`}
-              style={{
-                textDecoration: "none",
-                padding: "6px 10px",
-                borderRadius: 6,
-                background: theme.crimson,
-                color: "white",
-                fontSize: 12,
-              }}
-            >
-              View exam
-            </a>
-          )}
           <button
-            onClick={() => setVisible(false)}
+            onClick={() => {
+              setVisible(false);
+              if (jobId) localStorage.removeItem("active_exam_job");
+            }}
             style={{
               padding: "6px 10px",
               borderRadius: 6,

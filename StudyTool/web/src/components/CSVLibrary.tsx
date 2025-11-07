@@ -2,7 +2,14 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import type { UploadSummary, ClassSummary, QuestionType } from "../types";
 import ClassTagSelector from "./ClassTagSelector";
-import { fetchClasses, updateUploadName, createExam } from "../api/client";
+import {
+  fetchClasses,
+  updateUploadName,
+  createExam,
+  createClass,
+  updateClass,
+  deleteClass,
+} from "../api/client";
 
 const QUESTION_TYPE_LABELS: Record<string, string> = {
   mcq: "Multiple Choice",
@@ -11,6 +18,22 @@ const QUESTION_TYPE_LABELS: Record<string, string> = {
   truefalse: "True/False",
   cloze: "Fill in the Blank",
 };
+
+// Available color options for classes
+const CLASS_COLORS: { name: string; value: string }[] = [
+  { name: "Blue", value: "#007bff" },
+  { name: "Crimson", value: "#c41e3a" },
+  { name: "Amber", value: "#d4a650" },
+  { name: "Green", value: "#28a745" },
+  { name: "Teal", value: "#20c997" },
+  { name: "Purple", value: "#6f42c1" },
+  { name: "Indigo", value: "#6610f2" },
+  { name: "Orange", value: "#fd7e14" },
+  { name: "Pink", value: "#e83e8c" },
+  { name: "Slate", value: "#6c757d" },
+  { name: "Cyan", value: "#17a2b8" },
+  { name: "Brown", value: "#795548" },
+];
 
 interface CSVLibraryProps {
   uploads: UploadSummary[];
@@ -45,6 +68,18 @@ export default function CSVLibrary({
   );
   const [editingUploadId, setEditingUploadId] = useState<number | null>(null);
   const [editName, setEditName] = useState<string>("");
+  const [showCreateClass, setShowCreateClass] = useState(false);
+  const [newClassName, setNewClassName] = useState("");
+  const [newClassDescription, setNewClassDescription] = useState("");
+  const [newClassColor, setNewClassColor] = useState("#007bff");
+  const [showManageClasses, setShowManageClasses] = useState(false);
+  const [manageView, setManageView] = useState<"list" | "create" | "edit">(
+    "list"
+  );
+  const [manageEditing, setManageEditing] = useState<null | number>(null);
+  const [manageName, setManageName] = useState("");
+  const [manageDescription, setManageDescription] = useState("");
+  const [manageColor, setManageColor] = useState("#007bff");
   const [showStartModal, setShowStartModal] = useState(false);
   const [modalUploadIds, setModalUploadIds] = useState<number[]>([]);
   const [selectedMode, setSelectedMode] = useState<"exam" | "practice">("exam");
@@ -283,74 +318,145 @@ export default function CSVLibrary({
         <div
           style={{
             display: "flex",
-            gap: 8,
+            justifyContent: "space-between",
             alignItems: "center",
+            gap: 8,
             marginBottom: 16,
             flexWrap: "wrap",
           }}
         >
-          <span style={{ fontSize: 14, color: theme.text, fontWeight: 500 }}>
-            Filter by class:
-          </span>
-          <button
-            onClick={() => setSelectedClassFilter(null)}
-            onMouseEnter={() => setHoveredButton("filterAll")}
-            onMouseLeave={() => setHoveredButton(null)}
+          <div
             style={{
-              padding: "8px 16px",
-              background: !selectedClassFilter ? theme.crimson : theme.cardBg,
-              backdropFilter: !selectedClassFilter ? "none" : theme.glassBlur,
-              WebkitBackdropFilter: !selectedClassFilter
-                ? "none"
-                : theme.glassBlur,
-              color: !selectedClassFilter ? "white" : theme.text,
-              border: `1px solid ${
-                !selectedClassFilter ? theme.crimson : theme.glassBorder
-              }`,
-              borderRadius: 8,
-              cursor: "pointer",
-              fontSize: 13,
-              fontWeight: !selectedClassFilter ? 600 : 500,
-              transition: "all 0.2s ease",
-              boxShadow: !selectedClassFilter
-                ? "0 2px 8px rgba(196, 30, 58, 0.3)"
-                : "none",
+              display: "flex",
+              gap: 8,
+              alignItems: "center",
+              flexWrap: "wrap",
+              flex: 1,
             }}
           >
-            All
-          </button>
-          {allClassTags.map((tag) => {
-            const classColor = getClassColor(tag);
-            const isSelected = selectedClassFilter === tag;
-            return (
-              <button
-                key={tag}
-                onClick={() => setSelectedClassFilter(tag)}
-                onMouseEnter={() => setHoveredButton(`filter-${tag}`)}
-                onMouseLeave={() => setHoveredButton(null)}
-                style={{
-                  padding: "8px 16px",
-                  background: isSelected ? classColor : theme.cardBg,
-                  backdropFilter: isSelected ? "none" : theme.glassBlur,
-                  WebkitBackdropFilter: isSelected ? "none" : theme.glassBlur,
-                  color: isSelected
-                    ? getContrastTextColor(classColor)
-                    : theme.text,
-                  border: `1px solid ${
-                    isSelected ? classColor : theme.glassBorder
-                  }`,
-                  borderRadius: 8,
-                  cursor: "pointer",
-                  fontSize: 13,
-                  fontWeight: isSelected ? 600 : 500,
-                  transition: "all 0.2s ease",
-                  boxShadow: isSelected ? `0 2px 8px ${classColor}40` : "none",
-                }}
+            <span style={{ fontSize: 14, color: theme.text, fontWeight: 500 }}>
+              Filter by class:
+            </span>
+            <button
+              onClick={() => setSelectedClassFilter(null)}
+              onMouseEnter={() => setHoveredButton("filterAll")}
+              onMouseLeave={() => setHoveredButton(null)}
+              style={{
+                padding: "8px 16px",
+                background: !selectedClassFilter ? theme.crimson : theme.cardBg,
+                backdropFilter: !selectedClassFilter ? "none" : theme.glassBlur,
+                WebkitBackdropFilter: !selectedClassFilter
+                  ? "none"
+                  : theme.glassBlur,
+                color: !selectedClassFilter ? "white" : theme.text,
+                border: `1px solid ${
+                  !selectedClassFilter ? theme.crimson : theme.glassBorder
+                }`,
+                borderRadius: 8,
+                cursor: "pointer",
+                fontSize: 13,
+                fontWeight: !selectedClassFilter ? 600 : 500,
+                transition: "all 0.2s ease",
+                boxShadow: !selectedClassFilter
+                  ? "0 2px 8px rgba(196, 30, 58, 0.3)"
+                  : "none",
+              }}
+            >
+              All
+            </button>
+            {allClassTags.map((tag) => {
+              const classColor = getClassColor(tag);
+              const isSelected = selectedClassFilter === tag;
+              return (
+                <button
+                  key={tag}
+                  onClick={() => setSelectedClassFilter(tag)}
+                  onMouseEnter={() => setHoveredButton(`filter-${tag}`)}
+                  onMouseLeave={() => setHoveredButton(null)}
+                  style={{
+                    padding: "8px 16px",
+                    background: isSelected ? classColor : theme.cardBg,
+                    backdropFilter: isSelected ? "none" : theme.glassBlur,
+                    WebkitBackdropFilter: isSelected ? "none" : theme.glassBlur,
+                    color: isSelected
+                      ? getContrastTextColor(classColor)
+                      : theme.text,
+                    border: `1px solid ${
+                      isSelected ? classColor : theme.glassBorder
+                    }`,
+                    borderRadius: 8,
+                    cursor: "pointer",
+                    fontSize: 13,
+                    fontWeight: isSelected ? 600 : 500,
+                    transition: "all 0.2s ease",
+                    boxShadow: isSelected
+                      ? `0 2px 8px ${classColor}40`
+                      : "none",
+                  }}
+                >
+                  {tag}
+                </button>
+              );
+            })}
+          </div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <button
+              onClick={() => setShowCreateClass(true)}
+              title="Create Class"
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 8,
+                border: `1px solid ${theme.glassBorder}`,
+                background: theme.cardBg,
+                color: theme.text,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke={theme.text}
+                strokeWidth="2.5"
               >
-                {tag}
-              </button>
-            );
-          })}
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+            </button>
+            <button
+              onClick={() => setShowManageClasses(true)}
+              title="Manage Classes"
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 8,
+                border: `1px solid ${theme.glassBorder}`,
+                background: theme.cardBg,
+                color: theme.text,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill={theme.text}
+                stroke="none"
+              >
+                <circle cx="6" cy="12" r="1.6" />
+                <circle cx="12" cy="12" r="1.6" />
+                <circle cx="18" cy="12" r="1.6" />
+              </svg>
+            </button>
+          </div>
         </div>
       )}
 
@@ -400,40 +506,42 @@ export default function CSVLibrary({
               </span>
             )}
           </div>
-          {selectedUploads.size > 0 && (
-            <button
-              onClick={handleStartFromSelected}
-              style={{
-                padding: "10px 24px",
-                background: theme.crimson,
-                color: "white",
-                border: "none",
-                borderRadius: 6,
-                cursor: "pointer",
-                fontWeight: 600,
-                fontSize: 14,
-                letterSpacing: "-0.2px",
-                transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
-                boxShadow: "0 2px 8px rgba(196, 30, 58, 0.25)",
-                transform:
-                  hoveredButton === "createFromSelected"
-                    ? "translateY(-1px)"
-                    : "none",
-              }}
-              onMouseEnter={(e) => {
-                setHoveredButton("createFromSelected");
-                e.currentTarget.style.boxShadow =
-                  "0 4px 12px rgba(196, 30, 58, 0.35)";
-              }}
-              onMouseLeave={(e) => {
-                setHoveredButton(null);
-                e.currentTarget.style.boxShadow =
-                  "0 2px 8px rgba(196, 30, 58, 0.25)";
-              }}
-            >
-              Start Exam
-            </button>
-          )}
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            {selectedUploads.size > 0 && (
+              <button
+                onClick={handleStartFromSelected}
+                style={{
+                  padding: "10px 24px",
+                  background: theme.crimson,
+                  color: "white",
+                  border: "none",
+                  borderRadius: 6,
+                  cursor: "pointer",
+                  fontWeight: 600,
+                  fontSize: 14,
+                  letterSpacing: "-0.2px",
+                  transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+                  boxShadow: "0 2px 8px rgba(196, 30, 58, 0.25)",
+                  transform:
+                    hoveredButton === "createFromSelected"
+                      ? "translateY(-1px)"
+                      : "none",
+                }}
+                onMouseEnter={(e) => {
+                  setHoveredButton("createFromSelected");
+                  e.currentTarget.style.boxShadow =
+                    "0 4px 12px rgba(196, 30, 58, 0.35)";
+                }}
+                onMouseLeave={(e) => {
+                  setHoveredButton(null);
+                  e.currentTarget.style.boxShadow =
+                    "0 2px 8px rgba(196, 30, 58, 0.25)";
+                }}
+              >
+                Start Exam
+              </button>
+            )}
+          </div>
         </div>
       )}
 
@@ -924,136 +1032,819 @@ export default function CSVLibrary({
         ))}
       </div>
 
-    {/* Start Exam Modal */}
-    {showStartModal && (
-      <div
-        style={{
-          position: "fixed",
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: "rgba(0,0,0,0.5)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          zIndex: 2000,
-        }}
-        onClick={() => setShowStartModal(false)}
-        onKeyDown={(e) => {
-          if (e.key === "Escape") setShowStartModal(false);
-        }}
-      >
+      {/* Start Exam Modal */}
+      {showStartModal && (
         <div
           style={{
-            background: theme.modalBg,
-            borderRadius: 12,
-            padding: 24,
-            width: "90%",
-            maxWidth: 420,
-            border: `1px solid ${theme.glassBorder}`,
-            boxShadow: theme.glassShadowHover,
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0,0,0,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 2000,
           }}
-          onClick={(e) => e.stopPropagation()}
-          role="dialog"
-          aria-modal="true"
+          onClick={() => setShowStartModal(false)}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") setShowStartModal(false);
+          }}
         >
-          <h3
+          <div
             style={{
-              margin: "0 0 12px 0",
-              fontSize: 20,
-              fontWeight: 700,
-              color: theme.text,
+              background: theme.modalBg,
+              borderRadius: 12,
+              padding: 24,
+              width: "90%",
+              maxWidth: 420,
+              border: `1px solid ${theme.glassBorder}`,
+              boxShadow: theme.glassShadowHover,
             }}
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
           >
-            Start Exam
-          </h3>
-          <p style={{ margin: "0 0 16px 0", color: theme.textSecondary }}>
-            This will use all questions from the selected upload
-            {modalUploadIds.length > 1 ? "s" : ""}. You can choose the mode
-            below.
-          </p>
-          <div style={{ marginBottom: 16, color: theme.text }}>
-            Total questions:{" "}
-            <strong>{getTotalQuestionsForIds(modalUploadIds)}</strong>
-          </div>
+            <h3
+              style={{
+                margin: "0 0 12px 0",
+                fontSize: 20,
+                fontWeight: 700,
+                color: theme.text,
+              }}
+            >
+              Start Exam
+            </h3>
+            <p style={{ margin: "0 0 16px 0", color: theme.textSecondary }}>
+              This will use all questions from the selected upload
+              {modalUploadIds.length > 1 ? "s" : ""}. You can choose the mode
+              below.
+            </p>
+            <div style={{ marginBottom: 16, color: theme.text }}>
+              Total questions:{" "}
+              <strong>{getTotalQuestionsForIds(modalUploadIds)}</strong>
+            </div>
 
-          <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
-            <button
-              onClick={() => setSelectedMode("exam")}
-              style={{
-                padding: "10px 14px",
-                borderRadius: 8,
-                border: `2px solid ${
-                  selectedMode === "exam" ? theme.crimson : theme.glassBorder
-                }`,
-                background:
-                  selectedMode === "exam"
-                    ? darkMode
-                      ? "rgba(196, 30, 58, 0.15)"
-                      : "rgba(196, 30, 58, 0.08)"
-                    : "transparent",
-                color: theme.text,
-                cursor: "pointer",
-                flex: 1,
-              }}
-            >
-              📝 Exam Mode
-            </button>
-            <button
-              onClick={() => setSelectedMode("practice")}
-              style={{
-                padding: "10px 14px",
-                borderRadius: 8,
-                border: `2px solid ${
-                  selectedMode === "practice" ? theme.amber : theme.glassBorder
-                }`,
-                background:
-                  selectedMode === "practice"
-                    ? darkMode
-                      ? "rgba(212, 166, 80, 0.15)"
-                      : "rgba(212, 166, 80, 0.1)"
-                    : "transparent",
-                color: theme.text,
-                cursor: "pointer",
-                flex: 1,
-              }}
-            >
-              🎯 Practice Mode
-            </button>
-          </div>
+            <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
+              <button
+                onClick={() => setSelectedMode("exam")}
+                style={{
+                  padding: "10px 14px",
+                  borderRadius: 8,
+                  border: `2px solid ${
+                    selectedMode === "exam" ? theme.crimson : theme.glassBorder
+                  }`,
+                  background:
+                    selectedMode === "exam"
+                      ? darkMode
+                        ? "rgba(196, 30, 58, 0.15)"
+                        : "rgba(196, 30, 58, 0.08)"
+                      : "transparent",
+                  color: theme.text,
+                  cursor: "pointer",
+                  flex: 1,
+                }}
+              >
+                📝 Exam Mode
+              </button>
+              <button
+                onClick={() => setSelectedMode("practice")}
+                style={{
+                  padding: "10px 14px",
+                  borderRadius: 8,
+                  border: `2px solid ${
+                    selectedMode === "practice"
+                      ? theme.amber
+                      : theme.glassBorder
+                  }`,
+                  background:
+                    selectedMode === "practice"
+                      ? darkMode
+                        ? "rgba(212, 166, 80, 0.15)"
+                        : "rgba(212, 166, 80, 0.1)"
+                      : "transparent",
+                  color: theme.text,
+                  cursor: "pointer",
+                  flex: 1,
+                }}
+              >
+                🎯 Practice Mode
+              </button>
+            </div>
 
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-            <button
-              onClick={() => setShowStartModal(false)}
-              style={{
-                padding: "10px 16px",
-                background: "transparent",
-                border: `1px solid ${theme.glassBorder}`,
-                borderRadius: 8,
-                color: theme.text,
-                cursor: "pointer",
-              }}
+            <div
+              style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}
             >
-              Cancel
-            </button>
-            <button
-              onClick={startExam}
-              style={{
-                padding: "10px 16px",
-                background: theme.crimson,
-                border: "none",
-                borderRadius: 8,
-                color: "white",
-                cursor: "pointer",
-              }}
-            >
-              Start
-            </button>
+              <button
+                onClick={() => setShowStartModal(false)}
+                style={{
+                  padding: "10px 16px",
+                  background: "transparent",
+                  border: `1px solid ${theme.glassBorder}`,
+                  borderRadius: 8,
+                  color: theme.text,
+                  cursor: "pointer",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={startExam}
+                style={{
+                  padding: "10px 16px",
+                  background: theme.crimson,
+                  border: "none",
+                  borderRadius: 8,
+                  color: "white",
+                  cursor: "pointer",
+                }}
+              >
+                Start
+              </button>
+            </div>
           </div>
         </div>
-      </div>
-    )}
+      )}
+
+      {/* Create Class Modal */}
+      {showCreateClass && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0,0,0,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 2100,
+          }}
+          onClick={() => setShowCreateClass(false)}
+        >
+          <div
+            style={{
+              background: theme.modalBg,
+              borderRadius: 12,
+              padding: 24,
+              width: "90%",
+              maxWidth: 480,
+              border: `1px solid ${theme.glassBorder}`,
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ margin: "0 0 12px 0", color: theme.text }}>
+              Create Class
+            </h3>
+            <div style={{ marginBottom: 12 }}>
+              <label
+                style={{ display: "block", marginBottom: 6, color: theme.text }}
+              >
+                Name *
+              </label>
+              <input
+                type="text"
+                value={newClassName}
+                onChange={(e) => setNewClassName(e.target.value)}
+                style={{
+                  width: "100%",
+                  padding: "8px 12px",
+                  border: `1px solid ${theme.border}`,
+                  borderRadius: 6,
+                  background: theme.cardBg,
+                  color: theme.text,
+                }}
+              />
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <label
+                style={{ display: "block", marginBottom: 6, color: theme.text }}
+              >
+                Description
+              </label>
+              <textarea
+                value={newClassDescription}
+                onChange={(e) => setNewClassDescription(e.target.value)}
+                rows={3}
+                style={{
+                  width: "100%",
+                  padding: "8px 12px",
+                  border: `1px solid ${theme.border}`,
+                  borderRadius: 6,
+                  background: theme.cardBg,
+                  color: theme.text,
+                }}
+              />
+            </div>
+            <div style={{ marginBottom: 16 }}>
+              <label
+                style={{ display: "block", marginBottom: 6, color: theme.text }}
+              >
+                Color
+              </label>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(6, 1fr)",
+                  gap: 8,
+                }}
+              >
+                {CLASS_COLORS.map((c) => (
+                  <button
+                    key={c.value}
+                    onClick={() => setNewClassColor(c.value)}
+                    style={{
+                      width: "100%",
+                      aspectRatio: "1",
+                      borderRadius: 8,
+                      backgroundColor: c.value,
+                      border:
+                        newClassColor === c.value
+                          ? "3px solid white"
+                          : "1px solid #ccc",
+                      cursor: "pointer",
+                    }}
+                    title={c.name}
+                  />
+                ))}
+              </div>
+            </div>
+            <div
+              style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}
+            >
+              <button
+                onClick={() => setShowCreateClass(false)}
+                style={{
+                  padding: "8px 12px",
+                  border: `1px solid ${theme.glassBorder}`,
+                  background: "transparent",
+                  borderRadius: 6,
+                  color: theme.text,
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  if (!newClassName.trim()) {
+                    alert("Please enter a class name");
+                    return;
+                  }
+                  try {
+                    await createClass(
+                      newClassName,
+                      newClassDescription || undefined,
+                      newClassColor
+                    );
+                    setShowCreateClass(false);
+                    setNewClassName("");
+                    setNewClassDescription("");
+                    setNewClassColor("#007bff");
+                    const updated = await fetchClasses();
+                    setAllClasses(updated);
+                  } catch (e: any) {
+                    alert(e?.message || "Failed to create class");
+                  }
+                }}
+                style={{
+                  padding: "8px 12px",
+                  background: theme.crimson,
+                  color: "white",
+                  border: "none",
+                  borderRadius: 6,
+                  cursor: "pointer",
+                }}
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Manage Classes Modal */}
+      {showManageClasses && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0,0,0,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 2100,
+          }}
+          onClick={() => {
+            setManageView("list");
+            setShowManageClasses(false);
+          }}
+        >
+          <div
+            style={{
+              background: theme.modalBg,
+              borderRadius: 12,
+              padding: 24,
+              width: "90vw",
+              maxWidth: 800,
+              aspectRatio: "1",
+              border: `1px solid ${theme.glassBorder}`,
+              maxHeight: "90vh",
+              overflow: "auto",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: 12,
+              }}
+            >
+              <h3 style={{ margin: 0, color: theme.text }}>Manage Classes</h3>
+              {manageView === "list" ? (
+                <button
+                  onClick={() => setManageView("create")}
+                  title="Create Class"
+                  style={{
+                    padding: "8px 12px",
+                    background: theme.crimson,
+                    color: "white",
+                    border: "none",
+                    borderRadius: 6,
+                    cursor: "pointer",
+                  }}
+                >
+                  + New Class
+                </button>
+              ) : (
+                <button
+                  onClick={() => setManageView("list")}
+                  title="Back"
+                  style={{
+                    padding: "8px 12px",
+                    background: "transparent",
+                    border: `1px solid ${theme.glassBorder}`,
+                    borderRadius: 6,
+                    color: theme.text,
+                    cursor: "pointer",
+                  }}
+                >
+                  Back
+                </button>
+              )}
+            </div>
+            {manageView === "create" ? (
+              <div
+                style={{
+                  background: theme.modalBg,
+                  borderRadius: 12,
+                  padding: 8,
+                }}
+              >
+                <h3 style={{ margin: "0 0 12px 0", color: theme.text }}>
+                  Create Class
+                </h3>
+                <div style={{ marginBottom: 12 }}>
+                  <label
+                    style={{
+                      display: "block",
+                      marginBottom: 6,
+                      color: theme.text,
+                    }}
+                  >
+                    Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={newClassName}
+                    onChange={(e) => setNewClassName(e.target.value)}
+                    style={{
+                      width: "100%",
+                      padding: "8px 12px",
+                      border: `1px solid ${theme.border}`,
+                      borderRadius: 6,
+                      background: theme.cardBg,
+                      color: theme.text,
+                    }}
+                  />
+                </div>
+                <div style={{ marginBottom: 12 }}>
+                  <label
+                    style={{
+                      display: "block",
+                      marginBottom: 6,
+                      color: theme.text,
+                    }}
+                  >
+                    Description
+                  </label>
+                  <textarea
+                    value={newClassDescription}
+                    onChange={(e) => setNewClassDescription(e.target.value)}
+                    rows={3}
+                    style={{
+                      width: "100%",
+                      padding: "8px 12px",
+                      border: `1px solid ${theme.border}`,
+                      borderRadius: 6,
+                      background: theme.cardBg,
+                      color: theme.text,
+                    }}
+                  />
+                </div>
+                <div style={{ marginBottom: 16 }}>
+                  <label
+                    style={{
+                      display: "block",
+                      marginBottom: 6,
+                      color: theme.text,
+                    }}
+                  >
+                    Color
+                  </label>
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(6, 1fr)",
+                      gap: 8,
+                    }}
+                  >
+                    {CLASS_COLORS.map((c) => (
+                      <button
+                        key={c.value}
+                        onClick={() => setNewClassColor(c.value)}
+                        style={{
+                          width: "100%",
+                          aspectRatio: "1",
+                          borderRadius: 8,
+                          backgroundColor: c.value,
+                          border:
+                            newClassColor === c.value
+                              ? "3px solid white"
+                              : "1px solid #ccc",
+                          cursor: "pointer",
+                        }}
+                        title={c.name}
+                      />
+                    ))}
+                  </div>
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    gap: 8,
+                    justifyContent: "flex-end",
+                  }}
+                >
+                  <button
+                    onClick={() => {
+                      setManageView("list");
+                    }}
+                    style={{
+                      padding: "8px 12px",
+                      border: `1px solid ${theme.glassBorder}`,
+                      background: "transparent",
+                      borderRadius: 6,
+                      color: theme.text,
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={async () => {
+                      if (!newClassName.trim()) {
+                        alert("Please enter a class name");
+                        return;
+                      }
+                      try {
+                        await createClass(
+                          newClassName,
+                          newClassDescription || undefined,
+                          newClassColor
+                        );
+                        setNewClassName("");
+                        setNewClassDescription("");
+                        setNewClassColor("#007bff");
+                        const updated = await fetchClasses();
+                        setAllClasses(updated);
+                        setManageView("list");
+                      } catch (e: any) {
+                        alert(e?.message || "Failed to create class");
+                      }
+                    }}
+                    style={{
+                      padding: "8px 12px",
+                      background: theme.crimson,
+                      color: "white",
+                      border: "none",
+                      borderRadius: 6,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Save
+                  </button>
+                </div>
+              </div>
+            ) : allClasses.length === 0 ? (
+              <div
+                style={{
+                  textAlign: "center",
+                  padding: 48,
+                  color: theme.textSecondary,
+                }}
+              >
+                No classes created. Create one
+                <button
+                  onClick={() => setManageView("create")}
+                  style={{
+                    marginLeft: 6,
+                    padding: "6px 10px",
+                    borderRadius: 6,
+                    border: `1px solid ${theme.glassBorder}`,
+                    background: "transparent",
+                    color: theme.text,
+                    cursor: "pointer",
+                  }}
+                >
+                  +
+                </button>
+              </div>
+            ) : (
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))",
+                  gap: 12,
+                }}
+              >
+                {allClasses.map((cls) => (
+                  <div
+                    key={cls.id}
+                    style={{
+                      border: `1px solid ${theme.border}`,
+                      borderRadius: 8,
+                      padding: 12,
+                      background: theme.cardBg,
+                    }}
+                  >
+                    {manageEditing === cls.id ? (
+                      <>
+                        <input
+                          type="text"
+                          value={manageName}
+                          onChange={(e) => setManageName(e.target.value)}
+                          style={{
+                            width: "100%",
+                            padding: "6px 8px",
+                            border: `1px solid ${theme.border}`,
+                            borderRadius: 6,
+                            marginBottom: 8,
+                            background: theme.cardBg,
+                            color: theme.text,
+                          }}
+                        />
+                        <textarea
+                          value={manageDescription}
+                          onChange={(e) => setManageDescription(e.target.value)}
+                          rows={3}
+                          style={{
+                            width: "100%",
+                            padding: "6px 8px",
+                            border: `1px solid ${theme.border}`,
+                            borderRadius: 6,
+                            marginBottom: 8,
+                            background: theme.cardBg,
+                            color: theme.text,
+                          }}
+                        />
+                        <div
+                          style={{ display: "flex", gap: 6, marginBottom: 8 }}
+                        >
+                          {CLASS_COLORS.map((c) => (
+                            <button
+                              key={c.value}
+                              onClick={() => setManageColor(c.value)}
+                              title={c.name}
+                              style={{
+                                width: 22,
+                                height: 22,
+                                borderRadius: 6,
+                                background: c.value,
+                                border:
+                                  manageColor === c.value
+                                    ? "2px solid white"
+                                    : "1px solid #ccc",
+                                cursor: "pointer",
+                              }}
+                            />
+                          ))}
+                        </div>
+                        <div
+                          style={{
+                            display: "flex",
+                            gap: 6,
+                            justifyContent: "flex-end",
+                          }}
+                        >
+                          <button
+                            onClick={() => setManageEditing(null)}
+                            style={{
+                              padding: "6px 10px",
+                              border: `1px solid ${theme.glassBorder}`,
+                              background: "transparent",
+                              borderRadius: 6,
+                              color: theme.text,
+                            }}
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={async () => {
+                              try {
+                                await updateClass(
+                                  cls.id,
+                                  manageName || undefined,
+                                  manageDescription || undefined,
+                                  manageColor || undefined
+                                );
+                                setManageEditing(null);
+                                const updated = await fetchClasses();
+                                setAllClasses(updated);
+                              } catch (e: any) {
+                                alert(e?.message || "Failed to update class");
+                              }
+                            }}
+                            style={{
+                              padding: "6px 10px",
+                              background: theme.crimson,
+                              color: "white",
+                              border: "none",
+                              borderRadius: 6,
+                              cursor: "pointer",
+                            }}
+                          >
+                            Save
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            marginBottom: 8,
+                          }}
+                        >
+                          <h4 style={{ margin: 0, color: theme.text }}>
+                            {cls.name}
+                          </h4>
+                          <div style={{ display: "flex", gap: 6 }}>
+                            <button
+                              title="Edit"
+                              onClick={() => {
+                                setManageEditing(cls.id);
+                                setManageName(cls.name);
+                                setManageDescription(cls.description || "");
+                                setManageColor(cls.color || "#007bff");
+                              }}
+                              onMouseEnter={(e) => {
+                                (
+                                  e.currentTarget as HTMLButtonElement
+                                ).style.opacity = "1";
+                              }}
+                              onMouseLeave={(e) => {
+                                (
+                                  e.currentTarget as HTMLButtonElement
+                                ).style.opacity = "0.7";
+                              }}
+                              style={{
+                                padding: 8,
+                                background: "transparent",
+                                color: theme.textSecondary,
+                                border: `1px solid ${theme.glassBorder}`,
+                                borderRadius: 6,
+                                cursor: "pointer",
+                                transition: "0.2s",
+                                display: "flex",
+                                alignItems: "center",
+                                opacity: 0.7,
+                              }}
+                            >
+                              <svg
+                                width="16"
+                                height="16"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              >
+                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                              </svg>
+                            </button>
+                            <button
+                              title="Delete"
+                              onClick={async () => {
+                                if (!confirm(`Delete class "${cls.name}"?`))
+                                  return;
+                                try {
+                                  await deleteClass(cls.id);
+                                  const updated = await fetchClasses();
+                                  setAllClasses(updated);
+                                } catch (e: any) {
+                                  alert(e?.message || "Failed to delete class");
+                                }
+                              }}
+                              onMouseEnter={(e) => {
+                                (
+                                  e.currentTarget as HTMLButtonElement
+                                ).style.opacity = "1";
+                              }}
+                              onMouseLeave={(e) => {
+                                (
+                                  e.currentTarget as HTMLButtonElement
+                                ).style.opacity = "0.7";
+                              }}
+                              style={{
+                                padding: 8,
+                                background: "transparent",
+                                color: theme.textSecondary,
+                                border: `1px solid ${theme.glassBorder}`,
+                                borderRadius: 6,
+                                cursor: "pointer",
+                                transition: "0.2s",
+                                display: "flex",
+                                alignItems: "center",
+                                opacity: 0.7,
+                              }}
+                            >
+                              <svg
+                                width="18"
+                                height="18"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              >
+                                <polyline points="3 6 5 6 21 6"></polyline>
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                <line x1="10" y1="11" x2="10" y2="17"></line>
+                                <line x1="14" y1="11" x2="14" y2="17"></line>
+                              </svg>
+                            </button>
+                          </div>
+                        </div>
+                        {cls.description && (
+                          <div
+                            style={{ color: theme.textSecondary, fontSize: 13 }}
+                          >
+                            {cls.description}
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                marginTop: 16,
+              }}
+            >
+              <button
+                onClick={() => {
+                  setManageView("list");
+                  setShowManageClasses(false);
+                }}
+                style={{
+                  padding: "8px 12px",
+                  border: `1px solid ${theme.glassBorder}`,
+                  background: "transparent",
+                  color: theme.text,
+                  borderRadius: 6,
+                }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
