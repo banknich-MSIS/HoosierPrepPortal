@@ -216,15 +216,22 @@ export default function SmartExamCreator() {
           }}
         >
           <strong>Prefer a guided experience?</strong> Try the{" "}
-          <a
-            href="https://gemini.google.com/gem/582bd1e1e16d"
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{ color: theme.crimson, textDecoration: "underline" }}
+          <button
+            onClick={() => navigate("/upload")}
+            style={{
+              background: "none",
+              border: "none",
+              color: theme.crimson,
+              textDecoration: "underline",
+              cursor: "pointer",
+              fontSize: 14,
+              fontFamily: "inherit",
+              padding: 0,
+            }}
           >
-            Gemini Gem
-          </a>{" "}
-          for a consultative, interactive approach with Q&A to refine your exam.
+            Manual Creator
+          </button>{" "}
+          for a consultative, interactive chat approach with AI guidance to plan and refine your exam.
         </p>
       </div>
 

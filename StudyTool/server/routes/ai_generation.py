@@ -475,3 +475,61 @@ async def get_supported_formats():
         "description": "Supported file formats for exam generation"
     }
 
+
+class ChatMessage(BaseModel):
+    """Chat message structure."""
+    role: str  # "user" | "assistant"
+    content: str
+
+
+class ChatRequest(BaseModel):
+    """Request model for chat conversation."""
+    message: str
+    conversation_history: List[ChatMessage] = []
+
+
+class ChatResponse(BaseModel):
+    """Response model for chat conversation."""
+    response: str
+
+
+@router.post("/ai/chat", response_model=ChatResponse)
+async def chat_with_assistant(
+    request: ChatRequest,
+    x_gemini_api_key: str = Header(..., alias="X-Gemini-API-Key")
+):
+    """
+    Chat endpoint for the Manual Creator conversational interface.
+    
+    Provides guidance on:
+    - What study materials to upload
+    - How to structure content
+    - Question types and difficulty recommendations
+    - Study plan suggestions
+    
+    The assistant helps users plan their exam generation but does not generate
+    questions directly - that happens in a separate generation step.
+    """
+    try:
+        # Convert ChatMessage objects to dicts for the service
+        history_dicts = [
+            {"role": msg.role, "content": msg.content}
+            for msg in request.conversation_history
+        ]
+        
+        # Generate response using Gemini service
+        response_text = await gemini_service.generate_chat_response(
+            message=request.message,
+            conversation_history=history_dicts,
+            api_key=x_gemini_api_key
+        )
+        
+        return ChatResponse(response=response_text)
+        
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to generate chat response: {str(e)}"
+        )

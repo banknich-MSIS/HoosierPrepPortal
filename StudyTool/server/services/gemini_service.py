@@ -509,6 +509,93 @@ def synthesize_variants(base_questions: List[QuestionData], needed: int) -> List
     return variants[:needed]
 
 
+async def generate_chat_response(
+    message: str,
+    conversation_history: List[Dict[str, str]],
+    api_key: str
+) -> str:
+    """
+    Generate a conversational response for the Manual Creator chat interface.
+    
+    Args:
+        message: The user's current message
+        conversation_history: Previous messages in format [{"role": "user"|"assistant", "content": "..."}]
+        api_key: User's Gemini API key
+    
+    Returns:
+        AI assistant's response text
+    """
+    try:
+        # Configure Gemini with user's API key
+        configure_gemini(api_key)
+        
+        # Build the conversation prompt
+        system_instruction = """You are a helpful study assistant integrated into Hoosier Prep Portal. Your role is to help students plan their study materials and prepare for exams.
+
+Key responsibilities:
+- Help users understand what content to upload (PDFs, PowerPoint, Word docs, images, videos, Excel, text files)
+- Guide them on how to structure study materials for best results
+- Suggest appropriate question types (MCQ, short answer, true/false, fill-in-blank, multi-select)
+- Recommend difficulty levels (easy, medium, hard)
+- Help identify focus concepts and themes
+- Suggest study plans and exam configurations
+
+When users describe what they want to study:
+- Ask clarifying questions about their goals
+- Suggest specific question counts (10-20 for quick practice, 30+ for comprehensive exams)
+- Recommend difficulty based on their preparation level
+- Identify key concepts they should focus on
+- Be encouraging and supportive
+
+Keep responses concise (2-3 paragraphs max), friendly, and actionable. Don't generate actual exam questions - your job is to help them plan and configure what they'll generate."""
+
+        # Build full conversation context
+        conversation_text = system_instruction + "\n\n"
+        
+        # Add conversation history
+        for msg in conversation_history:
+            role = "User" if msg["role"] == "user" else "Assistant"
+            conversation_text += f"{role}: {msg['content']}\n\n"
+        
+        # Add current message
+        conversation_text += f"User: {message}\n\nAssistant:"
+        
+        # Resolve and initialize Gemini model
+        model_name = await resolve_model_for_key(api_key)
+        model = genai.GenerativeModel(model_name)
+        
+        # Generate response with conversational settings
+        def _gen(prompt_text: str):
+            return model.generate_content(
+                prompt_text,
+                generation_config=genai.GenerationConfig(
+                    temperature=0.85,  # Higher for more natural, varied responses
+                    top_p=0.95,
+                    top_k=40,
+                    max_output_tokens=1024,  # Shorter responses for chat
+                ),
+            )
+        
+        import asyncio as _asyncio
+        response = await _asyncio.to_thread(_gen, conversation_text)
+        
+        # Extract and return response text
+        return response.text.strip()
+        
+    except google_exceptions.NotFound as e:
+        raise ValueError(
+            "Requested model is not found or unsupported by your key. "
+            "Please check your API key configuration."
+        )
+    except google_exceptions.PermissionDenied as e:
+        raise ValueError(
+            "Your API key lacks access to the selected model. "
+            "Please check your API key permissions."
+        )
+    except Exception as e:
+        raise ValueError(f"Failed to generate chat response: {str(e)}")
+
+
 async def validate_api_key(api_key: str) -> bool:
     """
     Validate that the provided Gemini API key works by discovering available models dynamically.

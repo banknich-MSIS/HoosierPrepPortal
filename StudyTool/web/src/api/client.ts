@@ -332,3 +332,31 @@ export async function getJobStatus(jobId: string): Promise<{
   const { data } = await api.get(`/jobs/${jobId}`);
   return data;
 }
+
+// Chat API methods
+export interface ChatMessage {
+  role: "user" | "assistant" | "system";
+  content: string;
+}
+
+export async function sendChatMessage(params: {
+  message: string;
+  conversationHistory: ChatMessage[];
+  apiKey: string;
+}): Promise<{ response: string }> {
+  const { data } = await api.post(
+    "/ai/chat",
+    {
+      message: params.message,
+      conversation_history: params.conversationHistory.filter(
+        (m) => m.role !== "system"
+      ), // Filter out system messages, send only user/assistant
+    },
+    {
+      headers: {
+        "X-Gemini-API-Key": params.apiKey,
+      },
+    }
+  );
+  return data;
+}

@@ -44,87 +44,49 @@ const TutorialModal: React.FC<TutorialModalProps> = ({
           </div>
           <div>
             <strong style={{ color: theme.amber }}>
-              Option 2: Gemini Gem (Consultative)
+              Option 2: Manual Creator (Consultative Chat)
             </strong>
             <p>
-              Guided, interactive experience. The Gem walks you through Q&A to
-              refine your exam, then outputs a CSV to upload.
+              Guided, interactive experience with built-in AI chat. Talk with the assistant about your study goals, upload documents during the conversation, and refine your exam plan before generating.
             </p>
-            <a
-              href="https://gemini.google.com/gem/582bd1e1e16d"
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{
-                display: "inline-block",
-                padding: "10px 20px",
-                background: theme.amber,
-                color: "white",
-                borderRadius: 6,
-                textDecoration: "none",
-                margin: "8px 0",
-                fontWeight: 600,
-                boxShadow: "0 2px 8px rgba(212, 166, 80, 0.25)",
-              }}
-            >
-              Open Gemini Gem →
-            </a>
-            <div
-              style={{ marginTop: 8, fontSize: 12, color: theme.textSecondary }}
-            >
-              Note: Access to the Gemini Gem requires a Gemini Pro account
-              (included with your IU school account). For API keys used in this
-              tool, use a personal Google account instead.
-            </div>
+            <p style={{ fontSize: 14, color: theme.textSecondary }}>
+              Perfect for when you want guidance on what to study, how to structure your materials, or need help deciding on question types and difficulty levels.
+            </p>
           </div>
         </div>
       ),
     },
     {
-      title: "Step 2: Use the CSV",
+      title: "Step 2: Using Manual Creator Chat",
       content: (
         <div>
-          <p>Gemini will generate a CSV with your questions. To use it:</p>
+          <p>If you choose the Manual Creator with chat guidance:</p>
           <ol style={{ paddingLeft: 20, marginTop: 12 }}>
-            <li>Copy the entire CSV content from Gemini's response</li>
-            <li>
-              Paste it directly into the Manual Creator window in this tool
-            </li>
-            <li>
-              Once your exam is created, you can download the CSV file from the
-              Dashboard page
-            </li>
+            <li>Chat with the AI assistant about your study goals</li>
+            <li>Upload documents during the conversation</li>
+            <li>Configure exam settings (question count, difficulty, types)</li>
+            <li>Generate your exam - it appears automatically in your Dashboard</li>
           </ol>
-        </div>
-      ),
-    },
-    {
-      title: "Step 3: Upload Here",
-      content: (
-        <div>
-          <p>Upload the CSV file to Hoosier Prep Portal.</p>
-          <p>
-            The tool will automatically configure your exam settings based on
-            Gemini's recommendations.
+          <p style={{ marginTop: 12, fontSize: 14, color: theme.textSecondary }}>
+            The chat assistant helps you plan and refine your approach before generating questions.
           </p>
-          <p>You can still customize the settings if needed.</p>
-          <div
-            style={{ marginTop: 8, fontSize: 12, color: theme.textSecondary }}
-          >
-            Tip: Ensure your CSV matches the expected template (headers and
-            column order). See the Upload page for the downloadable template.
-          </div>
         </div>
       ),
     },
     {
-      title: "Step 4: Take Your Exam",
+      title: "Step 3: Take Your Exam",
       content: (
         <div>
-          <p>Start your practice exam!</p>
+          <p>Start your practice exam from the Dashboard!</p>
           <p>
             Answer questions, get instant feedback, and track your progress.
           </p>
           <p>Review your results to identify areas for improvement.</p>
+          <div
+            style={{ marginTop: 12, fontSize: 12, color: theme.textSecondary }}
+          >
+            Tip: You can also manually upload CSV files if you have pre-existing question sets.
+          </div>
         </div>
       ),
     },

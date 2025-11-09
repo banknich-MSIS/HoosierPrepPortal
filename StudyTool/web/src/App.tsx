@@ -3,8 +3,8 @@ import { useState, useEffect } from "react";
 import TutorialModal from "./components/TutorialModal";
 // ELECTRON: Commented out - using start.ps1/stop.ps1 instead
 // import BackendStatus from "./components/BackendStatus";
-import IURedLogo from "./assets/IURedLogo.svg";
-import IUGreyLogo from "./assets/IUGreyLogo.svg";
+import IURedLogo from "../../assets/IURedLogo.svg";
+import IUGreyLogo from "../../assets/IUGreyLogo.svg";
 import JobToaster from "./components/JobToaster";
 
 export default function App() {

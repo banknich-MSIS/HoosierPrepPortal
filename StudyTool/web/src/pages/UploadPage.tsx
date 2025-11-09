@@ -1,465 +1,681 @@
-import { useState } from "react";
-import { uploadCsv } from "../api/client";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, useOutletContext } from "react-router-dom";
-import type { UploadMetadata } from "../types";
+import {
+  sendChatMessage,
+  ChatMessage,
+  startExamGenerationJob,
+  fetchClasses,
+} from "../api/client";
+import type { ClassSummary } from "../types";
+
+interface FileAttachment {
+  file: File;
+  id: string;
+}
 
 export default function UploadPage() {
   const { darkMode, theme } = useOutletContext<{
     darkMode: boolean;
     theme: any;
   }>();
-  const [file, setFile] = useState<File | null>(null);
-  const [studySetName, setStudySetName] = useState<string>("");
-  const [csvText, setCsvText] = useState<string>("");
-  const [uploadedFromPaste, setUploadedFromPaste] = useState(false);
-  const [stats, setStats] = useState<Record<string, unknown> | null>(null);
-  const [uploadId, setUploadId] = useState<number | null>(null);
-  const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
+
+  // Chat state
+  const [messages, setMessages] = useState<
+    (ChatMessage & { timestamp: Date; attachments?: FileAttachment[] })[]
+  >([
+    {
+      role: "system",
+      content:
+        "Talk to me about what kinds of content you want to study and upload any relevant documents. I'll help guide you toward a strong plan for your studying.",
+      timestamp: new Date(),
+    },
+  ]);
+  const [inputMessage, setInputMessage] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [hoveredButton, setHoveredButton] = useState<string | null>(null);
-  const nav = useNavigate();
 
-  const onUpload = async () => {
-    if (!file && !csvText.trim()) return;
-    setLoading(true);
-    setError(null);
-    try {
-      let fileToUpload = file;
-      const wasPasted = !file && csvText.trim();
+  // File state
+  const [attachedFiles, setAttachedFiles] = useState<FileAttachment[]>([]);
+  const [allUploadedFiles, setAllUploadedFiles] = useState<File[]>([]);
 
-      // If CSV text is provided instead of file, convert it to a File
-      if (!fileToUpload && csvText.trim()) {
-        const blob = new Blob([csvText], { type: "text/csv" });
-        const safe = (studySetName || "study-set").replace(
-          /[^a-z0-9-_. ]/gi,
-          "_"
-        );
-        const filename = `${safe}.csv`;
-        fileToUpload = new File([blob], filename, { type: "text/csv" });
+  // Configuration state
+  const [showConfig, setShowConfig] = useState(false);
+  const [questionCount, setQuestionCount] = useState(15);
+  const [difficulty, setDifficulty] = useState<"easy" | "medium" | "hard">(
+    "medium"
+  );
+  const [questionTypes, setQuestionTypes] = useState<string[]>([
+    "mcq",
+    "short",
+  ]);
+  const [generationMode, setGenerationMode] = useState<
+    "strict" | "mixed" | "creative"
+  >("strict");
+  const [focusConcepts, setFocusConcepts] = useState("");
+  const [examName, setExamName] = useState("");
+  const [classes, setClasses] = useState<ClassSummary[]>([]);
+  const [selectedClassId, setSelectedClassId] = useState<number | null>(null);
+
+  // UI refs
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Get stored API key
+  const getStoredApiKey = () => {
+    const encrypted = localStorage.getItem("gemini_api_key");
+    return encrypted ? atob(encrypted) : null;
+  };
+
+  const hasApiKey = !!getStoredApiKey();
+
+  // Load classes on mount
+  useEffect(() => {
+    const loadClasses = async () => {
+      try {
+        const data = await fetchClasses();
+        setClasses(data);
+      } catch (e) {
+        console.error("Failed to load classes:", e);
       }
+    };
+    loadClasses();
+  }, []);
 
-      if (!fileToUpload) return;
+  // Auto-scroll to bottom on new messages
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
 
-      const res = await uploadCsv(fileToUpload);
-      setUploadId(res.uploadId);
-      setStats(res.stats);
-      setUploadedFromPaste(wasPasted);
-      // Clear inputs after successful upload
-      setFile(null);
-      setCsvText("");
+  const handleSendMessage = async (
+    e?: React.MouseEvent | React.KeyboardEvent
+  ) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+
+    if (!inputMessage.trim() && attachedFiles.length === 0) return;
+
+    const apiKey = getStoredApiKey();
+    if (!apiKey) {
+      navigate("/settings");
+      return;
+    }
+
+    const userMessage: ChatMessage & {
+      timestamp: Date;
+      attachments?: FileAttachment[];
+    } = {
+      role: "user",
+      content: inputMessage.trim(),
+      timestamp: new Date(),
+      attachments: attachedFiles.length > 0 ? [...attachedFiles] : undefined,
+    };
+
+    // Add files to accumulated list
+    if (attachedFiles.length > 0) {
+      setAllUploadedFiles([
+        ...allUploadedFiles,
+        ...attachedFiles.map((a) => a.file),
+      ]);
+    }
+
+    // Add user message to chat
+    setMessages([...messages, userMessage]);
+    setInputMessage("");
+    setAttachedFiles([]);
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      // Send to chat API
+      const response = await sendChatMessage({
+        message: userMessage.content,
+        conversationHistory: messages.filter((m) => m.role !== "system"),
+        apiKey,
+      });
+
+      // Add assistant response
+      const assistantMessage: ChatMessage & { timestamp: Date } = {
+        role: "assistant",
+        content: response.response,
+        timestamp: new Date(),
+      };
+
+      setMessages((prev) => [...prev, assistantMessage]);
+
+      // Auto-expand config panel after first exchange
+      if (messages.length <= 1) {
+        setShowConfig(true);
+      }
     } catch (e: any) {
-      setError(e?.response?.data?.detail || e.message);
+      setError(
+        e?.response?.data?.detail ||
+          e?.message ||
+          "Failed to send message. Please try again."
+      );
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
-  const downloadPastedCsv = () => {
-    if (!stats) return;
-    const csvContent = stats.raw_csv_content || "No CSV content available";
-    const blob = new Blob([csvContent], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "generated-study-set.csv";
-    a.click();
-    URL.revokeObjectURL(url);
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const newFiles = Array.from(e.target.files).map((file) => ({
+        file,
+        id: `${file.name}-${Date.now()}-${Math.random()}`,
+      }));
+      setAttachedFiles([...attachedFiles, ...newFiles]);
+    }
   };
 
-  const downloadTemplate = () => {
-    const csvContent = `# Hoosier Prep CSV Template with Detailed Formatting Rules
-# 
-# CRITICAL FORMATTING RULES FOR LLMs TO FOLLOW:
-#
-# 1. FIELD QUOTING:
-#    - question: ALWAYS quoted (contains text)
-#    - options: ALWAYS quoted if populated (contains pipes)
-#    - answer: Quote ONLY if contains commas or pipes
-#    - concepts: ALWAYS quoted (comma-separated)
-#
-# 2. OPTIONS (mcq/multi only):
-#    - Use pipes (|) to separate options
-#    - NO spaces around pipes
-#    - NO commas within options
-#    - Example: "Option A|Option B|Option C"
-#
-# 3. ANSWERS:
-#    - mcq: Single value matching ONE option exactly (case-sensitive)
-#    - multi: Pipe-separated, MUST be quoted (e.g., "A|B|C")
-#    - short: Simple text, quote if contains commas/pipes
-#    - truefalse: "True" or "False"
-#    - cloze: Pipe-separated for each blank, MUST be quoted
-#
-# 4. CONCEPTS:
-#    - Comma-separated tags
-#    - ALWAYS quoted
-#    - Example: "Networking,Router,OSI Model"
-#
-# 5. FORBIDDEN:
-#    - NO pipes in question stems (use other punctuation or rephrase)
-#    - NO commas in options or multi-answers (use pipes)
-#    - NO citation markers ([cite: XX])
-#    - NO special annotations or metadata
-#
-# 6. QUESTION TYPES:
-#    mcq = Single correct multiple choice
-#    multi = Multiple correct selections
-#    short = Text answer
-#    truefalse = True/False
-#    cloze = Fill-in-the-blank (use underscores in question)
-#
-# Example: "The _____ protocol operates at Layer 4" with answer "TCP"
-#
-
-#themes: Your Study Topic, Subtopic
-#suggested_types: mcq,short,multi
-#recommended_count: 10
-
-question,type,options,answer,concepts
-"What is 2+2?",short,,4,"Basic Math"
-"What is the capital of France?",mcq,"Paris|London|Berlin|Madrid",Paris,"Geography"
-"Which are programming languages?",multi,"Python|English|Java|C++","Python|Java|C++","Programming,Languages"
-"HTML is a programming language",truefalse,,False,"HTML,Web"
-"The _____ is the heart of a computer",cloze,,CPU,"Hardware,Components"`;
-
-    const blob = new Blob([csvContent], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "hoosier-prep-template.csv";
-    a.click();
-    URL.revokeObjectURL(url);
+  const removeAttachment = (id: string) => {
+    setAttachedFiles(attachedFiles.filter((a) => a.id !== id));
   };
 
-  const showTutorial = () => {
-    // This will be handled by the parent App component
-    window.dispatchEvent(new CustomEvent("showTutorial"));
+  const toggleQuestionType = (type: string) => {
+    if (questionTypes.includes(type)) {
+      setQuestionTypes(questionTypes.filter((t) => t !== type));
+    } else {
+      setQuestionTypes([...questionTypes, type]);
+    }
   };
 
-  const metadata = stats?.metadata as UploadMetadata | undefined;
+  const handleGenerate = async () => {
+    const apiKey = getStoredApiKey();
+    if (!apiKey) {
+      navigate("/settings");
+      return;
+    }
+
+    if (!examName.trim()) {
+      setError("Please enter an exam title");
+      return;
+    }
+
+    if (allUploadedFiles.length === 0) {
+      setError("Please upload at least one file during the conversation");
+      return;
+    }
+
+    if (questionTypes.length === 0) {
+      setError("Please select at least one question type");
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const formData = new FormData();
+      allUploadedFiles.forEach((file) => formData.append("files", file));
+
+      // Start async background job for generation
+      const job = await startExamGenerationJob({
+        files: formData,
+        questionCount,
+        difficulty,
+        questionTypes,
+        focusConcepts: focusConcepts
+          .split(",")
+          .map((c) => c.trim())
+          .filter((c) => c.length > 0),
+        examName: examName,
+        examMode: "exam",
+        generationMode,
+        selectedClassId: selectedClassId || undefined,
+        apiKey,
+      });
+
+      // Store job id so global toaster can pick it up
+      localStorage.setItem("active_exam_job", job.jobId);
+      window.dispatchEvent(
+        new CustomEvent("exam-job-started", { detail: { jobId: job.jobId } })
+      );
+
+      // Redirect to dashboard while generation proceeds in background
+      navigate("/");
+    } catch (e: any) {
+      setError(
+        e?.response?.data?.detail ||
+          e?.message ||
+          "Failed to generate exam. Please try again."
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const questionTypeOptions = [
+    { value: "mcq", label: "Multiple Choice" },
+    { value: "short", label: "Short Answer" },
+    { value: "truefalse", label: "True/False" },
+    { value: "cloze", label: "Fill in the Blank" },
+  ];
 
   return (
-    <div style={{ display: "grid", gap: 16 }}>
-      {/* Gemini Workflow Instructions - Glassmorphism */}
-      <div
-        style={{
-          background: theme.cardBg,
-          backdropFilter: theme.glassBlur,
-          WebkitBackdropFilter: theme.glassBlur,
-          padding: 20,
-          borderRadius: 12,
-          border: `1px solid ${theme.glassBorder}`,
-          boxShadow: theme.glassShadow,
-        }}
-      >
-        <h3
-          style={{
-            margin: "0 0 12px 0",
-            color: theme.crimson,
-            fontWeight: 600,
-            letterSpacing: "-0.3px",
-          }}
-        >
-          Manual Exam Creator
-        </h3>
-        <div style={{ marginBottom: 16 }}>
-          <div
-            style={{ fontWeight: 600, color: theme.crimson, marginBottom: 6 }}
-          >
-            About this page
-          </div>
-          <p
-            style={{
-              margin: "0 0 12px 0",
-              color: theme.text,
-              fontSize: 14,
-              lineHeight: 1.6,
-              paddingLeft: 12,
-            }}
-          >
-            This is the manual path to create a study set: upload a CSV you
-            already have or paste CSV generated by the Gemini Gem. After
-            uploading, you can configure and start an exam.
-          </p>
-        </div>
-        <div style={{ marginBottom: 16 }}>
-          <div style={{ fontWeight: 600, color: theme.amber, marginBottom: 6 }}>
-            Prefer automated AI generation?
-          </div>
-          <p
-            style={{
-              margin: 0,
-              color: theme.text,
-              fontSize: 14,
-              lineHeight: 1.6,
-              paddingLeft: 12,
-            }}
-          >
-            Use the{" "}
-            <a
-              href="https://gemini.google.com/gem/582bd1e1e16d"
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{ color: theme.amber, textDecoration: "underline" }}
-            >
-              Gemini Gem
-            </a>
-            ️ to produce CSV text, or try the AI Exam Creator page.
-          </p>
-        </div>
-        <div style={{ marginTop: 12, display: "flex", gap: 8 }}>
-          <button
-            onClick={showTutorial}
-            style={{
-              padding: "8px 14px",
-              background: "rgba(196, 30, 58, 0.08)",
-              color: theme.crimson,
-              border: `1px solid ${theme.glassBorder}`,
-              borderRadius: 6,
-              cursor: "pointer",
-              fontSize: 13,
-              fontWeight: 500,
-              transition: "0.2s",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = "rgba(196, 30, 58, 0.15)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = "rgba(196, 30, 58, 0.08)";
-            }}
-          >
-            View Guide
-          </button>
-          <button
-            onClick={downloadTemplate}
-            style={{
-              padding: "10px 20px",
-              border: "none",
-              borderRadius: 6,
-              background: theme.amber,
-              color: "white",
-              cursor: "pointer",
-              fontWeight: 600,
-              letterSpacing: "-0.2px",
-              transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
-              boxShadow: "0 2px 8px rgba(212, 166, 80, 0.25)",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.boxShadow =
-                "0 4px 12px rgba(212, 166, 80, 0.35)";
-              e.currentTarget.style.transform = "translateY(-1px)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.boxShadow =
-                "0 2px 8px rgba(212, 166, 80, 0.25)";
-              e.currentTarget.style.transform = "translateY(0)";
-            }}
-          >
-            Download Template
-          </button>
-        </div>
-      </div>
-
-      {/* Study Set Name */}
-      <div
-        style={{
-          background: theme.cardBg,
-          backdropFilter: theme.glassBlur,
-          WebkitBackdropFilter: theme.glassBlur,
-          borderRadius: 12,
-          padding: 20,
-          border: `1px solid ${theme.glassBorder}`,
-          boxShadow: theme.glassShadow,
-        }}
-      >
-        <label
-          style={{
-            display: "block",
-            marginBottom: 8,
-            color: theme.text,
-            fontWeight: 600,
-          }}
-        >
-          Study Set Name
-        </label>
-        <input
-          type="text"
-          value={studySetName}
-          onChange={(e) => setStudySetName(e.target.value)}
-          placeholder="e.g., Zero Trust Architecture Set"
-          style={{
-            width: "100%",
-            padding: 12,
-            borderRadius: 8,
-            border: `1px solid ${theme.border}`,
-            background: theme.cardBgSolid,
-            color: theme.text,
-            fontSize: 14,
-          }}
-        />
-        <div style={{ marginTop: 8, color: theme.textSecondary, fontSize: 12 }}>
-          Used for naming the saved CSV when pasting text. For file uploads, the
-          original filename is kept.
-        </div>
-      </div>
-
-      {/* CSV Upload Section - Glassmorphism */}
-      <div
-        style={{
-          border: `2px dashed ${theme.glassBorder}`,
-          borderRadius: 12,
-          padding: 24,
-          textAlign: "center",
-          background: file ? theme.navHover : theme.cardBg,
-          backdropFilter: theme.glassBlur,
-          WebkitBackdropFilter: theme.glassBlur,
-          boxShadow: file ? theme.glassShadowHover : theme.glassShadow,
-          transition: "all 0.3s ease",
-        }}
-      >
-        <h3
-          style={{
-            margin: "0 0 16px 0",
-            color: theme.crimson,
-            fontWeight: 600,
-            textAlign: "center",
-          }}
-        >
-          Upload Study CSV
-        </h3>
-        <div style={{ display: "flex", justifyContent: "center" }}>
-          <input
-            type="file"
-            accept=".csv"
-            onChange={(e) => {
-              setFile(e.target.files?.[0] || null);
-              if (e.target.files?.[0]) setCsvText("");
-            }}
-            style={{
-              color: theme.text,
-              backgroundColor: theme.cardBgSolid,
-              padding: 16,
-              borderRadius: 8,
-              border: `2px solid ${theme.glassBorder}`,
-              fontSize: 15,
-              fontWeight: 500,
-              cursor: "pointer",
-              maxWidth: 400,
-            }}
-          />
-        </div>
-      </div>
-
-      {/* CSV Text Paste Section - Glassmorphism */}
-      <div
-        style={{
-          border: `2px dashed ${theme.glassBorder}`,
-          borderRadius: 12,
-          padding: 24,
-          background: csvText.trim() ? theme.navHover : theme.cardBg,
-          backdropFilter: theme.glassBlur,
-          WebkitBackdropFilter: theme.glassBlur,
-          boxShadow: csvText.trim()
-            ? theme.glassShadowHover
-            : theme.glassShadow,
-          transition: "all 0.3s ease",
-        }}
-      >
-        <h3
+    <div style={{ display: "grid", gap: 24, maxWidth: 1000, margin: "0 auto" }}>
+      {/* Header */}
+      <div>
+        <h1
           style={{
             margin: "0 0 8px 0",
+            fontSize: 32,
+            fontWeight: 700,
             color: theme.crimson,
-            fontWeight: 600,
+            letterSpacing: "-0.8px",
           }}
         >
-          Or Paste CSV Text (Gemini format)
-        </h3>
+          Manual Creator
+        </h1>
         <p
           style={{
-            margin: "0 0 12px 0",
-            fontSize: 14,
-            color: theme.textSecondary,
-            lineHeight: 1.5,
-          }}
-        >
-          Paste the CSV text code outputted in the format delivered from Gemini
-        </p>
-        <textarea
-          value={csvText}
-          onChange={(e) => {
-            setCsvText(e.target.value);
-            if (e.target.value.trim()) setFile(null);
-          }}
-          placeholder="Paste your CSV content here..."
-          style={{
-            width: "100%",
-            minHeight: 200,
-            padding: 16,
-            borderRadius: 8,
-            border: `1px solid ${theme.border}`,
-            background: theme.cardBgSolid,
+            margin: 0,
             color: theme.text,
-            fontFamily: "monospace",
-            fontSize: 13,
-            resize: "vertical",
-            outline: "none",
-          }}
-        />
-      </div>
-
-      {/* Upload Button - Glassmorphism */}
-      <div style={{ textAlign: "center" }}>
-        <button
-          onClick={onUpload}
-          disabled={(!file && !csvText.trim()) || loading}
-          style={{
-            padding: "12px 32px",
-            background: file || csvText.trim() ? theme.crimson : theme.border,
-            color: "white",
-            border: "none",
-            borderRadius: 6,
-            cursor: file || csvText.trim() ? "pointer" : "not-allowed",
             fontSize: 16,
-            fontWeight: 600,
-            letterSpacing: "-0.2px",
-            transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
-            boxShadow:
-              file || csvText.trim()
-                ? "0 2px 8px rgba(196, 30, 58, 0.25)"
-                : "none",
-            transform:
-              hoveredButton === "uploadCsv" ? "translateY(-1px)" : "none",
-          }}
-          onMouseEnter={(e) => {
-            if (file || csvText.trim()) {
-              e.currentTarget.style.boxShadow =
-                "0 4px 12px rgba(196, 30, 58, 0.35)";
-            }
-          }}
-          onMouseLeave={(e) => {
-            if (file || csvText.trim()) {
-              e.currentTarget.style.boxShadow =
-                "0 2px 8px rgba(196, 30, 58, 0.25)";
-            }
+            lineHeight: 1.6,
           }}
         >
-          {loading ? "Uploading..." : "Upload CSV"}
-        </button>
+          You can upload documents, paste in CSVs, or add notes here to help
+          generate new items for your study library.
+        </p>
       </div>
 
+      {/* API Key Warning */}
+      {!hasApiKey && (
+        <div
+          style={{
+            padding: 20,
+            background: darkMode
+              ? "rgba(212, 166, 80, 0.1)"
+              : "rgba(212, 166, 80, 0.15)",
+            backdropFilter: theme.glassBlur,
+            WebkitBackdropFilter: theme.glassBlur,
+            border: `2px solid ${theme.amber}`,
+            borderRadius: 12,
+            boxShadow: theme.glassShadow,
+          }}
+        >
+          <div
+            style={{
+              fontSize: 18,
+              fontWeight: 600,
+              color: theme.amber,
+              marginBottom: 8,
+            }}
+          >
+            API Key Required
+          </div>
+          <p style={{ margin: "0 0 12px 0", color: theme.text }}>
+            You need to set up your free Gemini API key before using the chat
+            assistant.
+          </p>
+          <button
+            onClick={() => navigate("/settings")}
+            style={{
+              padding: "10px 20px",
+              background: theme.amber,
+              color: "white",
+              border: "none",
+              borderRadius: 8,
+              cursor: "pointer",
+              fontWeight: 600,
+              boxShadow: "0 4px 12px rgba(212, 166, 80, 0.3)",
+            }}
+          >
+            Go to Settings
+          </button>
+        </div>
+      )}
+
+      {/* Chat Area */}
+      <div
+        style={{
+          background: theme.cardBg,
+          backdropFilter: theme.glassBlur,
+          WebkitBackdropFilter: theme.glassBlur,
+          borderRadius: 12,
+          border: `1px solid ${theme.glassBorder}`,
+          boxShadow: theme.glassShadow,
+          display: "flex",
+          flexDirection: "column",
+          height: "500px",
+        }}
+      >
+        {/* Messages */}
+        <div
+          style={{
+            flex: 1,
+            overflowY: "auto",
+            padding: 20,
+            display: "flex",
+            flexDirection: "column",
+            gap: 16,
+          }}
+        >
+          {messages.map((msg, idx) => (
+            <div
+              key={idx}
+              style={{
+                display: "flex",
+                justifyContent: msg.role === "user" ? "flex-end" : "flex-start",
+              }}
+            >
+              <div
+                style={{
+                  maxWidth: "75%",
+                  padding: "12px 16px",
+                  borderRadius: 12,
+                  background:
+                    msg.role === "user"
+                      ? theme.crimson
+                      : msg.role === "assistant"
+                      ? theme.cardBgSolid
+                      : "rgba(212, 166, 80, 0.1)",
+                  color:
+                    msg.role === "user"
+                      ? "white"
+                      : msg.role === "system"
+                      ? theme.amber
+                      : theme.textSecondary,
+                  border:
+                    msg.role === "system"
+                      ? `1px solid ${theme.amber}`
+                      : msg.role === "assistant"
+                      ? `1px solid ${theme.glassBorder}`
+                      : "none",
+                  boxShadow:
+                    msg.role === "user"
+                      ? "0 2px 8px rgba(196, 30, 58, 0.3)"
+                      : "0 2px 8px rgba(0, 0, 0, 0.05)",
+                }}
+              >
+                <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.5 }}>
+                  {msg.content}
+                </div>
+                {msg.attachments && msg.attachments.length > 0 && (
+                  <div
+                    style={{
+                      marginTop: 8,
+                      display: "flex",
+                      flexWrap: "wrap",
+                      gap: 6,
+                    }}
+                  >
+                    {msg.attachments.map((att) => (
+                      <div
+                        key={att.id}
+                        style={{
+                          padding: "4px 8px",
+                          background: "rgba(255, 255, 255, 0.2)",
+                          borderRadius: 6,
+                          fontSize: 12,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 4,
+                        }}
+                      >
+                        📎 {att.file.name}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div
+                  style={{
+                    marginTop: 6,
+                    fontSize: 11,
+                    opacity: 0.7,
+                  }}
+                >
+                  {msg.timestamp.toLocaleTimeString()}
+                </div>
+              </div>
+            </div>
+          ))}
+          {isLoading && (
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-start",
+              }}
+            >
+              <div
+                style={{
+                  padding: "12px 16px",
+                  borderRadius: 12,
+                  background: theme.cardBgSolid,
+                  border: `1px solid ${theme.glassBorder}`,
+                  color: theme.textSecondary,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                }}
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  style={{ animation: "spin 1s linear infinite" }}
+                >
+                  <circle cx="12" cy="12" r="10" opacity="0.25" />
+                  <path d="M12 2 A10 10 0 0 1 22 12" />
+                </svg>
+                Thinking...
+              </div>
+            </div>
+          )}
+          <div ref={messagesEndRef} />
+        </div>
+
+        {/* Input Area */}
+        <div
+          style={{
+            borderTop: `1px solid ${theme.glassBorder}`,
+            padding: 16,
+          }}
+        >
+          {/* File Attachments Preview */}
+          {attachedFiles.length > 0 && (
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: 8,
+                marginBottom: 12,
+              }}
+            >
+              {attachedFiles.map((att) => (
+                <div
+                  key={att.id}
+                  style={{
+                    padding: "6px 12px",
+                    background: "rgba(196, 30, 58, 0.1)",
+                    border: `1px solid ${theme.crimson}`,
+                    borderRadius: 8,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    fontSize: 13,
+                  }}
+                >
+                  <span>📎 {att.file.name}</span>
+                  <button
+                    onClick={() => removeAttachment(att.id)}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      color: theme.crimson,
+                      cursor: "pointer",
+                      padding: 0,
+                      fontSize: 16,
+                    }}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Input Row */}
+          <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
+            <input
+              type="file"
+              ref={fileInputRef}
+              multiple
+              accept=".pdf,.pptx,.ppt,.docx,.doc,.png,.jpg,.jpeg,.txt,.md,.mp4,.mov,.avi,.xlsx,.xls,.csv"
+              onChange={handleFileSelect}
+              style={{ display: "none" }}
+            />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={!hasApiKey}
+              style={{
+                padding: 12,
+                background: theme.cardBgSolid,
+                border: `1px solid ${theme.glassBorder}`,
+                borderRadius: 8,
+                cursor: hasApiKey ? "pointer" : "not-allowed",
+                color: theme.text,
+                transition: "all 0.2s",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+              onMouseEnter={(e) => {
+                if (hasApiKey) {
+                  e.currentTarget.style.background = theme.navHover;
+                }
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = theme.cardBgSolid;
+              }}
+              title="Attach files"
+            >
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="17 8 12 3 7 8" />
+                <line x1="12" y1="3" x2="12" y2="15" />
+              </svg>
+            </button>
+            <textarea
+              value={inputMessage}
+              onChange={(e) => setInputMessage(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  handleSendMessage(e);
+                }
+              }}
+              placeholder={
+                hasApiKey
+                  ? "Type your message... (Shift+Enter for new line)"
+                  : "API key required to chat"
+              }
+              disabled={!hasApiKey || isLoading}
+              style={{
+                flex: 1,
+                padding: 12,
+                borderRadius: 8,
+                border: `1px solid ${theme.border}`,
+                background: theme.cardBgSolid,
+                color: theme.text,
+                fontSize: 14,
+                resize: "none",
+                minHeight: 48,
+                maxHeight: 120,
+                fontFamily: "inherit",
+              }}
+            />
+            <button
+              type="button"
+              onClick={(e) => handleSendMessage(e)}
+              disabled={
+                !hasApiKey ||
+                isLoading ||
+                (!inputMessage.trim() && attachedFiles.length === 0)
+              }
+              style={{
+                padding: "12px 24px",
+                background:
+                  hasApiKey &&
+                  !isLoading &&
+                  (inputMessage.trim() || attachedFiles.length > 0)
+                    ? theme.crimson
+                    : theme.border,
+                color: "white",
+                border: "none",
+                borderRadius: 8,
+                cursor:
+                  hasApiKey &&
+                  !isLoading &&
+                  (inputMessage.trim() || attachedFiles.length > 0)
+                    ? "pointer"
+                    : "not-allowed",
+                fontSize: 14,
+                fontWeight: 600,
+                transition: "all 0.2s",
+                boxShadow:
+                  hasApiKey &&
+                  !isLoading &&
+                  (inputMessage.trim() || attachedFiles.length > 0)
+                    ? "0 2px 8px rgba(196, 30, 58, 0.25)"
+                    : "none",
+              }}
+              onMouseEnter={(e) => {
+                if (
+                  hasApiKey &&
+                  !isLoading &&
+                  (inputMessage.trim() || attachedFiles.length > 0)
+                ) {
+                  e.currentTarget.style.boxShadow =
+                    "0 4px 12px rgba(196, 30, 58, 0.35)";
+                  e.currentTarget.style.filter = "brightness(1.1)";
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (
+                  hasApiKey &&
+                  !isLoading &&
+                  (inputMessage.trim() || attachedFiles.length > 0)
+                ) {
+                  e.currentTarget.style.boxShadow =
+                    "0 2px 8px rgba(196, 30, 58, 0.25)";
+                  e.currentTarget.style.filter = "brightness(1)";
+                }
+              }}
+            >
+              Send
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Error Display */}
       {error && (
         <div
           style={{
-            color: darkMode ? "#ef5350" : "#c41e3a",
             padding: 16,
             background: darkMode
-              ? "rgba(196, 30, 58, 0.1)"
-              : "rgba(196, 30, 58, 0.08)",
+              ? "rgba(220, 53, 69, 0.1)"
+              : "rgba(220, 53, 69, 0.08)",
             backdropFilter: theme.glassBlur,
             WebkitBackdropFilter: theme.glassBlur,
             borderRadius: 10,
-            border: `1px solid ${theme.crimson}`,
-            boxShadow: theme.glassShadow,
+            border: `1px solid ${theme.btnDanger}`,
+            color: theme.btnDanger,
             fontWeight: 500,
           }}
         >
@@ -467,286 +683,488 @@ question,type,options,answer,concepts
         </div>
       )}
 
-      {uploadId && (
-        <div
+      {/* Configuration Panel */}
+      <div
+        style={{
+          background: theme.cardBg,
+          backdropFilter: theme.glassBlur,
+          WebkitBackdropFilter: theme.glassBlur,
+          borderRadius: 12,
+          border: `1px solid ${theme.glassBorder}`,
+          boxShadow: theme.glassShadow,
+          overflow: "hidden",
+        }}
+      >
+        <button
+          onClick={() => setShowConfig(!showConfig)}
           style={{
-            background: theme.cardBg,
-            backdropFilter: theme.glassBlur,
-            WebkitBackdropFilter: theme.glassBlur,
-            borderRadius: 12,
+            width: "100%",
             padding: 20,
-            border: `1px solid ${theme.glassBorder}`,
-            boxShadow: theme.glassShadowHover,
+            background: "transparent",
+            border: "none",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            cursor: "pointer",
+            color: theme.text,
           }}
         >
-          <h3
+          <h2
             style={{
-              margin: "0 0 12px 0",
-              color: darkMode ? "#66bb6a" : "#28a745",
+              margin: 0,
+              fontSize: 20,
+              fontWeight: 600,
+              color: theme.crimson,
+              letterSpacing: "-0.3px",
             }}
           >
-            Upload Successful!
-          </h3>
-          <div style={{ marginBottom: 12, color: theme.text }}>
-            <strong>Upload ID:</strong> {uploadId}
-          </div>
+            Exam Configuration
+          </h2>
+          <svg
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke={theme.crimson}
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            style={{
+              transform: showConfig ? "rotate(90deg)" : "rotate(0deg)",
+              transition: "transform 0.3s ease",
+            }}
+          >
+            <polyline points="9 18 15 12 9 6" />
+          </svg>
+        </button>
 
-          {/* Display Metadata */}
-          {metadata && (
-            <div style={{ marginBottom: 16, color: theme.text }}>
-              <h4 style={{ margin: "0 0 8px 0" }}>Study Configuration:</h4>
-              {metadata.themes && (
-                <div style={{ marginBottom: 8 }}>
-                  <strong>Themes:</strong> {metadata.themes.join(", ")}
-                </div>
-              )}
-              {metadata.suggested_types && (
-                <div style={{ marginBottom: 8 }}>
-                  <strong>Question Types:</strong>{" "}
-                  {metadata.suggested_types.join(", ")}
-                </div>
-              )}
-              {metadata.recommended_count && (
-                <div style={{ marginBottom: 8 }}>
-                  <strong>Recommended Questions:</strong>{" "}
-                  {metadata.recommended_count}
-                </div>
-              )}
-              {metadata.difficulty && (
-                <div style={{ marginBottom: 8 }}>
-                  <strong>Difficulty:</strong> {metadata.difficulty}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Friendly Stats */}
-          <div style={{ display: "grid", gap: 12 }}>
-            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-              <div
-                style={{
-                  padding: 12,
-                  borderRadius: 8,
-                  background: darkMode ? "#1e2e1e" : "#f0fdf4",
-                  border: `1px solid ${darkMode ? "#2e4e2e" : "#bbf7d0"}`,
-                  minWidth: 160,
-                }}
-              >
-                <div style={{ fontSize: 12, color: theme.textSecondary }}>
-                  Rows
-                </div>
-                <div
-                  style={{ fontSize: 20, fontWeight: 700, color: theme.text }}
-                >
-                  {(stats as any)?.rows}
-                </div>
-              </div>
-              <div
-                style={{
-                  padding: 12,
-                  borderRadius: 8,
-                  background: darkMode ? "#2e1e1e" : "#fef2f2",
-                  border: `1px solid ${darkMode ? "#4e2e2e" : "#fecaca"}`,
-                  minWidth: 160,
-                }}
-              >
-                <div style={{ fontSize: 12, color: theme.textSecondary }}>
-                  Questions
-                </div>
-                <div
-                  style={{ fontSize: 20, fontWeight: 700, color: theme.text }}
-                >
-                  {(stats as any)?.questions}
-                </div>
-              </div>
-              {(stats as any)?.metadata?.question_type_counts && (
-                <div
+        {showConfig && (
+          <div
+            style={{ padding: "0 20px 20px 20px", display: "grid", gap: 20 }}
+          >
+            {/* Question Count + Difficulty */}
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: 20,
+              }}
+            >
+              <div>
+                <label
                   style={{
-                    padding: 12,
-                    borderRadius: 8,
-                    background: theme.cardBg,
-                    border: `1px solid ${theme.glassBorder}`,
-                    minWidth: 220,
+                    display: "block",
+                    marginBottom: 8,
+                    color: theme.text,
+                    fontWeight: 500,
                   }}
                 >
-                  <div
-                    style={{
-                      fontSize: 12,
-                      color: theme.textSecondary,
-                      marginBottom: 6,
-                    }}
-                  >
-                    Types
-                  </div>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                    {Object.entries(
-                      (stats as any).metadata.question_type_counts
-                    ).map(([t, n]) => (
-                      <span
-                        key={t}
-                        style={{
-                          padding: "4px 8px",
-                          borderRadius: 999,
-                          background: darkMode ? "#2a4a62" : "#e3f2fd",
-                          color: darkMode ? "#90caf9" : "#1976d2",
-                          fontSize: 12,
-                        }}
-                      >
-                        {t}: {n as any}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
+                  Number of Questions
+                </label>
+                <input
+                  type="number"
+                  value={questionCount}
+                  onChange={(e) => setQuestionCount(parseInt(e.target.value))}
+                  min={5}
+                  max={100}
+                  style={{
+                    width: "100%",
+                    padding: 12,
+                    borderRadius: 8,
+                    border: `1px solid ${theme.border}`,
+                    backgroundColor: theme.cardBgSolid,
+                    color: theme.text,
+                    fontSize: 16,
+                  }}
+                />
+              </div>
+
+              <div>
+                <label
+                  style={{
+                    display: "block",
+                    marginBottom: 8,
+                    color: theme.text,
+                    fontWeight: 500,
+                  }}
+                >
+                  Difficulty Level
+                </label>
+                <select
+                  value={difficulty}
+                  onChange={(e) =>
+                    setDifficulty(e.target.value as "easy" | "medium" | "hard")
+                  }
+                  style={{
+                    width: "100%",
+                    padding: 12,
+                    borderRadius: 8,
+                    border: `1px solid ${theme.border}`,
+                    backgroundColor: theme.cardBgSolid,
+                    color: theme.text,
+                    fontSize: 16,
+                  }}
+                >
+                  <option value="easy">Easy</option>
+                  <option value="medium">Medium</option>
+                  <option value="hard">Hard</option>
+                </select>
+              </div>
             </div>
 
+            {/* Question Types */}
             <div>
-              <div
-                style={{ fontWeight: 600, color: theme.text, marginBottom: 6 }}
+              <label
+                style={{
+                  display: "block",
+                  marginBottom: 8,
+                  color: theme.text,
+                  fontWeight: 500,
+                }}
               >
-                Columns
-              </div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                {((stats as any)?.columns || []).map((c: string) => (
-                  <span
-                    key={c}
-                    title={c}
+                Question Types (select at least one)
+              </label>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: 8,
+                }}
+              >
+                {questionTypeOptions.map((option) => (
+                  <label
+                    key={option.value}
                     style={{
-                      padding: "4px 8px",
-                      borderRadius: 6,
-                      background: darkMode ? "#3d3d3d" : "#f1f5f9",
-                      color: theme.textSecondary,
-                      maxWidth: 200,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
+                      display: "flex",
+                      alignItems: "center",
+                      padding: 12,
+                      background: questionTypes.includes(option.value)
+                        ? "rgba(196, 30, 58, 0.1)"
+                        : "transparent",
+                      border: `1px solid ${theme.glassBorder}`,
+                      borderRadius: 8,
+                      cursor: "pointer",
+                      transition: "all 0.2s ease",
                     }}
                   >
-                    {c}
-                  </span>
+                    <input
+                      type="checkbox"
+                      checked={questionTypes.includes(option.value)}
+                      onChange={() => toggleQuestionType(option.value)}
+                      style={{ marginRight: 12, cursor: "pointer" }}
+                    />
+                    <span style={{ color: theme.text }}>{option.label}</span>
+                  </label>
                 ))}
               </div>
             </div>
 
-            {((stats as any)?.warnings || []).length > 0 && (
-              <div>
-                <div
-                  style={{
-                    fontWeight: 600,
-                    color: theme.text,
-                    marginBottom: 6,
-                  }}
-                >
-                  Warnings
-                </div>
-                <ul
-                  style={{
-                    margin: 0,
-                    paddingLeft: 18,
-                    color: theme.textSecondary,
-                  }}
-                >
-                  {((stats as any).warnings as string[]).map((w, i) => (
-                    <li
-                      key={i}
-                      title={w}
-                      style={{
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                        maxWidth: 800,
-                      }}
-                    >
-                      {w}
-                    </li>
-                  ))}
-                </ul>
-                <div
-                  style={{
-                    marginTop: 6,
-                    fontSize: 12,
-                    color: theme.textSecondary,
-                  }}
-                >
-                  Options must be pipe-delimited (|). If options include commas,
-                  quote the entire options cell.
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div style={{ display: "flex", gap: 12 }}>
-            {uploadedFromPaste && (
-              <button
-                onClick={downloadPastedCsv}
+            {/* Generation Mode */}
+            <div>
+              <label
                 style={{
-                  padding: "12px 28px",
-                  background: theme.amber,
-                  color: "white",
-                  border: "none",
-                  borderRadius: 6,
-                  cursor: "pointer",
-                  fontSize: 16,
-                  fontWeight: 600,
-                  letterSpacing: "-0.2px",
-                  transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
-                  boxShadow: "0 2px 8px rgba(212, 166, 80, 0.25)",
-                  transform:
-                    hoveredButton === "downloadCsv"
-                      ? "translateY(-1px)"
-                      : "none",
-                }}
-                onMouseEnter={(e) => {
-                  setHoveredButton("downloadCsv");
-                  e.currentTarget.style.boxShadow =
-                    "0 4px 12px rgba(212, 166, 80, 0.35)";
-                }}
-                onMouseLeave={(e) => {
-                  setHoveredButton(null);
-                  e.currentTarget.style.boxShadow =
-                    "0 2px 8px rgba(212, 166, 80, 0.25)";
+                  display: "block",
+                  marginBottom: 8,
+                  color: theme.text,
+                  fontWeight: 500,
                 }}
               >
-                Download CSV File
-              </button>
-            )}
-            <button
-              onClick={() =>
-                nav("/settings", { state: { uploadId, metadata } })
-              }
-              style={{
-                padding: "12px 28px",
-                background: theme.btnSuccess,
-                color: "white",
-                border: "none",
-                borderRadius: 6,
-                cursor: "pointer",
-                fontSize: 16,
-                fontWeight: 600,
-                letterSpacing: "-0.2px",
-                transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
-                boxShadow: "0 2px 8px rgba(40, 167, 69, 0.25)",
-                transform:
-                  hoveredButton === "continueToSettings"
-                    ? "translateY(-1px)"
-                    : "none",
-              }}
-              onMouseEnter={(e) => {
-                setHoveredButton("continueToSettings");
-                e.currentTarget.style.boxShadow =
-                  "0 4px 12px rgba(40, 167, 69, 0.35)";
-              }}
-              onMouseLeave={(e) => {
-                setHoveredButton(null);
-                e.currentTarget.style.boxShadow =
-                  "0 2px 8px rgba(40, 167, 69, 0.25)";
-              }}
-            >
-              Configure & Start Exam →
-            </button>
+                Question Source Strategy
+              </label>
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    padding: 10,
+                    border: `1px solid ${theme.glassBorder}`,
+                    borderRadius: 8,
+                    background:
+                      generationMode === "strict"
+                        ? "rgba(196, 30, 58, 0.06)"
+                        : "transparent",
+                    cursor: "pointer",
+                  }}
+                >
+                  <input
+                    type="radio"
+                    name="generation-mode"
+                    checked={generationMode === "strict"}
+                    onChange={() => setGenerationMode("strict")}
+                  />
+                  <span style={{ color: theme.text }}>
+                    Strict (from provided content only)
+                  </span>
+                </label>
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    padding: 10,
+                    border: `1px solid ${theme.glassBorder}`,
+                    borderRadius: 8,
+                    background:
+                      generationMode === "mixed"
+                        ? "rgba(196, 30, 58, 0.06)"
+                        : "transparent",
+                    cursor: "pointer",
+                  }}
+                >
+                  <input
+                    type="radio"
+                    name="generation-mode"
+                    checked={generationMode === "mixed"}
+                    onChange={() => setGenerationMode("mixed")}
+                  />
+                  <span style={{ color: theme.text }}>
+                    Mixed (approx. 50/50 blend)
+                  </span>
+                </label>
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    padding: 10,
+                    border: `1px solid ${theme.glassBorder}`,
+                    borderRadius: 8,
+                    background:
+                      generationMode === "creative"
+                        ? "rgba(196, 30, 58, 0.06)"
+                        : "transparent",
+                    cursor: "pointer",
+                  }}
+                >
+                  <input
+                    type="radio"
+                    name="generation-mode"
+                    checked={generationMode === "creative"}
+                    onChange={() => setGenerationMode("creative")}
+                  />
+                  <span style={{ color: theme.text }}>
+                    Creative (concept-adjacent improvisation)
+                  </span>
+                </label>
+              </div>
+            </div>
+
+            {/* Focus Concepts */}
+            <div>
+              <label
+                style={{
+                  display: "block",
+                  marginBottom: 8,
+                  color: theme.text,
+                  fontWeight: 500,
+                }}
+              >
+                Focus Concepts (optional)
+              </label>
+              <input
+                type="text"
+                value={focusConcepts}
+                onChange={(e) => setFocusConcepts(e.target.value)}
+                placeholder="e.g., enterprise architecture, statistics"
+                style={{
+                  width: "100%",
+                  padding: 12,
+                  borderRadius: 8,
+                  border: `1px solid ${theme.border}`,
+                  backgroundColor: theme.cardBgSolid,
+                  color: theme.text,
+                  fontSize: 14,
+                }}
+              />
+            </div>
+
+            {/* Exam Title */}
+            <div>
+              <label
+                style={{
+                  display: "block",
+                  marginBottom: 8,
+                  color: theme.text,
+                  fontWeight: 500,
+                }}
+              >
+                Exam Title (required)
+              </label>
+              <input
+                type="text"
+                value={examName}
+                onChange={(e) => setExamName(e.target.value)}
+                placeholder="e.g., ITS Final Study Set"
+                style={{
+                  width: "100%",
+                  padding: 12,
+                  borderRadius: 8,
+                  border: `1px solid ${theme.border}`,
+                  backgroundColor: theme.cardBgSolid,
+                  color: theme.text,
+                  fontSize: 14,
+                }}
+              />
+            </div>
+
+            {/* Class Assignment */}
+            <div>
+              <label
+                style={{
+                  display: "block",
+                  marginBottom: 8,
+                  color: theme.text,
+                  fontWeight: 500,
+                }}
+              >
+                Assign to Class (optional)
+              </label>
+              <select
+                value={selectedClassId || ""}
+                onChange={(e) =>
+                  setSelectedClassId(
+                    e.target.value ? parseInt(e.target.value) : null
+                  )
+                }
+                style={{
+                  width: "100%",
+                  padding: 12,
+                  borderRadius: 8,
+                  border: `1px solid ${theme.border}`,
+                  backgroundColor: theme.cardBgSolid,
+                  color: theme.text,
+                  fontSize: 14,
+                }}
+              >
+                <option value="">None</option>
+                {classes.map((cls) => (
+                  <option key={cls.id} value={cls.id}>
+                    {cls.name}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
+
+      {/* Generate Button */}
+      <div style={{ textAlign: "center" }}>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            handleGenerate();
+          }}
+          disabled={
+            !hasApiKey ||
+            !examName.trim() ||
+            allUploadedFiles.length === 0 ||
+            isLoading
+          }
+          style={{
+            padding: "12px 32px",
+            background:
+              hasApiKey &&
+              examName.trim() &&
+              allUploadedFiles.length > 0 &&
+              !isLoading
+                ? theme.crimson
+                : theme.border,
+            color: "white",
+            border: "none",
+            borderRadius: 6,
+            cursor:
+              hasApiKey &&
+              examName.trim() &&
+              allUploadedFiles.length > 0 &&
+              !isLoading
+                ? "pointer"
+                : "not-allowed",
+            fontSize: 16,
+            fontWeight: 600,
+            letterSpacing: "-0.2px",
+            transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+            boxShadow:
+              hasApiKey &&
+              examName.trim() &&
+              allUploadedFiles.length > 0 &&
+              !isLoading
+                ? "0 2px 8px rgba(196, 30, 58, 0.25)"
+                : "none",
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            margin: "0 auto",
+          }}
+          onMouseEnter={(e) => {
+            if (
+              hasApiKey &&
+              examName.trim() &&
+              allUploadedFiles.length > 0 &&
+              !isLoading
+            ) {
+              e.currentTarget.style.boxShadow =
+                "0 4px 12px rgba(196, 30, 58, 0.35)";
+              e.currentTarget.style.filter = "brightness(1.1)";
+            }
+          }}
+          onMouseLeave={(e) => {
+            if (
+              hasApiKey &&
+              examName.trim() &&
+              allUploadedFiles.length > 0 &&
+              !isLoading
+            ) {
+              e.currentTarget.style.boxShadow =
+                "0 2px 8px rgba(196, 30, 58, 0.25)";
+              e.currentTarget.style.filter = "brightness(1)";
+            }
+          }}
+        >
+          {isLoading ? (
+            <>
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                style={{ animation: "spin 1s linear infinite" }}
+              >
+                <circle cx="12" cy="12" r="10" opacity="0.25" />
+                <path d="M12 2 A10 10 0 0 1 22 12" />
+              </svg>
+              Generating...
+            </>
+          ) : (
+            "Generate Exam with AI"
+          )}
+        </button>
+        {allUploadedFiles.length > 0 && (
+          <p
+            style={{
+              marginTop: 12,
+              color: theme.textSecondary,
+              fontSize: 13,
+            }}
+          >
+            {allUploadedFiles.length} file(s) uploaded •{" "}
+            {examName.trim()
+              ? "Ready to generate"
+              : "Enter exam title to continue"}
+          </p>
+        )}
+      </div>
+
+      <style>{`
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
 }
