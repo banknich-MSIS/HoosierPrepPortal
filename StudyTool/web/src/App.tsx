@@ -117,8 +117,8 @@ export default function App() {
 
   const navItems = [
     { path: "/", label: "Dashboard" },
-    { path: "/ai-exam-creator", label: "AI Exam Creator" },
-    { path: "/upload", label: "Manual Creator" },
+    { path: "/ai-exam-creator", label: "Exam Generator" },
+    { path: "/upload", label: "AI Assistant" },
     { path: "/api-keys", label: "API Keys" },
   ];
 

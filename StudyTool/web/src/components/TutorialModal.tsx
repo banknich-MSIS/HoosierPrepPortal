@@ -35,7 +35,7 @@ const TutorialModal: React.FC<TutorialModalProps> = ({
         <div>
           <div style={{ marginBottom: 20 }}>
             <strong style={{ color: theme.crimson }}>
-              Option 1: AI Exam Creator (Built-in)
+              Option 1: Exam Generator
             </strong>
             <p>
               Fast and streamlined. Upload files, configure settings, and
@@ -44,7 +44,7 @@ const TutorialModal: React.FC<TutorialModalProps> = ({
           </div>
           <div>
             <strong style={{ color: theme.amber }}>
-              Option 2: Manual Creator (Consultative Chat)
+              Option 2: AI Assistant
             </strong>
             <p>
               Guided, interactive experience with built-in AI chat. Talk with the assistant about your study goals, upload documents during the conversation, and refine your exam plan before generating.
@@ -57,10 +57,10 @@ const TutorialModal: React.FC<TutorialModalProps> = ({
       ),
     },
     {
-      title: "Step 2: Using Manual Creator Chat",
+      title: "Step 2: Using AI Assistant Chat",
       content: (
         <div>
-          <p>If you choose the Manual Creator with chat guidance:</p>
+          <p>If you choose the AI Assistant with chat guidance:</p>
           <ol style={{ paddingLeft: 20, marginTop: 12 }}>
             <li>Chat with the AI assistant about your study goals</li>
             <li>Upload documents during the conversation</li>

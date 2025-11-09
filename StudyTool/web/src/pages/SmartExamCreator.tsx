@@ -194,7 +194,7 @@ export default function SmartExamCreator() {
             letterSpacing: "-0.8px",
           }}
         >
-          AI Exam Creator
+          Exam Generator
         </h1>
         <p
           style={{
@@ -229,7 +229,7 @@ export default function SmartExamCreator() {
               padding: 0,
             }}
           >
-            Manual Creator
+            AI Assistant
           </button>{" "}
           for a consultative, interactive chat approach with AI guidance to plan and refine your exam.
         </p>

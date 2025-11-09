@@ -267,7 +267,7 @@ export default function UploadPage() {
             letterSpacing: "-0.8px",
           }}
         >
-          Manual Creator
+          AI Assistant
         </h1>
         <p
           style={{

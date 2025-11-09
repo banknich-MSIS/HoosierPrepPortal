@@ -1,9 +1,9 @@
-# Self-elevate to Administrator if not already
-if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltinRole] "Administrator")) {
-  Write-Host "Restarting script as Administrator..."
-  Start-Process powershell "-ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs
+# Self-elevate if not running as Administrator
+if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+  Start-Process -FilePath "powershell" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs
   exit
 }
+
 
 
 $ErrorActionPreference = 'Stop'
@@ -276,7 +276,7 @@ if (!(Test-Path (Join-Path $webDir 'node_modules'))) {
   Write-Host "[OK] Frontend dependencies already installed"
 }
 
-Write-Host "Starting frontend on http://hoosierprep.local:5173 ..."
+Write-Host "Starting frontend on http://127.0.0.1:5173 ..."
 $frontendJob = Start-Job -Name frontend -ScriptBlock {
   param($webDir)
   Set-Location $webDir
@@ -311,8 +311,8 @@ if ($frontendJob.State -eq 'Running') {
 
 # Wait for frontend to become ready, then open browser
 if (Wait-ForHttp -Url 'http://127.0.0.1:5173' -TimeoutSec 300) {
-  Write-Host "Opening browser to http://hoosierprep.local:5173"
-  Start-Process 'http://hoosierprep.local:5173'
+  Write-Host "Opening browser to http://127.0.0.1:5173"
+  Start-Process 'http://127.0.0.1:5173'
 } else {
   Write-Warning 'Frontend did not become ready in time. Checking job status...'
   $jobState = Get-Job -Name frontend
@@ -325,9 +325,9 @@ if (Wait-ForHttp -Url 'http://127.0.0.1:5173' -TimeoutSec 300) {
   Write-Host "Manual startup instructions:"
   Write-Host "  Backend: http://127.0.0.1:8000/docs"
   Write-Host "  Frontend: cd '$webDir' && npm run dev"
-  Write-Host "  Then open: http://hoosierprep.local:5173"
+  Write-Host "  Then open: http://127.0.0.1:5173"
   Write-Host ""
-  Write-Host "You can try opening http://hoosierprep.local:5173 manually or check the job output above."
+  Write-Host "You can try opening http://127.0.0.1:5173 manually or check the job output above."
 }
 
 Write-Host "Both servers are running in this PowerShell session as background jobs."
