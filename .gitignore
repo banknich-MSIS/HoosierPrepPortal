@@ -8,7 +8,6 @@ Thumbs.db
 # Node / Vite (web)
 StudyTool/web/node_modules/
 StudyTool/web/dist/
-StudyTool/web/dist-vite/
 StudyTool/web/.env
 StudyTool/web/.env.*
 
@@ -32,17 +31,8 @@ StudyTool/exam.db
 .coverage
 coverage/
 
-# Electron build outputs
-StudyTool/web/electron/dist/
-
 # Optional: process pid files
 StudyTool/server/.backend.pid
 StudyTool/web/.frontend.pid
-
-# Optional: other build outputs
-StudyTool/server/dist/
-StudyTool/server/build/
-StudyTool/web/dist/electron/
-StudyTool/web/build/
 
 

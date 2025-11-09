@@ -5,15 +5,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview --port 5173",
-    "electron": "electron ./electron/main.js",
-    "electron:dev": "cross-env NODE_ENV=development electron ./electron/main.js",
-    "build:backend": "cd ../server && python -m PyInstaller build.spec",
-    "build:all": "npm run build && npm run build:backend",
-    "dist:app": "npm run build:all && electron-builder",
-    "dist:win": "npm run build:all && electron-builder --win",
-    "dist:mac": "npm run build:all && electron-builder --mac",
-    "dist:linux": "npm run build:all && electron-builder --linux"
+    "preview": "vite preview --port 5173"
   },
   "dependencies": {
     "axios": "^1.7.2",
@@ -26,65 +18,7 @@
     "@vitejs/plugin-react": "^4.3.1",
     "@types/react": "^18.2.74",
     "@types/react-dom": "^18.2.25",
-    "electron": "^30.0.0",
-    "electron-builder": "^24.13.3",
-    "cross-env": "^7.0.3",
     "typescript": "^5.4.5",
     "vite": "^5.3.1"
-  },
-  "build": {
-    "appId": "com.hoosierprep.portal",
-    "productName": "Hoosier Prep Portal",
-    "files": [
-      "dist-vite/**",
-      "electron/**",
-      "!node_modules/**",
-      "../server/dist/studytool-backend*"
-    ],
-    "extraResources": [
-      {
-        "from": "../server/dist/studytool-backend.exe",
-        "to": "backend/",
-        "filter": [
-          "**/*"
-        ]
-      },
-      {
-        "from": "../exam.db",
-        "to": "exam.db"
-      }
-    ],
-    "win": {
-      "target": [
-        "nsis",
-        "portable"
-      ],
-      "icon": "../IURedLogo.ico",
-      "sign": false,
-      "verifyUpdateCodeSignature": false
-    },
-    "mac": {
-      "target": [
-        "dmg",
-        "zip"
-      ],
-      "category": "public.app-category.education",
-      "icon": "../IURedLogo.icns"
-    },
-    "linux": {
-      "target": [
-        "AppImage",
-        "deb",
-        "rpm"
-      ],
-      "category": "Education"
-    },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true
-    }
-  },
-  "main": "electron/main.js",
-  "description": "StudyTool - AI-powered exam generation and practice platform",
-  "author": "Hoosier Prep Portal"
+  }
 }

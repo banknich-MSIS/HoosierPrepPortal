@@ -43,7 +43,7 @@ class GeneratedExam(BaseModel):
     questions: List[QuestionData]
 
 
-# Prompt template for exam generation (matches GEMINI_PROMPT.md structure)
+# Prompt template for exam generation
 EXAM_GENERATION_PROMPT = """
 You are an AI exam generator that transforms study materials into structured question sets.
 Your purpose is to process academic materials and produce well-formatted questions suitable for practice exams.

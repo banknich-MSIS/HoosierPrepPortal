@@ -18,11 +18,10 @@ from .routes import jobs as jobs_routes
 def create_app() -> FastAPI:
     app = FastAPI(title="Hoosier Prep Portal API", version="0.1.0")
 
-    # CORS for Vite dev server and Electron
+    # CORS for Vite dev server
     origins = [
         "http://localhost:5173",
         "http://127.0.0.1:5173",
-        "file://",  # Electron file:// protocol
     ]
     app.add_middleware(
         CORSMiddleware,
@@ -48,7 +47,7 @@ def create_app() -> FastAPI:
 
     @app.get("/api/health")
     def health_check():
-        """Health check endpoint for Electron to verify backend is ready"""
+        """Health check endpoint to verify backend is ready"""
         return {"status": "ok", "service": "Hoosier Prep Portal API"}
 
     return app
@@ -57,7 +56,7 @@ def create_app() -> FastAPI:
 app = create_app()
 
 if __name__ == "__main__":
-    # Allow running backend with custom port for Electron
+    # Allow running backend with custom port
     port = 8000
     if len(sys.argv) > 1:
         # Parse --port argument (handles both --port=8001 and --port 8001 formats)

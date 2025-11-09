@@ -11,19 +11,9 @@ import type {
 
 /**
  * Get the backend URL for the current environment
- * TEMPORARILY DISABLED: Electron launch code commented out - using start.ps1/stop.ps1
  */
 function getBackendURL(): string {
-  // ELECTRON CODE COMMENTED OUT - Always use fixed port for browser mode
-  // if (typeof window !== "undefined" && (window as any).electronAPI) {
-  //   // In Electron, get dynamic port from main process
-  //   const electronAPI = (window as any).electronAPI;
-  //   const backendStatus = electronAPI.getBackendStatus();
-  //   const port = backendStatus.port || 8000;
-  //   return `http://127.0.0.1:${port}/api`;
-  // }
-
-  // Development or browser mode - use default port
+  // Browser mode - use default port
   return "http://127.0.0.1:8000/api";
 }
 
