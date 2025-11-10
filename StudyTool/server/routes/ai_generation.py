@@ -503,6 +503,10 @@ async def chat_with_files_attached(
     """
     Chat endpoint that accepts file uploads and extracts their content for AI context.
     """
+    print(f"[Chat-Files] Received request with message length: {len(message)}")
+    print(f"[Chat-Files] Number of files: {len(files) if files else 0}")
+    print(f"[Chat-Files] API key present: {bool(x_gemini_api_key)}")
+    
     try:
         # Parse conversation history from JSON string
         import json
@@ -540,17 +544,23 @@ async def chat_with_files_attached(
                 print(f"[Chat] Added {len(file_context)} chars of file context to message")
         
         # Generate response using Gemini service
+        print(f"[Chat-Files] Calling Gemini service...")
         response_text = await gemini_service.generate_chat_response(
             message=message,
             conversation_history=history_dicts,
             api_key=x_gemini_api_key
         )
         
+        print(f"[Chat-Files] Success! Response length: {len(response_text)}")
         return ChatResponse(response=response_text)
         
     except ValueError as e:
+        print(f"[Chat-Files] ValueError: {str(e)}")
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        print(f"[Chat-Files] Exception: {str(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(
             status_code=500,
             detail=f"Failed to generate chat response: {str(e)}"

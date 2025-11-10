@@ -27,7 +27,7 @@ export default function UploadPage() {
     {
       role: "system",
       content:
-        "Hey! 👋 I'm here to help you create a practice exam.\n\nUpload your study materials (notes, PDFs, slides), and let me know:\n• How many questions? (1-100)\n• Difficulty level? (Easy/Medium/Hard)\n• Question types? (Multiple Choice, True/False, Short Answer, Fill-in-the-Blank)\n\nOr just upload your files and I'll guide you through it!",
+        "Hey! 👋 I'll help you create a customized practice exam.\n\nUpload your materials and I'll ask about your specific needs - what you're struggling with, what to focus on, and how to structure your practice.",
       timestamp: new Date(),
     },
   ]);

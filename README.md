@@ -1,14 +1,16 @@
 # Hoosier Prep Portal
 
-An AI-powered study tool that transforms your course materials into personalized practice exams and quizzes. Built for students who want active learning, progress tracking, and real mastery — not just AI-generated summaries.
+A local AI-powered study tool that generates practice exams from your course materials. Upload PDFs, Word docs, slides, or notes, and get quizzes to help you prepare for exams.
 
 ---
 
 ## Why Use This Tool?
 
-This tool transforms studying into an **active, focused process** — not a passive scroll through notes. Unlike Gemini Canvas or similar AI study modes, it's built for **personal mastery**, not just AI convenience. You can generate quizzes and exams directly from your materials, track your progress over time, and identify weak spots with clear analytics.
+Use this tool to increase your studying effectiveness by generating the kinds of quizzes you'd see on exams. It helps you get familiar with the material, understand the proper answers, and overall prep you for your exams.
 
-Everything runs **locally** for full control and privacy — no data harvesting, no distractions, no subscription walls. It's designed for students who want **depth over flash** and a study experience that actually improves recall and understanding instead of automating it away.
+You can generate practice quizzes directly from your study materials, track your performance over time, and identify areas that need more work. Everything runs **locally** for full privacy and control — no data harvesting, no subscriptions, no tracking.
+
+It's designed for students looking for a **no-nonsense, quick way** to generate practice exams and get studying done.
 
 ---
 
@@ -32,10 +34,10 @@ Everything runs **locally** for full control and privacy — no data harvesting,
 - Identify weak areas and topics that need more review
 - Export your performance data anytime
 
-### 🎓 Flexible Exam Modes
+### 🎓 Flexible Testing Options
 
-- **Exam Mode**: Timed, full exam experience with submission for grading
-- **Practice Mode**: Untimed practice with instant feedback
+- **Exam Mode**: Full exam experience with submission for grading
+- **Practice Mode**: One question at a time with instant feedback
 - Multiple question types: Multiple Choice, True/False, Short Answer, Fill-in-the-Blank
 - Submit partially completed exams (unanswered questions marked as incorrect)
 
@@ -91,31 +93,35 @@ The AI processes your uploaded materials, extracts key concepts, and generates q
 
 ### Quick Start
 
-1. **Clone the repository**
+1. **Clone the repository** in the IDE of your choice:
 ```bash
 git clone https://github.com/banknich-MSIS/HoosierPrepPortal.git
+```
+
+2. **Create the desktop shortcut** (Recommended):
+```powershell
 cd HoosierPrepPortal/StudyTool
-```
-
-2. **Run the setup script**
-```powershell
-.\start.ps1
-```
-
-The script will:
-- Create Python virtual environment
-- Install all dependencies (backend and frontend)
-- Start both servers
-- Open the app in your browser at `http://127.0.0.1:5173`
-
-3. **Optional: Create desktop shortcut**
-```powershell
 .\create_shortcut.ps1
 ```
 
-### Manual Setup
+This creates a "Hoosier Prep Portal" shortcut on your desktop with a custom icon.
 
-See [SETUP.md](StudyTool/SETUP.md) for detailed manual installation instructions.
+3. **Launch the tool**:
+- Right-click the desktop shortcut → **"Run as Administrator"**
+- The script will automatically:
+  - Create Python virtual environment
+  - Install all dependencies
+  - Start backend and frontend servers
+  - Open the app in your browser at `http://127.0.0.1:5173`
+
+4. **Stopping the servers**:
+- Press **Ctrl+C** in the PowerShell window
+- Then run `.\stop.ps1` to properly close ports and clean up processes
+- This prevents port conflicts on the next launch
+
+### Alternative: Manual Launch
+
+If you prefer not to create a shortcut, you can run `.\start.ps1` directly from the StudyTool folder. See [SETUP.md](StudyTool/SETUP.md) for detailed manual instructions.
 
 ---
 
@@ -175,39 +181,25 @@ StudyTool/
 
 ---
 
-## Development Philosophy
+## What Makes This Different
 
-This tool was built with a few core principles:
+This tool offers more than just asking an AI to generate questions:
 
-1. **Active Learning Over Passive Consumption** - Testing yourself is proven to improve retention better than re-reading notes
-2. **Student Privacy & Control** - Your data stays local. No tracking, no analytics harvesting
-3. **Depth Over Flash** - Focus on understanding, not just getting quick answers
-4. **Practical AI Integration** - AI enhances the experience but doesn't replace the learning process
-5. **Open Source & Accessible** - Free to use, modify, and learn from
-
----
-
-## Unique Capabilities
-
-While you could ask ChatGPT or Gemini to "generate 10 quiz questions," this tool offers:
-
-✅ **Persistent Progress Tracking** - All your attempts are saved with detailed analytics  
-✅ **Structured Testing Environment** - Mimics real exam conditions, not just a chat  
-✅ **Multi-File Context** - Processes entire textbooks, lecture slides, and notes together  
-✅ **Customizable Difficulty** - Adaptive question generation based on your skill level  
-✅ **Performance Analytics** - See your weak areas and track improvement over time  
-✅ **Flexible Workflows** - Choose between fast generation or guided AI assistance  
-✅ **Data Portability** - Backup and restore your entire study history  
-✅ **No Vendor Lock-in** - Runs locally with your own API key  
+- **Saved Progress** - All your attempts are stored with detailed results
+- **Structured Testing** - Dedicated exam interface with question navigation
+- **Multi-File Processing** - Upload entire textbooks, slides, and notes together
+- **Performance Tracking** - See which topics you're struggling with
+- **Local & Private** - Your data stays on your computer
+- **Flexible Generation** - Fast mode or guided AI chat
+- **Backup/Restore** - Transfer your data between computers  
 
 ---
 
-## Contributing
+## Feedback & Bug Reports
 
-Contributions are welcome! This is an open-source project built for students by students. Feel free to:
+Found a bug or have a suggestion? Feel free to:
 
-- Report bugs or request features via [GitHub Issues](https://github.com/banknich-MSIS/HoosierPrepPortal/issues)
-- Submit pull requests with improvements
+- Report issues via [GitHub Issues](https://github.com/banknich-MSIS/HoosierPrepPortal/issues)
 - Share feedback and suggestions
 
 ---
@@ -220,15 +212,9 @@ For questions, issues, or feedback:
 
 ---
 
-## License
-
-This project is open source and available for educational use.
-
----
-
 ## Acknowledgments
 
-Built at Indiana University as a tool to help students study more effectively using AI. Special thanks to the open-source community and everyone who contributed feedback during development.
+Built at Indiana University as a tool to help students study more effectively using AI. Special thanks to Jay Newquist and everyone who contributed feedback during development.
 
 ---
 

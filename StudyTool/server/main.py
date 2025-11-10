@@ -89,6 +89,13 @@ if __name__ == "__main__":
     # Set database path if needed
     os.environ.setdefault('DB_PATH', os.path.join(db_dir, 'exam.db'))
     
-    uvicorn.run(app, host="127.0.0.1", port=port)
+    uvicorn.run(
+        app, 
+        host="127.0.0.1", 
+        port=port,
+        timeout_keep_alive=120,  # 2 minute keep-alive for long file uploads
+        limit_concurrency=100,
+        limit_max_requests=1000,
+    )
 
 

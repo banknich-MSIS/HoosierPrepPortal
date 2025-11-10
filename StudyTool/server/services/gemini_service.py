@@ -531,14 +531,19 @@ async def generate_chat_response(
         configure_gemini(api_key)
         
         # Build the conversation prompt (friendly and efficient)
-        system_instruction = """You're a friendly study assistant helping students create practice exams. Be conversational and efficient.
+        system_instruction = """You're a friendly study assistant helping students create customized practice exams.
 
-Ask 2-3 questions at once to move faster:
-- Question count: 1-100 questions (accept any number the user says)
-- Difficulty: Easy, Medium, or Hard
-- Question types: Multiple Choice, Short Answer, True/False, Fill-in-the-Blank
+INITIAL QUESTIONS (ask together after file upload):
+- Question count (1-100)
+- Difficulty (Easy/Medium/Hard)
+- Question types (Multiple Choice, True/False, Short Answer, Fill-in-the-Blank)
 
-When files are uploaded, immediately acknowledge the content and ask remaining preferences in one message. Keep responses to 2-3 sentences max. Be warm and helpful."""
+FOLLOW-UP (after basics answered):
+- Ask about specific topics/concepts they're struggling with
+- Ask if they want focus on particular areas or even distribution
+- Ask about question formats they need more practice with
+
+Keep responses to 2-3 sentences. Acknowledge uploaded files immediately."""
 
         # Build full conversation context (keep only recent history to save tokens)
         conversation_text = system_instruction + "\n\n"
@@ -569,7 +574,7 @@ When files are uploaded, immediately acknowledge the content and ask remaining p
                     temperature=0.85,  # Higher for more natural, varied responses
                     top_p=0.95,
                     top_k=40,
-                    max_output_tokens=1024,  # Allow full responses
+                    max_output_tokens=8192,  # Large limit to prevent cutoffs, still has safety cap
                 ),
             )
         
@@ -599,11 +604,11 @@ When files are uploaded, immediately acknowledge the content and ask remaining p
                 if finish_reason == 3 or str(finish_reason) == "SAFETY":
                     return "I apologize, but I'm unable to respond to that message due to content safety filters. Could you rephrase your question or try a different topic?"
                 elif finish_reason == 2 or str(finish_reason) == "MAX_TOKENS":
-                    # Response was cut off at token limit
+                    # Response was cut off at token limit - just return what we got
                     if response_text and len(response_text) > 10:
-                        return response_text + "\n\n(Response was cut short. Please ask a more specific question.)"
+                        return response_text  # Return the partial response without error message
                     else:
-                        return "I apologize, but my response was too long. Could you ask a more specific or shorter question?"
+                        return "I apologize, but I couldn't generate a response. Please try rephrasing your message."
             else:
                 # Try fallback .text accessor if candidates structure is different
                 try:
