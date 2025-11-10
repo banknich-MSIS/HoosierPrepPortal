@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 import sys
@@ -30,7 +30,25 @@ def create_app() -> FastAPI:
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
+        expose_headers=["*"],  # Explicitly expose all headers
     )
+
+    # CORS debugging middleware
+    @app.middleware("http")
+    async def log_requests(request: Request, call_next):
+        origin = request.headers.get("origin", "None")
+        print(f"[CORS] {request.method} {request.url.path} | Origin: {origin}")
+        response = await call_next(request)
+        cors_header = response.headers.get("access-control-allow-origin", "MISSING")
+        print(f"[CORS] Response CORS header: {cors_header}")
+        return response
+
+    # Explicitly handle CORS pre-flight OPTIONS requests
+    @app.options("/{full_path:path}")
+    async def preflight_handler(full_path: str):
+        """Handle CORS pre-flight OPTIONS requests"""
+        print(f"[CORS] Handling OPTIONS pre-flight for /{full_path}")
+        return {}
 
     # Routers
     app.include_router(files_routes.router, prefix="/api")
