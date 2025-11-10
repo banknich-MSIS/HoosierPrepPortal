@@ -333,7 +333,31 @@ export async function sendChatMessage(params: {
   message: string;
   conversationHistory: ChatMessage[];
   apiKey: string;
+  files?: File[];
 }): Promise<{ response: string }> {
+  // If files are attached, use the file-aware endpoint
+  if (params.files && params.files.length > 0) {
+    const formData = new FormData();
+    formData.append("message", params.message);
+    formData.append(
+      "conversation_history",
+      JSON.stringify(
+        params.conversationHistory.filter((m) => m.role !== "system")
+      )
+    );
+    params.files.forEach((file) => formData.append("files", file));
+
+    const { data } = await api.post("/ai/chat-with-files", formData, {
+      headers: {
+        "X-Gemini-API-Key": params.apiKey,
+        // Don't set Content-Type - let axios set it with boundary
+      },
+      timeout: 120000, // 2 minute timeout for file processing + AI response
+    });
+    return data;
+  }
+
+  // Otherwise use regular chat endpoint
   const { data } = await api.post(
     "/ai/chat",
     {

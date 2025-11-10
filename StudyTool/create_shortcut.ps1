@@ -1,4 +1,4 @@
-# Hoosier Prep Portal Desktop Shortcut Creator
+﻿# Hoosier Prep Portal Desktop Shortcut Creator
 # Run this script once to create a desktop shortcut for easy access
 
 Write-Host ""
@@ -33,11 +33,11 @@ try {
     $Shortcut.Save()
     
     Write-Host ""
-    Write-Host "✓ Desktop shortcut created successfully!" -ForegroundColor Green
+    Write-Host "Desktop shortcut created successfully!" -ForegroundColor Green
     Write-Host "  Location: $ShortcutPath" -ForegroundColor Gray
 } catch {
     Write-Host ""
-    Write-Host "✗ Failed to create shortcut: $_" -ForegroundColor Red
+    Write-Host "Failed to create shortcut: $_" -ForegroundColor Red
 }
 
 Write-Host ""
@@ -46,12 +46,12 @@ Write-Host "Setup Complete!" -ForegroundColor Green
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "You can now:" -ForegroundColor White
-Write-Host "  • Double-click the desktop shortcut to launch the portal" -ForegroundColor Gray
-Write-Host "  • Or run: .\start.ps1 from this directory" -ForegroundColor Gray
+Write-Host "  - Double-click the desktop shortcut to launch the portal" -ForegroundColor Gray
+Write-Host "  - Or run: .\start.ps1 from this directory" -ForegroundColor Gray
 Write-Host ""
 Write-Host "The portal will open at: http://127.0.0.1:5173" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Note: Keep this folder in its current location for the shortcut to work." -ForegroundColor Yellow
 Write-Host ""
 Write-Host "Press any key to exit..." -ForegroundColor Gray
-$null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
+$null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")

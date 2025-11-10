@@ -103,6 +103,36 @@ async def extract_text_from_image(file: UploadFile) -> str:
         raise ValueError(f"Failed to process image: {str(e)}")
 
 
+async def process_single_file(file: UploadFile) -> str:
+    """
+    Extract text content from a single uploaded file.
+    Returns extracted text or empty string if extraction fails.
+    """
+    try:
+        filename = file.filename.lower() if file.filename else ""
+        
+        if filename.endswith('.pdf'):
+            return await extract_text_from_pdf(file)
+        elif filename.endswith(('.docx', '.doc')):
+            return await extract_text_from_docx(file)
+        elif filename.endswith(('.pptx', '.ppt')):
+            return await extract_text_from_pptx(file)
+        elif filename.endswith(('.png', '.jpg', '.jpeg', '.gif', '.bmp')):
+            return await extract_text_from_image(file)
+        elif filename.endswith(('.txt', '.md')):
+            return await extract_text_from_text(file)
+        elif filename.endswith(('.xlsx', '.xls', '.csv')):
+            return await extract_text_from_excel(file)
+        elif filename.endswith(('.mp4', '.mov', '.avi')):
+            return f"[Video file: {file.filename} - cannot extract text]"
+        else:
+            return f"[Unsupported file type: {file.filename}]"
+            
+    except Exception as e:
+        print(f"Error processing file {file.filename}: {e}")
+        return f"[Error reading {file.filename}]"
+
+
 async def process_multiple_files(files: List[UploadFile]) -> str:
     """
     Process multiple files and combine their content.

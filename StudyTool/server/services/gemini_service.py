@@ -4,6 +4,7 @@ Handles API configuration, prompt building, and response parsing.
 """
 import json
 import re
+import time
 from typing import Dict, List, Optional, Any, Union
 from pydantic import BaseModel
 import google.generativeai as genai
@@ -529,36 +530,32 @@ async def generate_chat_response(
         # Configure Gemini with user's API key
         configure_gemini(api_key)
         
-        # Build the conversation prompt
-        system_instruction = """You are a helpful study assistant integrated into Hoosier Prep Portal. Your role is to help students plan their study materials and prepare for exams.
+        # Build the conversation prompt (friendly and efficient)
+        system_instruction = """You're a friendly study assistant helping students create practice exams. Be conversational and efficient.
 
-Key responsibilities:
-- Help users understand what content to upload (PDFs, PowerPoint, Word docs, images, videos, Excel, text files)
-- Guide them on how to structure study materials for best results
-- Suggest appropriate question types (MCQ, short answer, true/false, fill-in-blank, multi-select)
-- Recommend difficulty levels (easy, medium, hard)
-- Help identify focus concepts and themes
-- Suggest study plans and exam configurations
+Ask 2-3 questions at once to move faster:
+- Question count: 1-100 questions (accept any number the user says)
+- Difficulty: Easy, Medium, or Hard
+- Question types: Multiple Choice, Short Answer, True/False, Fill-in-the-Blank
 
-When users describe what they want to study:
-- Ask clarifying questions about their goals
-- Suggest specific question counts (10-20 for quick practice, 30+ for comprehensive exams)
-- Recommend difficulty based on their preparation level
-- Identify key concepts they should focus on
-- Be encouraging and supportive
+When files are uploaded, immediately acknowledge the content and ask remaining preferences in one message. Keep responses to 2-3 sentences max. Be warm and helpful."""
 
-Keep responses concise (2-3 paragraphs max), friendly, and actionable. Don't generate actual exam questions - your job is to help them plan and configure what they'll generate."""
-
-        # Build full conversation context
+        # Build full conversation context (keep only recent history to save tokens)
         conversation_text = system_instruction + "\n\n"
         
+        # Limit conversation history to last 6 messages to prevent token bloat
+        recent_history = conversation_history[-6:] if len(conversation_history) > 6 else conversation_history
+        
         # Add conversation history
-        for msg in conversation_history:
+        for msg in recent_history:
             role = "User" if msg["role"] == "user" else "Assistant"
             conversation_text += f"{role}: {msg['content']}\n\n"
         
         # Add current message
         conversation_text += f"User: {message}\n\nAssistant:"
+        
+        # Track response time
+        start_time = time.time()
         
         # Resolve and initialize Gemini model
         model_name = await resolve_model_for_key(api_key)
@@ -572,15 +569,59 @@ Keep responses concise (2-3 paragraphs max), friendly, and actionable. Don't gen
                     temperature=0.85,  # Higher for more natural, varied responses
                     top_p=0.95,
                     top_k=40,
-                    max_output_tokens=1024,  # Shorter responses for chat
+                    max_output_tokens=1024,  # Allow full responses
                 ),
             )
         
         import asyncio as _asyncio
+        
+        # Generate response (no timeout - let Gemini take as long as needed)
         response = await _asyncio.to_thread(_gen, conversation_text)
         
-        # Extract and return response text
-        return response.text.strip()
+        # Initialize response text variable
+        response_text = ""
+        
+        # Check finish reason and extract text appropriately
+        try:
+            if hasattr(response, 'candidates') and response.candidates and len(response.candidates) > 0:
+                candidate = response.candidates[0]
+                finish_reason = candidate.finish_reason
+                
+                # Extract text from parts for ALL cases (safer than using .text accessor)
+                if candidate.content and candidate.content.parts:
+                    parts_text = []
+                    for part in candidate.content.parts:
+                        if hasattr(part, 'text') and part.text:
+                            parts_text.append(part.text)
+                    response_text = ' '.join(parts_text).strip()
+                
+                # Handle different finish reasons
+                if finish_reason == 3 or str(finish_reason) == "SAFETY":
+                    return "I apologize, but I'm unable to respond to that message due to content safety filters. Could you rephrase your question or try a different topic?"
+                elif finish_reason == 2 or str(finish_reason) == "MAX_TOKENS":
+                    # Response was cut off at token limit
+                    if response_text and len(response_text) > 10:
+                        return response_text + "\n\n(Response was cut short. Please ask a more specific question.)"
+                    else:
+                        return "I apologize, but my response was too long. Could you ask a more specific or shorter question?"
+            else:
+                # Try fallback .text accessor if candidates structure is different
+                try:
+                    response_text = response.text.strip()
+                except Exception:
+                    raise ValueError("No valid response structure from AI model")
+        except AttributeError as e:
+            # If structure is completely unexpected
+            raise ValueError(f"Unexpected response structure: {str(e)}")
+        
+        # Ensure we got a valid response
+        if not response_text or len(response_text) < 3:
+            raise ValueError("Empty or invalid response from AI model")
+        
+        elapsed = time.time() - start_time
+        print(f"[Chat] Response received in {elapsed:.2f}s, length: {len(response_text)} chars")
+        
+        return response_text
         
     except google_exceptions.NotFound as e:
         raise ValueError(

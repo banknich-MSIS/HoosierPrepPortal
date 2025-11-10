@@ -493,13 +493,77 @@ class ChatResponse(BaseModel):
     response: str
 
 
+@router.post("/ai/chat-with-files")
+async def chat_with_files_attached(
+    message: str = Form(...),
+    conversation_history: str = Form("[]"),  # JSON string
+    files: Optional[List[UploadFile]] = File(None),
+    x_gemini_api_key: str = Header(..., alias="X-Gemini-API-Key")
+):
+    """
+    Chat endpoint that accepts file uploads and extracts their content for AI context.
+    """
+    try:
+        # Parse conversation history from JSON string
+        import json
+        history_list = json.loads(conversation_history)
+        history_dicts = [
+            {"role": msg["role"], "content": msg["content"]}
+            for msg in history_list
+        ]
+        
+        # Extract content from uploaded files if any
+        file_context = ""
+        if files and len(files) > 0:
+            print(f"[Chat] Processing {len(files)} file(s)...")
+            file_summaries = []
+            for file in files:
+                try:
+                    print(f"[Chat] Extracting text from {file.filename}...")
+                    # Extract text from file
+                    content = await file_processor.process_single_file(file)
+                    # Limit to first 3000 chars for chat context
+                    summary = content[:3000] if content else ""
+                    if summary:
+                        file_summaries.append(f"[File: {file.filename}]\n{summary}...")
+                        print(f"[Chat] Successfully extracted {len(summary)} chars from {file.filename}")
+                    else:
+                        print(f"[Chat] No content extracted from {file.filename}")
+                except Exception as e:
+                    print(f"[Chat] Error processing {file.filename}: {str(e)}")
+                    file_summaries.append(f"[File: {file.filename} - Could not extract text: {str(e)}]")
+            
+            if file_summaries:
+                file_context = "\n\n".join(file_summaries)
+                # Prepend file context to user message
+                message = f"{message}\n\n[Uploaded Files Context]:\n{file_context}"
+                print(f"[Chat] Added {len(file_context)} chars of file context to message")
+        
+        # Generate response using Gemini service
+        response_text = await gemini_service.generate_chat_response(
+            message=message,
+            conversation_history=history_dicts,
+            api_key=x_gemini_api_key
+        )
+        
+        return ChatResponse(response=response_text)
+        
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to generate chat response: {str(e)}"
+        )
+
+
 @router.post("/ai/chat", response_model=ChatResponse)
 async def chat_with_assistant(
     request: ChatRequest,
     x_gemini_api_key: str = Header(..., alias="X-Gemini-API-Key")
 ):
     """
-    Chat endpoint for the Manual Creator conversational interface.
+    Chat endpoint for the Manual Creator conversational interface (without files).
     
     Provides guidance on:
     - What study materials to upload

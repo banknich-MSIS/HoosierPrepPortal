@@ -20,6 +20,16 @@ export default function AttemptReviewPage() {
     new Set()
   );
 
+  // Helper function to check if answer is empty/unanswered
+  const isAnswerEmpty = (answer: any): boolean => {
+    return (
+      answer === undefined ||
+      answer === null ||
+      answer === "" ||
+      (Array.isArray(answer) && answer.length === 0)
+    );
+  };
+
   useEffect(() => {
     if (attemptId) {
       loadAttemptDetail(parseInt(attemptId));
@@ -391,15 +401,33 @@ export default function AttemptReviewPage() {
                     marginBottom: 12,
                   }}
                 >
-                  <h3
-                    style={{
-                      margin: 0,
-                      fontSize: "16px",
-                      color: theme.textSecondary,
-                    }}
-                  >
-                    Question {actualIndex + 1}
-                  </h3>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <h3
+                      style={{
+                        margin: 0,
+                        fontSize: "16px",
+                        color: theme.textSecondary,
+                      }}
+                    >
+                      Question {actualIndex + 1}
+                    </h3>
+                    {isAnswerEmpty(questionReview.user_answer) && (
+                      <div
+                        style={{
+                          padding: "4px 10px",
+                          borderRadius: 4,
+                          fontSize: "12px",
+                          fontWeight: 600,
+                          backgroundColor: darkMode ? "rgba(194, 155, 74, 0.2)" : "rgba(194, 155, 74, 0.15)",
+                          color: darkMode ? "#d4a650" : "#c29b4a",
+                          border: `1.5px solid ${darkMode ? "rgba(194, 155, 74, 0.4)" : "rgba(194, 155, 74, 0.3)"}`,
+                          fontStyle: "italic",
+                        }}
+                      >
+                        No answer provided
+                      </div>
+                    )}
+                  </div>
                   <div
                     style={{ display: "flex", alignItems: "center", gap: 8 }}
                   >
@@ -469,6 +497,7 @@ export default function AttemptReviewPage() {
                     {question.type === "truefalse" ? (
                       ["True", "False"].map((option) => {
                         const isUserAnswer =
+                          !isAnswerEmpty(questionReview.user_answer) &&
                           String(questionReview.user_answer).toLowerCase() ===
                           option.toLowerCase();
                         const isCorrectAnswer =
@@ -533,10 +562,11 @@ export default function AttemptReviewPage() {
                     ) : question.options && question.options.length > 0 ? (
                       question.options.map((option, optIdx) => {
                         const isUserAnswer =
-                          String(questionReview.user_answer) ===
+                          !isAnswerEmpty(questionReview.user_answer) &&
+                          (String(questionReview.user_answer) ===
                             String(option) ||
                           (Array.isArray(questionReview.user_answer) &&
-                            questionReview.user_answer.includes(option));
+                            questionReview.user_answer.includes(option)));
                         const isCorrectAnswer =
                           String(questionReview.correct_answer) ===
                             String(option) ||
@@ -657,7 +687,9 @@ export default function AttemptReviewPage() {
                             color: theme.text,
                           }}
                         >
-                          {String(questionReview.user_answer)}
+                          {isAnswerEmpty(questionReview.user_answer) 
+                            ? "—" 
+                            : String(questionReview.user_answer)}
                         </div>
                       </div>
                       <div>
