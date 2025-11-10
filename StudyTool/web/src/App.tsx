@@ -52,7 +52,7 @@ export default function App() {
   };
 
   const handleGitHubClick = () => {
-    window.open("https://github.com/banknich-MSIS/StudyTool", "_blank");
+    window.open("https://github.com/banknich-MSIS/HoosierPrepPortal", "_blank");
   };
 
   // Glassmorphism Theme
@@ -422,7 +422,7 @@ export default function App() {
             </button>
             <span style={{ color: theme.textSecondary }}>|</span>
             <a
-              href="https://github.com/banknich-MSIS/StudyTool"
+              href="https://github.com/banknich-MSIS/HoosierPrepPortal"
               target="_blank"
               rel="noopener noreferrer"
               style={{

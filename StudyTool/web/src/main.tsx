@@ -15,6 +15,8 @@ import HistoryPage from "./pages/HistoryPage";
 import SupportPage from "./pages/SupportPage";
 import UtilitiesPage from "./pages/UtilitiesPage";
 import ApiKeyManagementPage from "./pages/ApiKeyManagementPage";
+import ClassesPage from "./pages/ClassesPage";
+import BackupRestorePage from "./pages/BackupRestorePage";
 
 const router = createBrowserRouter([
   {
@@ -32,6 +34,8 @@ const router = createBrowserRouter([
       // Optionally, we could add a redirect from /history to /
       // { path: "history", element: <Dashboard /> },
       { path: "history/:attemptId", element: <AttemptReviewPage /> },
+      { path: "classes", element: <ClassesPage /> },
+      { path: "backup-restore", element: <BackupRestorePage /> },
       { path: "support", element: <SupportPage /> },
       { path: "utilities", element: <UtilitiesPage /> },
       { path: "api-keys", element: <ApiKeyManagementPage /> },

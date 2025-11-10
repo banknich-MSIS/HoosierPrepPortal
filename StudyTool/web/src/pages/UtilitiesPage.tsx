@@ -60,54 +60,13 @@ export default function UtilitiesPage() {
           gap: 20,
         }}
       >
-        {/* Export Data (Future) */}
+        {/* Backup & Restore */}
         <div
           style={{
             backgroundColor: theme.cardBg,
             border: `1px solid ${theme.border}`,
             borderRadius: 8,
             padding: 20,
-            opacity: 0.6,
-          }}
-        >
-          <h3 style={{ margin: "0 0 12px 0", fontSize: 18, color: theme.text }}>
-            Export Data
-          </h3>
-          <p
-            style={{
-              margin: "0 0 16px 0",
-              color: theme.textSecondary,
-              fontSize: 14,
-              lineHeight: 1.5,
-            }}
-          >
-            Export your exam history and performance analytics to CSV or PDF.
-          </p>
-          <button
-            disabled
-            style={{
-              padding: "8px 16px",
-              backgroundColor: theme.border,
-              color: theme.textSecondary,
-              border: "none",
-              borderRadius: 4,
-              cursor: "not-allowed",
-              fontSize: 14,
-              width: "100%",
-            }}
-          >
-            Coming Soon
-          </button>
-        </div>
-
-        {/* Backup/Restore (Future) */}
-        <div
-          style={{
-            backgroundColor: theme.cardBg,
-            border: `1px solid ${theme.border}`,
-            borderRadius: 8,
-            padding: 20,
-            opacity: 0.6,
           }}
         >
           <h3 style={{ margin: "0 0 12px 0", fontSize: 18, color: theme.text }}>
@@ -124,19 +83,30 @@ export default function UtilitiesPage() {
             Backup your database and restore from previous backups.
           </p>
           <button
-            disabled
+            onClick={() => navigate("/backup-restore")}
             style={{
               padding: "8px 16px",
-              backgroundColor: theme.border,
-              color: theme.textSecondary,
+              backgroundColor: theme.crimson,
+              color: "white",
               border: "none",
               borderRadius: 4,
-              cursor: "not-allowed",
+              cursor: "pointer",
               fontSize: 14,
               width: "100%",
+              fontWeight: 600,
+              transition: "0.2s",
+              boxShadow: "0 2px 8px rgba(196, 30, 58, 0.25)",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.boxShadow =
+                "0 4px 12px rgba(196, 30, 58, 0.35)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.boxShadow =
+                "0 2px 8px rgba(196, 30, 58, 0.25)";
             }}
           >
-            Coming Soon
+            Manage Backups
           </button>
         </div>
       </div>

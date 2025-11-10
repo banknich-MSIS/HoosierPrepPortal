@@ -145,13 +145,18 @@ export default function ClassTagSelector({
           onMouseEnter={() => !loading && setHoveredButton("createClass")}
           onMouseLeave={() => setHoveredButton(null)}
           style={{
-            padding: 4,
+            padding: "6px 10px",
+            minWidth: 32,
+            height: 32,
             borderRadius: 6,
             border: `1px solid ${theme.glassBorder}`,
             background:
               hoveredButton === "createClass" ? theme.navHover : "transparent",
             cursor: loading ? "not-allowed" : "pointer",
             color: theme.text,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
           }}
         >
           +

@@ -13,6 +13,7 @@ from .routes import dashboard as dashboard_routes
 from .routes import classes as classes_routes
 from .routes import ai_generation as ai_routes
 from .routes import jobs as jobs_routes
+from .routes import backup as backup_routes
 
 
 def create_app() -> FastAPI:
@@ -39,6 +40,7 @@ def create_app() -> FastAPI:
     app.include_router(classes_routes.router, prefix="/api")
     app.include_router(ai_routes.router, prefix="/api")
     app.include_router(jobs_routes.router, prefix="/api")
+    app.include_router(backup_routes.router, prefix="/api")
 
     @app.on_event("startup")
     def _startup() -> None:

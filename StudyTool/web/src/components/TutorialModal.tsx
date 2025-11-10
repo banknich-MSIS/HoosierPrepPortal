@@ -82,11 +82,6 @@ const TutorialModal: React.FC<TutorialModalProps> = ({
             Answer questions, get instant feedback, and track your progress.
           </p>
           <p>Review your results to identify areas for improvement.</p>
-          <div
-            style={{ marginTop: 12, fontSize: 12, color: theme.textSecondary }}
-          >
-            Tip: You can also manually upload CSV files if you have pre-existing question sets.
-          </div>
         </div>
       ),
     },
@@ -130,7 +125,7 @@ const TutorialModal: React.FC<TutorialModalProps> = ({
         zIndex: 1000,
         backdropFilter: "blur(8px)",
       }}
-      onClick={onClose}
+      onClick={handleClose}
     >
       <div
         style={{
@@ -204,7 +199,16 @@ const TutorialModal: React.FC<TutorialModalProps> = ({
               <input
                 type="checkbox"
                 checked={dontShowAgain}
-                onChange={(e) => setDontShowAgain(e.target.checked)}
+                onChange={(e) => {
+                  const checked = e.target.checked;
+                  setDontShowAgain(checked);
+                  // Save immediately when checked
+                  if (checked) {
+                    localStorage.setItem("studytool_tutorial_completed", "true");
+                  } else {
+                    localStorage.removeItem("studytool_tutorial_completed");
+                  }
+                }}
               />
               Don't show this again
             </label>

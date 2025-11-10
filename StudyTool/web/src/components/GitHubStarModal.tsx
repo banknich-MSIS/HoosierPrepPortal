@@ -10,7 +10,7 @@ export default function GitHubStarModal({
   if (!isOpen) return null;
 
   const handleStarClick = () => {
-    window.open("https://github.com/banknich-MSIS/StudyTool", "_blank");
+    window.open("https://github.com/banknich-MSIS/HoosierPrepPortal", "_blank");
     localStorage.setItem("hoosier_prep_github_star_shown", "true");
     onClose();
   };

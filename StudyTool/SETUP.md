@@ -130,4 +130,4 @@ The built files will be in `web/dist`.
 ## Support
 
 For issues, questions, or contributions, visit:
-https://github.com/banknich-MSIS/StudyTool
+https://github.com/banknich-MSIS/HoosierPrepPortal

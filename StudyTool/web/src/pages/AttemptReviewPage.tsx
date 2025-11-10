@@ -105,11 +105,13 @@ export default function AttemptReviewPage() {
   };
 
   const formatDate = (date: string) => {
-    return new Date(date).toLocaleString("en-US", {
+    // Ensure UTC parsing if 'Z' is missing
+    const dateStr = date.endsWith('Z') ? date : date + 'Z';
+    return new Date(dateStr).toLocaleString("en-US", {
       year: "numeric",
       month: "long",
       day: "numeric",
-      hour: "2-digit",
+      hour: "numeric",
       minute: "2-digit",
     });
   };
@@ -258,7 +260,7 @@ export default function AttemptReviewPage() {
           }}
         >
           <button
-            onClick={() => navigate("/settings")}
+            onClick={() => navigate("/upload")}
             style={{
               padding: "10px 24px",
               background: theme.crimson,

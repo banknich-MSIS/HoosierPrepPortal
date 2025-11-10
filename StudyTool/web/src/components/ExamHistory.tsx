@@ -21,11 +21,13 @@ export default function ExamHistory({
   const [hoveredButton, setHoveredButton] = useState<string | null>(null);
 
   const formatDate = (date: string) => {
-    return new Date(date).toLocaleString("en-US", {
+    // Ensure UTC parsing if 'Z' is missing
+    const dateStr = date.endsWith('Z') ? date : date + 'Z';
+    return new Date(dateStr).toLocaleString("en-US", {
       year: "numeric",
       month: "short",
       day: "numeric",
-      hour: "2-digit",
+      hour: "numeric",
       minute: "2-digit",
     });
   };
@@ -47,8 +49,10 @@ export default function ExamHistory({
 
     switch (sortBy) {
       case "date":
-        aVal = new Date(a.finished_at).getTime();
-        bVal = new Date(b.finished_at).getTime();
+        const aDate = a.finished_at.endsWith('Z') ? a.finished_at : a.finished_at + 'Z';
+        const bDate = b.finished_at.endsWith('Z') ? b.finished_at : b.finished_at + 'Z';
+        aVal = new Date(aDate).getTime();
+        bVal = new Date(bDate).getTime();
         break;
       case "score":
         aVal = a.score_pct;

@@ -164,7 +164,7 @@ export default function ReviewPage() {
           }}
         >
           <button
-            onClick={() => nav("/settings")}
+            onClick={() => nav("/upload")}
             style={{
               padding: "10px 20px",
               backgroundColor: "#dc3545",

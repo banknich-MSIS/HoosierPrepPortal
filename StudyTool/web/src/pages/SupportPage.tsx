@@ -68,18 +68,18 @@ export default function SupportPage() {
           <div style={{ marginBottom: 12, color: theme.text }}>
             <strong>GitHub:</strong>{" "}
             <a
-              href="https://github.com/banknich-MSIS/StudyTool"
+              href="https://github.com/banknich-MSIS/HoosierPrepPortal"
               target="_blank"
               rel="noopener noreferrer"
               style={{ color: theme.crimson, textDecoration: "underline" }}
             >
-              github.com/banknich-MSIS/StudyTool
+              github.com/banknich-MSIS/HoosierPrepPortal
             </a>
           </div>
           <div style={{ marginBottom: 12, color: theme.text }}>
             <strong>Issues/Bugs:</strong>{" "}
             <a
-              href="https://github.com/banknich-MSIS/StudyTool/issues"
+              href="https://github.com/banknich-MSIS/HoosierPrepPortal/issues"
               target="_blank"
               rel="noopener noreferrer"
               style={{ color: theme.crimson, textDecoration: "underline" }}
@@ -120,9 +120,7 @@ export default function SupportPage() {
                 lineHeight: 1.6,
               }}
             >
-              Upload a CSV file with your questions, then go to Settings to
-              configure and create an exam. See the Instructions for a detailed
-              guide.
+              You have two options: (1) <strong>Exam Generator</strong> - Upload PDFs, Word docs, PowerPoint slides, or other study materials and configure settings to generate an exam instantly. (2) <strong>AI Assistant</strong> - Chat with an AI to discuss your study goals, upload files during the conversation, and get guided through exam configuration.
             </p>
           </div>
           <div>
@@ -133,7 +131,7 @@ export default function SupportPage() {
                 color: theme.text,
               }}
             >
-              What format should my CSV be in?
+              What file types can I upload?
             </h4>
             <p
               style={{
@@ -142,8 +140,7 @@ export default function SupportPage() {
                 lineHeight: 1.6,
               }}
             >
-              Download the CSV template from the Upload page, or check the
-              detailed guide in the Instructions/Tutorial.
+              The tool supports PDFs, Word documents (.docx), PowerPoint presentations (.pptx), images (with OCR), text files, Excel/CSV files, and more. Files are processed to extract text and generate questions automatically using AI.
             </p>
           </div>
           <div>
@@ -154,7 +151,7 @@ export default function SupportPage() {
                 color: theme.text,
               }}
             >
-              Can I use this with Gemini AI?
+              Where do I get a Gemini API key?
             </h4>
             <p
               style={{
@@ -163,11 +160,7 @@ export default function SupportPage() {
                 lineHeight: 1.6,
               }}
             >
-              This tool has built-in Gemini AI integration for quick exam
-              generation. Alternatively, use our Gemini Gem for a more
-              consultative approach that tailors exams with detailed
-              customization. The template can be used with other LLMs, though
-              subtle formatting differences may cause errors.
+              Visit <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" style={{ color: theme.crimson, textDecoration: "underline" }}>Google AI Studio</a> to get a free API key. Use a personal Google account (not IU school account) for best compatibility. The free tier provides 60 requests/hour and 1M tokens/day.
             </p>
           </div>
           <div>
@@ -178,7 +171,7 @@ export default function SupportPage() {
                 color: theme.text,
               }}
             >
-              Why do I get a permission error opening the Gemini Gem?
+              Can I submit an exam without answering all questions?
             </h4>
             <p
               style={{
@@ -187,10 +180,7 @@ export default function SupportPage() {
                 lineHeight: 1.6,
               }}
             >
-              The Gemini Gem requires a Gemini Pro account, which IU school
-              accounts provide. However, for API keys used in this tool, school
-              accounts may block access - use a personal Google account to
-              obtain a free API key.
+              Yes! You'll get a warning showing how many questions are unanswered, but you can proceed with submission. Unanswered questions will be marked as incorrect and clearly labeled as "No answer provided" in your results.
             </p>
           </div>
           <div>
@@ -201,7 +191,7 @@ export default function SupportPage() {
                 color: theme.text,
               }}
             >
-              CSV format expectations
+              How do I backup or transfer my data?
             </h4>
             <p
               style={{
@@ -210,9 +200,7 @@ export default function SupportPage() {
                 lineHeight: 1.6,
               }}
             >
-              Use the template from the Upload page. Ensure headers and column
-              order match exactly. Save as UTF-8 CSV. If pasting text, ensure
-              commas separate fields and options use the pipe (|) delimiter.
+              Go to Utilities → Backup & Restore. Create a backup to download all your study materials, exams, and performance history as a JSON file. You can restore this backup on another computer or after reinstalling the tool.
             </p>
           </div>
           <div>
@@ -223,7 +211,7 @@ export default function SupportPage() {
                 color: theme.text,
               }}
             >
-              Common errors and fixes
+              Common errors and solutions
             </h4>
             <ul
               style={{
@@ -234,16 +222,16 @@ export default function SupportPage() {
               }}
             >
               <li>
-                "Invalid API key": trim whitespace; ensure API enabled; use
-                personal account.
+                <strong>"Invalid API key":</strong> Trim whitespace from your key, ensure the API is enabled in Google AI Studio, and use a personal Google account (not school account).
               </li>
               <li>
-                "Could not extract enough content": upload files with selectable
-                text.
+                <strong>"Network Error":</strong> Ensure the backend server is running (run start.ps1 from the StudyTool folder).
               </li>
               <li>
-                CSV parse errors: check headers; quote fields containing commas;
-                use UTF-8.
+                <strong>"Could not extract content":</strong> Upload files with selectable text (not scanned images). For images, ensure text is clear and readable for OCR.
+              </li>
+              <li>
+                <strong>"File too large":</strong> Keep files under 10MB. For large PDFs, consider splitting into chapters.
               </li>
             </ul>
           </div>
