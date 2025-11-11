@@ -22,7 +22,9 @@ export default function BackupRestorePage() {
     setMessage(null);
 
     try {
-      const response = await axios.get("http://127.0.0.1:8000/api/backup/create");
+      const response = await axios.get(
+        "http://127.0.0.1:8000/api/backup/create"
+      );
       const data = response.data;
 
       // Create downloadable file
@@ -43,10 +45,10 @@ export default function BackupRestorePage() {
       localStorage.setItem("last_backup_date", new Date().toISOString());
 
       setMessage(
-        `✅ Backup created! (${data.metadata.total_uploads} uploads, ${data.metadata.total_attempts} attempts)`
+        `Backup created successfully! (${data.metadata.total_uploads} uploads, ${data.metadata.total_attempts} attempts)`
       );
     } catch (error: any) {
-      setMessage(`❌ Error: ${error.message || "Failed to create backup"}`);
+      setMessage(`Error: ${error.message || "Failed to create backup"}`);
     } finally {
       setBackupLoading(false);
     }
@@ -54,13 +56,13 @@ export default function BackupRestorePage() {
 
   const handleFileSelect = async (file: File) => {
     if (!file.name.endsWith(".json")) {
-      setMessage("❌ Please select a valid JSON backup file");
+      setMessage("Error: Please select a valid JSON backup file");
       return;
     }
 
     const MAX_SIZE = 50 * 1024 * 1024; // 50MB
     if (file.size > MAX_SIZE) {
-      setMessage("❌ File too large (max 50MB)");
+      setMessage("Error: File too large (max 50MB)");
       return;
     }
 
@@ -73,14 +75,14 @@ export default function BackupRestorePage() {
       const data = JSON.parse(text);
 
       if (data.version !== "1.0" || data.app_name !== "Hoosier Prep Portal") {
-        setMessage("❌ Invalid backup file format");
+        setMessage("Error: Invalid backup file format");
         setSelectedFile(null);
         return;
       }
 
       setBackupPreview(data);
     } catch (error) {
-      setMessage("❌ Could not read backup file. File may be corrupted.");
+      setMessage("Error: Could not read backup file. File may be corrupted.");
       setSelectedFile(null);
     }
   };
@@ -106,7 +108,7 @@ export default function BackupRestorePage() {
       );
 
       setMessage(
-        `✅ Restore complete! Restored ${response.data.restored.uploads} uploads, ${response.data.restored.attempts} attempts`
+        `Restore complete! Restored ${response.data.restored.uploads} uploads, ${response.data.restored.attempts} attempts`
       );
       setSelectedFile(null);
       setBackupPreview(null);
@@ -117,7 +119,7 @@ export default function BackupRestorePage() {
       }, 2000);
     } catch (error: any) {
       setMessage(
-        `❌ Restore failed: ${
+        `Error: Restore failed - ${
           error.response?.data?.detail || error.message || "Unknown error"
         }`
       );
@@ -181,14 +183,14 @@ export default function BackupRestorePage() {
             padding: 16,
             marginBottom: 24,
             borderRadius: 8,
-            background: message.includes("❌")
+            background: message.includes("Error:")
               ? darkMode
                 ? "#3d1a1a"
                 : "#f8d7da"
               : darkMode
               ? "#1a3d1a"
               : "#d4edda",
-            color: message.includes("❌")
+            color: message.includes("Error:")
               ? darkMode
                 ? "#ef5350"
                 : "#721c24"
@@ -196,7 +198,7 @@ export default function BackupRestorePage() {
               ? "#66bb6a"
               : "#155724",
             border: `1px solid ${
-              message.includes("❌")
+              message.includes("Error:")
                 ? darkMode
                   ? "#4d2a2a"
                   : "#f5c6cb"
@@ -251,7 +253,9 @@ export default function BackupRestorePage() {
                 padding: 12,
                 marginBottom: 16,
                 borderRadius: 6,
-                background: darkMode ? "rgba(194, 155, 74, 0.1)" : "rgba(194, 155, 74, 0.05)",
+                background: darkMode
+                  ? "rgba(194, 155, 74, 0.1)"
+                  : "rgba(194, 155, 74, 0.05)",
                 border: `1px solid ${theme.glassBorder}`,
                 fontSize: 13,
                 color: theme.textSecondary,
@@ -331,7 +335,7 @@ export default function BackupRestorePage() {
               lineHeight: 1.6,
             }}
           >
-            Upload a backup file to restore your data. 
+            Upload a backup file to restore your data.
           </p>
 
           {/* Warning */}
@@ -347,7 +351,7 @@ export default function BackupRestorePage() {
               lineHeight: 1.5,
             }}
           >
-            <strong>⚠️ Warning:</strong> This will replace ALL your current data
+            <strong>Warning:</strong> This will replace ALL your current data
             (uploads, exams, attempts, classes). This cannot be undone!
           </div>
 
@@ -381,7 +385,9 @@ export default function BackupRestorePage() {
               cursor: "pointer",
               transition: "0.2s",
             }}
-            onClick={() => document.getElementById("backup-file-input")?.click()}
+            onClick={() =>
+              document.getElementById("backup-file-input")?.click()
+            }
           >
             <input
               id="backup-file-input"
@@ -396,8 +402,10 @@ export default function BackupRestorePage() {
             />
             {selectedFile ? (
               <div>
-                <div style={{ fontSize: 16, color: theme.text, marginBottom: 8 }}>
-                  📄 {selectedFile.name}
+                <div
+                  style={{ fontSize: 16, color: theme.text, marginBottom: 8 }}
+                >
+                  {selectedFile.name}
                 </div>
                 <div style={{ fontSize: 13, color: theme.textSecondary }}>
                   {(selectedFile.size / 1024).toFixed(1)} KB
@@ -407,7 +415,9 @@ export default function BackupRestorePage() {
                     style={{
                       marginTop: 12,
                       padding: 12,
-                      background: darkMode ? "rgba(194, 155, 74, 0.1)" : "rgba(194, 155, 74, 0.05)",
+                      background: darkMode
+                        ? "rgba(194, 155, 74, 0.1)"
+                        : "rgba(194, 155, 74, 0.05)",
                       borderRadius: 6,
                       fontSize: 13,
                       color: theme.text,
@@ -416,24 +426,23 @@ export default function BackupRestorePage() {
                     <div>
                       <strong>Preview:</strong>
                     </div>
-                    <div>
-                      {backupPreview.metadata.total_uploads} uploads
-                    </div>
+                    <div>{backupPreview.metadata.total_uploads} uploads</div>
                     <div>
                       {backupPreview.metadata.total_questions} questions
                     </div>
+                    <div>{backupPreview.metadata.total_attempts} attempts</div>
                     <div>
-                      {backupPreview.metadata.total_attempts} attempts
-                    </div>
-                    <div>
-                      Created: {new Date(backupPreview.created_at).toLocaleDateString()}
+                      Created:{" "}
+                      {new Date(backupPreview.created_at).toLocaleDateString()}
                     </div>
                   </div>
                 )}
               </div>
             ) : (
               <div>
-                <div style={{ fontSize: 16, color: theme.text, marginBottom: 8 }}>
+                <div
+                  style={{ fontSize: 16, color: theme.text, marginBottom: 8 }}
+                >
                   Drop backup file here or click to browse
                 </div>
                 <div style={{ fontSize: 13, color: theme.textSecondary }}>
@@ -455,7 +464,8 @@ export default function BackupRestorePage() {
               color: "white",
               border: "none",
               borderRadius: 6,
-              cursor: !selectedFile || restoreLoading ? "not-allowed" : "pointer",
+              cursor:
+                !selectedFile || restoreLoading ? "not-allowed" : "pointer",
               fontSize: 15,
               fontWeight: 600,
               letterSpacing: "-0.2px",
@@ -545,7 +555,7 @@ export default function BackupRestorePage() {
                 fontWeight: 700,
               }}
             >
-              ⚠️ Confirm Restore
+              Confirm Restore
             </h3>
             <p
               style={{
@@ -554,10 +564,12 @@ export default function BackupRestorePage() {
                 color: theme.text,
               }}
             >
-              This will <strong>DELETE ALL</strong> your current data and replace
-              it with the backup. Are you absolutely sure?
+              This will <strong>DELETE ALL</strong> your current data and
+              replace it with the backup. Are you absolutely sure?
             </p>
-            <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
+            <div
+              style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}
+            >
               <button
                 onClick={() => setShowConfirm(false)}
                 style={{
@@ -604,4 +616,3 @@ export default function BackupRestorePage() {
     </div>
   );
 }
-

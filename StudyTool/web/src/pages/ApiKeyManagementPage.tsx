@@ -279,10 +279,10 @@ export default function ApiKeyManagementPage() {
               }}
             >
               {apiKeyValid === true
-                ? "✓ Valid"
+                ? "Valid"
                 : apiKeyValid === false
-                ? "✗ Invalid"
-                : "? Not Set"}
+                ? "Invalid"
+                : "Not Set"}
             </span>
           </div>
           <div

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 
 export interface DashboardSection {
   id: string;
@@ -10,7 +10,6 @@ export interface DashboardSection {
 interface DashboardLayoutSettingsProps {
   sections: DashboardSection[];
   onSave: (sections: DashboardSection[]) => void;
-  onChange: (sections: DashboardSection[]) => void; // Preview changes immediately
   onClose: () => void;
   darkMode: boolean;
   theme: any;
@@ -19,56 +18,83 @@ interface DashboardLayoutSettingsProps {
 export default function DashboardLayoutSettings({
   sections,
   onSave,
-  onChange,
   onClose,
   darkMode,
   theme,
 }: DashboardLayoutSettingsProps) {
   const [localSections, setLocalSections] = useState<DashboardSection[]>(
-    [...sections].sort((a, b) => a.order - b.order)
+    sections.map((s) => ({ ...s })).sort((a, b) => a.order - b.order)
   );
   const [hoveredButton, setHoveredButton] = useState<string | null>(null);
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+
+  // Reset localSections when modal opens with updated sections
+  useEffect(() => {
+    setLocalSections(
+      sections.map((s) => ({ ...s })).sort((a, b) => a.order - b.order)
+    );
+  }, [sections]);
 
   const toggleVisibility = (id: string) => {
     const newSections = localSections.map((section) =>
       section.id === id ? { ...section, visible: !section.visible } : section
     );
     setLocalSections(newSections);
-    onChange(newSections); // Immediately preview in parent
   };
 
-  const moveUp = (index: number) => {
-    if (index === 0) return;
+  const handleDragStart = (index: number) => {
+    setDraggedIndex(index);
+  };
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    setDragOverIndex(index);
+  };
+
+  const handleDragLeave = () => {
+    setDragOverIndex(null);
+  };
+
+  const handleDrop = (e: React.DragEvent, dropIndex: number) => {
+    e.preventDefault();
+
+    if (draggedIndex === null || draggedIndex === dropIndex) {
+      setDraggedIndex(null);
+      setDragOverIndex(null);
+      return;
+    }
+
     const newSections = [...localSections];
-    [newSections[index - 1], newSections[index]] = [
-      newSections[index],
-      newSections[index - 1],
-    ];
+    const draggedSection = newSections[draggedIndex];
+
+    // Remove from old position
+    newSections.splice(draggedIndex, 1);
+    // Insert at new position
+    newSections.splice(dropIndex, 0, draggedSection);
+
     // Update order values
     newSections.forEach((section, idx) => {
       section.order = idx;
     });
+
     setLocalSections(newSections);
-    onChange(newSections); // Immediately preview in parent
+    setDraggedIndex(null);
+    setDragOverIndex(null);
   };
 
-  const moveDown = (index: number) => {
-    if (index === localSections.length - 1) return;
-    const newSections = [...localSections];
-    [newSections[index], newSections[index + 1]] = [
-      newSections[index + 1],
-      newSections[index],
-    ];
-    // Update order values
-    newSections.forEach((section, idx) => {
-      section.order = idx;
-    });
-    setLocalSections(newSections);
-    onChange(newSections); // Immediately preview in parent
+  const handleDragEnd = () => {
+    setDraggedIndex(null);
+    setDragOverIndex(null);
   };
 
   const handleSave = () => {
     onSave(localSections);
+    onClose();
+  };
+
+  const handleCancel = () => {
+    // Just close without saving
     onClose();
   };
 
@@ -89,9 +115,9 @@ export default function DashboardLayoutSettings({
         left: 0,
         right: 0,
         bottom: 0,
-        background: "rgba(0, 0, 0, 0.7)",
-        backdropFilter: "blur(4px)",
-        WebkitBackdropFilter: "blur(4px)",
+        background: "rgba(0, 0, 0, 0.85)",
+        backdropFilter: "blur(8px)",
+        WebkitBackdropFilter: "blur(8px)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -131,23 +157,45 @@ export default function DashboardLayoutSettings({
             color: theme.textSecondary,
           }}
         >
-          Customize which sections appear on your dashboard and their order.
+          Drag sections to reorder them, and toggle visibility with the
+          checkboxes. Click Save Layout to apply changes.
         </p>
 
         <div style={{ display: "grid", gap: 12, marginBottom: 24 }}>
           {localSections.map((section, index) => (
             <div
               key={section.id}
+              draggable
+              onDragStart={() => handleDragStart(index)}
+              onDragOver={(e) => handleDragOver(e, index)}
+              onDragLeave={handleDragLeave}
+              onDrop={(e) => handleDrop(e, index)}
+              onDragEnd={handleDragEnd}
               style={{
                 display: "flex",
                 alignItems: "center",
                 gap: 12,
                 padding: 16,
-                background: darkMode
-                  ? "rgba(255, 255, 255, 0.03)"
-                  : "rgba(0, 0, 0, 0.03)",
+                background:
+                  draggedIndex === index
+                    ? darkMode
+                      ? "rgba(196, 30, 58, 0.1)"
+                      : "rgba(196, 30, 58, 0.05)"
+                    : dragOverIndex === index
+                    ? darkMode
+                      ? "rgba(194, 155, 74, 0.1)"
+                      : "rgba(194, 155, 74, 0.05)"
+                    : darkMode
+                    ? "rgba(255, 255, 255, 0.03)"
+                    : "rgba(0, 0, 0, 0.03)",
                 borderRadius: 8,
-                border: `1px solid ${theme.glassBorder}`,
+                border:
+                  dragOverIndex === index
+                    ? `2px solid ${theme.crimson}`
+                    : `1px solid ${theme.glassBorder}`,
+                cursor: "grab",
+                transition: "all 0.2s ease",
+                opacity: draggedIndex === index ? 0.5 : 1,
               }}
             >
               {/* Visibility Toggle */}
@@ -188,6 +236,33 @@ export default function DashboardLayoutSettings({
                 ) : null}
               </button>
 
+              {/* Drag Handle */}
+              <div
+                style={{
+                  padding: "0 8px",
+                  color: theme.textSecondary,
+                  cursor: "grab",
+                  display: "flex",
+                  alignItems: "center",
+                }}
+                title="Drag to reorder"
+              >
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <line x1="3" y1="12" x2="21" y2="12"></line>
+                  <line x1="3" y1="6" x2="21" y2="6"></line>
+                  <line x1="3" y1="18" x2="21" y2="18"></line>
+                </svg>
+              </div>
+
               {/* Section Title */}
               <div style={{ flex: 1 }}>
                 <div
@@ -200,77 +275,6 @@ export default function DashboardLayoutSettings({
                 >
                   {section.title}
                 </div>
-              </div>
-
-              {/* Move Up/Down Buttons */}
-              <div style={{ display: "flex", gap: 4 }}>
-                <button
-                  onClick={() => moveUp(index)}
-                  disabled={index === 0}
-                  style={{
-                    width: 32,
-                    height: 32,
-                    borderRadius: 4,
-                    border: `1px solid ${theme.glassBorder}`,
-                    background: "transparent",
-                    color: theme.text,
-                    cursor: index === 0 ? "not-allowed" : "pointer",
-                    opacity: index === 0 ? 0.4 : 1,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    transition: "all 0.2s ease",
-                  }}
-                  title="Move up"
-                >
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <polyline points="18 15 12 9 6 15"></polyline>
-                  </svg>
-                </button>
-                <button
-                  onClick={() => moveDown(index)}
-                  disabled={index === localSections.length - 1}
-                  style={{
-                    width: 32,
-                    height: 32,
-                    borderRadius: 4,
-                    border: `1px solid ${theme.glassBorder}`,
-                    background: "transparent",
-                    color: theme.text,
-                    cursor:
-                      index === localSections.length - 1
-                        ? "not-allowed"
-                        : "pointer",
-                    opacity: index === localSections.length - 1 ? 0.4 : 1,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    transition: "all 0.2s ease",
-                  }}
-                  title="Move down"
-                >
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <polyline points="6 9 12 15 18 9"></polyline>
-                  </svg>
-                </button>
               </div>
             </div>
           ))}
@@ -304,7 +308,7 @@ export default function DashboardLayoutSettings({
             Reset to Default
           </button>
           <button
-            onClick={onClose}
+            onClick={handleCancel}
             onMouseEnter={() => setHoveredButton("cancel")}
             onMouseLeave={() => setHoveredButton(null)}
             style={{

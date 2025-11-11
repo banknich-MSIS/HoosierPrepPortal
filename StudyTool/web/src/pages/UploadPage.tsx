@@ -92,7 +92,8 @@ export default function UploadPage() {
     }
     // Scroll the messages container, not the whole page
     if (messagesContainerRef.current) {
-      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+      messagesContainerRef.current.scrollTop =
+        messagesContainerRef.current.scrollHeight;
     }
   }, [messages]);
 
@@ -118,26 +119,44 @@ export default function UploadPage() {
         signal: AbortSignal.timeout(3000),
       });
       if (!healthCheck.ok) {
-        setError("Backend server is not responding. Please ensure it's running.");
+        setError(
+          "Backend server is not responding. Please ensure it's running."
+        );
         return;
       }
     } catch {
-      setError("Cannot connect to backend. Please ensure the server is running (run start.ps1).");
+      setError(
+        "Cannot connect to backend. Please ensure the server is running (run start.ps1)."
+      );
       return;
     }
 
     // Basic input validation for obviously off-topic queries
     const lowerMessage = inputMessage.toLowerCase();
     const offTopicKeywords = [
-      "database", "sql", "code", "programming", "hack", "password",
-      "server", "api", "inject", "script", "vulnerability"
+      "database",
+      "sql",
+      "code",
+      "programming",
+      "hack",
+      "password",
+      "server",
+      "api",
+      "inject",
+      "script",
+      "vulnerability",
     ];
-    const hasOffTopicKeyword = offTopicKeywords.some(keyword => 
-      lowerMessage.includes(keyword) && !lowerMessage.includes("study") && !lowerMessage.includes("exam")
+    const hasOffTopicKeyword = offTopicKeywords.some(
+      (keyword) =>
+        lowerMessage.includes(keyword) &&
+        !lowerMessage.includes("study") &&
+        !lowerMessage.includes("exam")
     );
-    
+
     if (hasOffTopicKeyword) {
-      setError("Please keep conversations focused on creating practice exams and study materials.");
+      setError(
+        "Please keep conversations focused on creating practice exams and study materials."
+      );
       return;
     }
 
@@ -170,7 +189,7 @@ export default function UploadPage() {
       // Send to chat API (no timeout - let Gemini take as long as needed)
       const filesToSend =
         attachedFiles.length > 0 ? attachedFiles.map((a) => a.file) : undefined;
-      
+
       const response = await sendChatMessage({
         message: userMessage.content,
         conversationHistory: messages.filter((m) => m.role !== "system"),
@@ -186,22 +205,28 @@ export default function UploadPage() {
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
-      
+
       // Extract parameters from AI response
       extractParameters(response.response);
     } catch (e: any) {
       console.error("Chat error:", e);
       console.error("Error response:", e?.response);
       console.error("Error config:", e?.config);
-      
+
       let errorMsg = "Failed to send message. Please try again.";
-      
+
       if (e?.code === "ECONNABORTED" || e?.message?.includes("timeout")) {
-        errorMsg = "Request timed out. File processing may take up to 2 minutes. Please try again.";
-      } else if (e?.code === "ERR_NETWORK" || e?.message?.includes("Network Error")) {
-        errorMsg = "Network Error. Please check that the backend server is running (start.ps1).";
+        errorMsg =
+          "Request timed out. File processing may take up to 2 minutes. Please try again.";
+      } else if (
+        e?.code === "ERR_NETWORK" ||
+        e?.message?.includes("Network Error")
+      ) {
+        errorMsg =
+          "Network Error. Please check that the backend server is running (start.ps1).";
       } else if (e?.response?.status === 413) {
-        errorMsg = "File is too large. Please try a smaller file or fewer files.";
+        errorMsg =
+          "File is too large. Please try a smaller file or fewer files.";
       } else if (e?.response?.status === 422) {
         errorMsg = "Invalid request format. Please try again.";
       } else if (e?.response?.data?.detail) {
@@ -209,13 +234,13 @@ export default function UploadPage() {
       } else if (e?.message) {
         errorMsg = e.message;
       }
-      
+
       setError(errorMsg);
-      
+
       // Add a retry-friendly error message to chat
       const errorMessage: ChatMessage & { timestamp: Date } = {
         role: "assistant",
-        content: `⚠️ Error: ${errorMsg}\n\nYou can try sending your message again.`,
+        content: `Error: ${errorMsg}\n\nYou can try sending your message again.`,
         timestamp: new Date(),
       };
       setMessages((prev) => [...prev, errorMessage]);
@@ -229,10 +254,12 @@ export default function UploadPage() {
       const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
       const validFiles: FileAttachment[] = [];
       const invalidFiles: string[] = [];
-      
+
       Array.from(e.target.files).forEach((file) => {
         if (file.size > MAX_FILE_SIZE) {
-          invalidFiles.push(`${file.name} (${(file.size / 1024 / 1024).toFixed(1)}MB)`);
+          invalidFiles.push(
+            `${file.name} (${(file.size / 1024 / 1024).toFixed(1)}MB)`
+          );
         } else {
           validFiles.push({
             file,
@@ -240,11 +267,11 @@ export default function UploadPage() {
           });
         }
       });
-      
+
       if (invalidFiles.length > 0) {
         setError(`Files too large (max 10MB): ${invalidFiles.join(", ")}`);
       }
-      
+
       if (validFiles.length > 0) {
         setAttachedFiles([...attachedFiles, ...validFiles]);
       }
@@ -276,10 +303,12 @@ export default function UploadPage() {
       const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
       const validFiles: FileAttachment[] = [];
       const invalidFiles: string[] = [];
-      
+
       Array.from(e.dataTransfer.files).forEach((file) => {
         if (file.size > MAX_FILE_SIZE) {
-          invalidFiles.push(`${file.name} (${(file.size / 1024 / 1024).toFixed(1)}MB)`);
+          invalidFiles.push(
+            `${file.name} (${(file.size / 1024 / 1024).toFixed(1)}MB)`
+          );
         } else {
           validFiles.push({
             file,
@@ -287,11 +316,11 @@ export default function UploadPage() {
           });
         }
       });
-      
+
       if (invalidFiles.length > 0) {
         setError(`Files too large (max 10MB): ${invalidFiles.join(", ")}`);
       }
-      
+
       if (validFiles.length > 0) {
         setAttachedFiles([...attachedFiles, ...validFiles]);
       }
@@ -309,15 +338,15 @@ export default function UploadPage() {
   // Extract parameters from AI response text and auto-generate title
   const extractParameters = (text: string) => {
     const lowerText = text.toLowerCase();
-    
+
     // Extract question count - match various patterns
     const countPatterns = [
-      /(\d+)\s*questions?/i,           // "25 questions", "30 question"
-      /(?:want|need|give me|make)\s+(\d+)/i,  // "I want 25", "give me 30"
-      /(?:about|around|roughly)\s+(\d+)/i,    // "about 25", "around 30"
-      /(\d+)(?:\s+would be|'s good)/i,        // "25 would be good", "30's good"
+      /(\d+)\s*questions?/i, // "25 questions", "30 question"
+      /(?:want|need|give me|make)\s+(\d+)/i, // "I want 25", "give me 30"
+      /(?:about|around|roughly)\s+(\d+)/i, // "about 25", "around 30"
+      /(\d+)(?:\s+would be|'s good)/i, // "25 would be good", "30's good"
     ];
-    
+
     for (const pattern of countPatterns) {
       const match = text.match(pattern);
       if (match) {
@@ -328,7 +357,7 @@ export default function UploadPage() {
         }
       }
     }
-    
+
     // Extract difficulty
     if (lowerText.includes("easy")) {
       setDifficulty("easy");
@@ -337,7 +366,7 @@ export default function UploadPage() {
     } else if (lowerText.includes("medium")) {
       setDifficulty("medium");
     }
-    
+
     // Extract question types
     const types: string[] = [];
     if (lowerText.includes("multiple choice") || lowerText.includes("mcq")) {
@@ -346,16 +375,23 @@ export default function UploadPage() {
     if (lowerText.includes("short answer")) {
       types.push("short");
     }
-    if (lowerText.includes("true/false") || lowerText.includes("true or false")) {
+    if (
+      lowerText.includes("true/false") ||
+      lowerText.includes("true or false")
+    ) {
       types.push("truefalse");
     }
-    if (lowerText.includes("fill in the blank") || lowerText.includes("fill-in") || lowerText.includes("cloze")) {
+    if (
+      lowerText.includes("fill in the blank") ||
+      lowerText.includes("fill-in") ||
+      lowerText.includes("cloze")
+    ) {
       types.push("cloze");
     }
     if (types.length > 0) {
       setQuestionTypes(types);
     }
-    
+
     // Extract generation mode
     if (lowerText.includes("strict")) {
       setGenerationMode("strict");
@@ -364,13 +400,18 @@ export default function UploadPage() {
     } else if (lowerText.includes("mixed")) {
       setGenerationMode("mixed");
     }
-    
+
     // Auto-generate exam title based on subject/topic mentioned
     // Look for common patterns like "studying [subject]", "[subject] exam", etc.
-    const subjectMatch = text.match(/(?:studying|study|exam for|test on|quiz on|practice)\s+(?:for\s+)?([A-Za-z0-9\s]{3,30})(?:\.|,|!|\?|$)/i);
+    const subjectMatch = text.match(
+      /(?:studying|study|exam for|test on|quiz on|practice)\s+(?:for\s+)?([A-Za-z0-9\s]{3,30})(?:\.|,|!|\?|$)/i
+    );
     if (subjectMatch && subjectMatch[1] && !examName.trim()) {
       const subject = subjectMatch[1].trim();
-      const timestamp = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      const timestamp = new Date().toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+      });
       setExamName(`${subject} - ${timestamp}`);
     }
   };
@@ -383,13 +424,19 @@ export default function UploadPage() {
     }
 
     if (questionTypes.length === 0) {
-      setError("The AI needs to determine question types from your conversation. Please chat about what you want to study.");
+      setError(
+        "The AI needs to determine question types from your conversation. Please chat about what you want to study."
+      );
       return;
     }
-    
+
     // Auto-generate title if not set
     if (!examName.trim()) {
-      const timestamp = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      const timestamp = new Date().toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      });
       setExamName(`AI Generated Exam - ${timestamp}`);
     }
 
@@ -428,10 +475,18 @@ export default function UploadPage() {
         apiKey,
       });
 
-      // Store job id so global toaster can pick it up
-      localStorage.setItem("active_exam_job", job.jobId);
+      // Store job in array so global toaster can track multiple jobs
+      const activeJobs = localStorage.getItem("active_exam_jobs");
+      const jobList = activeJobs ? JSON.parse(activeJobs) : [];
+      const examName = `Chat Generated (${new Date().toLocaleTimeString()})`;
+      jobList.push({ jobId: job.jobId, examName });
+      localStorage.setItem("active_exam_jobs", JSON.stringify(jobList));
+
+      // Signal immediately for the toaster
       window.dispatchEvent(
-        new CustomEvent("exam-job-started", { detail: { jobId: job.jobId } })
+        new CustomEvent("exam-job-started", {
+          detail: { jobId: job.jobId, examName },
+        })
       );
 
       // Redirect to dashboard while generation proceeds in background
@@ -455,7 +510,16 @@ export default function UploadPage() {
   ];
 
   return (
-    <div style={{ display: "grid", gap: 24, maxWidth: 1400, margin: "0 auto", width: "100%", padding: "0 16px" }}>
+    <div
+      style={{
+        display: "grid",
+        gap: 24,
+        maxWidth: 1400,
+        margin: "0 auto",
+        width: "100%",
+        padding: "0 16px",
+      }}
+    >
       {/* Header */}
       <div>
         <h1
@@ -477,7 +541,9 @@ export default function UploadPage() {
             lineHeight: 1.6,
           }}
         >
-          Talk to me about what kinds of content you want to study and upload any relevant documents. I'll help guide you toward a strong plan for your studying.
+          Talk to me about what kinds of content you want to study and upload
+          any relevant documents. I'll help guide you toward a strong plan for
+          your studying.
         </p>
         <p
           style={{
@@ -493,7 +559,9 @@ export default function UploadPage() {
             borderRadius: 4,
           }}
         >
-          <strong>How it works:</strong> Upload documents, chat about your study goals, configure exam settings on the left, then generate. Your exam will appear in the Dashboard Library.
+          <strong>How it works:</strong> Upload documents, chat about your study
+          goals, configure exam settings on the left, then generate. Your exam
+          will appear in the Dashboard Library.
         </p>
       </div>
 
@@ -550,58 +618,58 @@ export default function UploadPage() {
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
         style={{
-            background: theme.cardBg,
-            backdropFilter: theme.glassBlur,
-            WebkitBackdropFilter: theme.glassBlur,
-            borderRadius: 12,
-            border: isDragging
-              ? `3px dashed ${theme.crimson}`
-              : `1px solid ${theme.glassBorder}`,
-            boxShadow: isDragging ? theme.glassShadowHover : theme.glassShadow,
-            display: "flex",
-            flexDirection: "column",
-            height: "650px",
-            position: "relative",
-            transition: "all 0.2s ease",
-          }}
-        >
-          {/* Drag overlay */}
-          {isDragging && (
+          background: theme.cardBg,
+          backdropFilter: theme.glassBlur,
+          WebkitBackdropFilter: theme.glassBlur,
+          borderRadius: 12,
+          border: isDragging
+            ? `3px dashed ${theme.crimson}`
+            : `1px solid ${theme.glassBorder}`,
+          boxShadow: isDragging ? theme.glassShadowHover : theme.glassShadow,
+          display: "flex",
+          flexDirection: "column",
+          height: "650px",
+          position: "relative",
+          transition: "all 0.2s ease",
+        }}
+      >
+        {/* Drag overlay */}
+        {isDragging && (
+          <div
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: darkMode
+                ? "rgba(196, 30, 58, 0.1)"
+                : "rgba(196, 30, 58, 0.05)",
+              backdropFilter: "blur(2px)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              zIndex: 10,
+              borderRadius: 12,
+              pointerEvents: "none",
+            }}
+          >
             <div
               style={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                background: darkMode
-                  ? "rgba(196, 30, 58, 0.1)"
-                  : "rgba(196, 30, 58, 0.05)",
-                backdropFilter: "blur(2px)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                zIndex: 10,
+                padding: "24px 32px",
+                background: theme.crimson,
+                color: "white",
                 borderRadius: 12,
-                pointerEvents: "none",
+                fontSize: 18,
+                fontWeight: 600,
+                boxShadow: "0 4px 12px rgba(196, 30, 58, 0.4)",
               }}
             >
-              <div
-                style={{
-                  padding: "24px 32px",
-                  background: theme.crimson,
-                  color: "white",
-                  borderRadius: 12,
-                  fontSize: 18,
-                  fontWeight: 600,
-                  boxShadow: "0 4px 12px rgba(196, 30, 58, 0.4)",
-                }}
-              >
-                Drop files here to attach
-              </div>
+              Drop files here to attach
             </div>
-          )}
-        
+          </div>
+        )}
+
         {/* Messages */}
         <div
           ref={messagesContainerRef}
@@ -1084,7 +1152,9 @@ export default function UploadPage() {
             ? "Chat started"
             : "Start chatting"}
           {" • "}
-          {questionTypes.length > 0 && allUploadedFiles.length > 0 && messages.filter((m) => m.role === "user").length > 0
+          {questionTypes.length > 0 &&
+          allUploadedFiles.length > 0 &&
+          messages.filter((m) => m.role === "user").length > 0
             ? "Ready to generate"
             : "Chat with AI to configure"}
         </p>

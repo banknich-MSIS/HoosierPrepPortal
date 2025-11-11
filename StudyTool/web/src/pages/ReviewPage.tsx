@@ -387,7 +387,7 @@ export default function ReviewPage() {
                               color: darkMode ? "#66bb6a" : "#28a745",
                             }}
                           >
-                            ✓ Correct Answer
+                            Correct Answer
                           </span>
                         )}
                         {isUserAnswer && !isCorrectAnswer && (

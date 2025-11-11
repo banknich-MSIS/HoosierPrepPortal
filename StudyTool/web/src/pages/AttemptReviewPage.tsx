@@ -199,7 +199,9 @@ export default function AttemptReviewPage() {
             fontWeight: 600,
             fontSize: 14,
             transition: "all 0.2s ease",
-            textAlign: "center",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
             marginBottom: 16,
           }}
           onMouseEnter={(e) => {
@@ -213,7 +215,20 @@ export default function AttemptReviewPage() {
               : "rgba(220, 53, 69, 0.12)";
           }}
         >
-          ← Back to Dashboard
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            style={{ marginRight: 8 }}
+          >
+            <polyline points="15 18 9 12 15 6"></polyline>
+          </svg>
+          Back to Dashboard
         </button>
 
         <div style={{ marginBottom: 16 }}>
@@ -654,7 +669,7 @@ export default function AttemptReviewPage() {
                             color: darkMode ? "#ffb74d" : "#856404",
                           }}
                         >
-                          ⚠️ Options data missing for this question
+                          Warning: Options data missing for this question
                         </div>
                         <div style={{ fontSize: "14px" }}>
                           <strong>Your answer:</strong>{" "}
@@ -753,7 +768,6 @@ export default function AttemptReviewPage() {
                               gap: 6,
                             }}
                           >
-                            <span style={{ fontSize: "16px" }}>💡</span>{" "}
                             Explanation
                           </div>
                           <div
@@ -799,7 +813,7 @@ export default function AttemptReviewPage() {
             }}
           >
             <h3 style={{ margin: "0 0 8px 0", color: "#28a745" }}>
-              Perfect Score! 🎉
+              Perfect Score!
             </h3>
             <p style={{ margin: 0, color: theme.text }}>
               You answered all questions correctly. Great job!

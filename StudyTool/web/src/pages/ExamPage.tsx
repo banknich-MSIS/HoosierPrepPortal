@@ -28,6 +28,22 @@ export default function ExamPage() {
     new Set()
   );
   const [examStartTime, setExamStartTime] = useState<number>(Date.now());
+  const [hasSubmitted, setHasSubmitted] = useState(false);
+
+  // Warn user before leaving if they have unsaved progress
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      // Only warn if user has answered questions and hasn't submitted
+      if (answeredQuestions.size > 0 && !hasSubmitted && !isSubmitting) {
+        e.preventDefault();
+        e.returnValue = ""; // Chrome requires returnValue to be set
+        return "You have unsaved progress. Your answers will be lost if you leave now.";
+      }
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [answeredQuestions.size, hasSubmitted, isSubmitting]);
 
   useEffect(() => {
     const loadExam = async () => {
@@ -103,6 +119,7 @@ export default function ExamPage() {
     if (isSubmitting) return; // Prevent double submission
 
     setIsSubmitting(true);
+    setHasSubmitted(true); // Mark as submitted to disable warnings
     try {
       const payload = questions.map((it) => ({
         questionId: it.id,

@@ -24,18 +24,40 @@ export default function PracticeModePage() {
   const [completedQuestions, setCompletedQuestions] = useState<Set<number>>(
     new Set()
   );
-  const [showSummary, setShowSummary] = useState(false);
   const [correctAnswers, setCorrectAnswers] = useState<Record<number, any>>({});
   const [loading, setLoading] = useState(false);
-  const [revealedQuestions, setRevealedQuestions] = useState<Set<number>>(
-    new Set()
-  );
   const [questionResults, setQuestionResults] = useState<
     Record<number, boolean>
   >({});
   const [practiceStartTime, setPracticeStartTime] = useState<number>(
     Date.now()
   );
+  const [hasFinished, setHasFinished] = useState(false);
+
+  // Warn user before leaving if they have unsaved progress
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      // Only warn if user has answered questions and hasn't finished
+      const hasAnswers = Object.keys(answers).some((qId) => {
+        const answer = answers[Number(qId)];
+        return (
+          answer !== undefined &&
+          answer !== null &&
+          answer !== "" &&
+          !(Array.isArray(answer) && answer.length === 0)
+        );
+      });
+
+      if (hasAnswers && !hasFinished) {
+        e.preventDefault();
+        e.returnValue = ""; // Chrome requires returnValue to be set
+        return "You have unsaved progress. Your practice session will not be saved if you leave now.";
+      }
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [answers, hasFinished]);
 
   // Load exam questions if not in store
   useEffect(() => {
@@ -118,8 +140,10 @@ export default function PracticeModePage() {
       userAnswer === "" ||
       (Array.isArray(userAnswer) && userAnswer.length === 0)
     ) {
-      alert("Please answer the question before checking.");
-      return;
+      const confirmed = window.confirm(
+        "You haven't provided an answer. Are you sure you want to check?"
+      );
+      if (!confirmed) return;
     }
 
     // Simple grading logic
@@ -161,46 +185,80 @@ export default function PracticeModePage() {
     });
   };
 
-  const revealAnswer = () => {
-    // Mark as incorrect since user didn't attempt or gave up
-    setIsCorrect(false);
-    setShowAnswer(true);
-    setCompletedQuestions(new Set([...completedQuestions, currentQuestion.id]));
-    setRevealedQuestions(new Set([...revealedQuestions, currentQuestion.id]));
-
-    // Track as incorrect
-    setQuestionResults({
-      ...questionResults,
-      [currentQuestion.id]: false,
-    });
-  };
-
   const nextQuestion = () => {
     if (currentQuestionIndex < questions.length - 1) {
-      setCurrentQuestionIndex(currentQuestionIndex + 1);
-      setShowAnswer(false);
-      setIsCorrect(null);
+      const nextIndex = currentQuestionIndex + 1;
+      const nextQuestionId = questions[nextIndex].id;
+      setCurrentQuestionIndex(nextIndex);
+      // Check if next question was already answered
+      if (completedQuestions.has(nextQuestionId)) {
+        setShowAnswer(true);
+        setIsCorrect(questionResults[nextQuestionId] ?? null);
+      } else {
+        setShowAnswer(false);
+        setIsCorrect(null);
+      }
     } else {
-      setShowSummary(true);
+      // Automatically submit and view results when reaching the end
+      finishPractice();
     }
   };
 
   const previousQuestion = () => {
     if (currentQuestionIndex > 0) {
-      setCurrentQuestionIndex(currentQuestionIndex - 1);
+      const prevIndex = currentQuestionIndex - 1;
+      const prevQuestionId = questions[prevIndex].id;
+      setCurrentQuestionIndex(prevIndex);
+      // Check if previous question was already answered
+      if (completedQuestions.has(prevQuestionId)) {
+        setShowAnswer(true);
+        setIsCorrect(questionResults[prevQuestionId] ?? null);
+      } else {
+        setShowAnswer(false);
+        setIsCorrect(null);
+      }
+    }
+  };
+
+  const jumpToQuestion = (index: number) => {
+    const targetQuestionId = questions[index].id;
+    setCurrentQuestionIndex(index);
+    // Check if target question was already answered
+    if (completedQuestions.has(targetQuestionId)) {
+      setShowAnswer(true);
+      setIsCorrect(questionResults[targetQuestionId] ?? null);
+    } else {
       setShowAnswer(false);
       setIsCorrect(null);
     }
   };
 
-  const jumpToQuestion = (index: number) => {
-    setCurrentQuestionIndex(index);
-    setShowAnswer(false);
-    setIsCorrect(null);
+  const handleExitPractice = () => {
+    // Check if user has answered any questions
+    const hasAnswers = Object.keys(answers).some((qId) => {
+      const answer = answers[Number(qId)];
+      return (
+        answer !== undefined &&
+        answer !== null &&
+        answer !== "" &&
+        !(Array.isArray(answer) && answer.length === 0)
+      );
+    });
+
+    if (hasAnswers && !hasFinished) {
+      const confirmed = window.confirm(
+        "You have unsaved progress. Your practice session will not be saved if you leave now. Are you sure you want to exit?"
+      );
+      if (!confirmed) return;
+    }
+
+    nav("/");
   };
 
   const finishPractice = async () => {
     if (!storeExamId) return;
+
+    setHasFinished(true); // Mark as finished to disable warnings
 
     // Submit exam for final grading
     const payload = questions.map((it) => ({
@@ -251,79 +309,6 @@ export default function PracticeModePage() {
     // Unanswered questions (including current)
     return darkMode ? "#4d4d4d" : "#e9ecef";
   };
-
-  if (showSummary) {
-    return (
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          minHeight: "calc(100vh - 80px)",
-          padding: 24,
-          backgroundColor: theme.bg,
-        }}
-      >
-        <div
-          style={{
-            maxWidth: 600,
-            width: "100%",
-            backgroundColor: theme.cardBg,
-            padding: 40,
-            borderRadius: 12,
-            textAlign: "center",
-            border: `1px solid ${theme.border}`,
-          }}
-        >
-          <h2 style={{ margin: "0 0 16px 0", color: theme.text, fontSize: 28 }}>
-            🎉 Practice Complete!
-          </h2>
-          <p
-            style={{
-              margin: "0 0 32px 0",
-              fontSize: 16,
-              color: theme.textSecondary,
-            }}
-          >
-            You've completed all {questions.length} questions. Ready to see your
-            results?
-          </p>
-          <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
-            <button
-              onClick={finishPractice}
-              style={{
-                padding: "12px 32px",
-                backgroundColor: "#dc3545",
-                color: "white",
-                border: "none",
-                borderRadius: 6,
-                fontSize: 16,
-                fontWeight: "bold",
-                cursor: "pointer",
-              }}
-            >
-              View Results
-            </button>
-            <button
-              onClick={() => nav("/settings")}
-              style={{
-                padding: "12px 32px",
-                backgroundColor: "#6c757d",
-                color: "white",
-                border: "none",
-                borderRadius: 6,
-                fontSize: 16,
-                cursor: "pointer",
-              }}
-            >
-              Start New
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div
@@ -432,7 +417,7 @@ export default function PracticeModePage() {
             Question {currentQuestionIndex + 1} of {questions.length}
           </h2>
           <button
-            onClick={() => nav("/settings")}
+            onClick={handleExitPractice}
             style={{
               padding: "8px 14px",
               background: "rgba(196, 30, 58, 0.08)",
@@ -461,7 +446,7 @@ export default function PracticeModePage() {
             question={currentQuestion}
             darkMode={darkMode}
             theme={theme}
-            disabled={showAnswer}
+            disabled={completedQuestions.has(currentQuestion.id)}
           />
         </div>
 
@@ -489,7 +474,7 @@ export default function PracticeModePage() {
                 color: isCorrect ? "#28a745" : "#dc3545",
               }}
             >
-              {isCorrect ? "✓ Correct!" : "✗ Incorrect"}
+              {isCorrect ? "Correct!" : "Incorrect"}
             </h3>
             {!isCorrect && (
               <div>
@@ -545,6 +530,9 @@ export default function PracticeModePage() {
                 fontSize: 13,
                 fontWeight: 500,
                 transition: "0.2s",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
               }}
               onMouseEnter={(e) => {
                 if (currentQuestionIndex !== 0) {
@@ -557,13 +545,24 @@ export default function PracticeModePage() {
                 }
               }}
             >
-              ← Previous
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <polyline points="15 18 9 12 15 6"></polyline>
+              </svg>
             </button>
 
             <button
               onClick={
                 currentQuestionIndex === questions.length - 1
-                  ? () => setShowSummary(true)
+                  ? finishPractice
                   : nextQuestion
               }
               style={{
@@ -577,6 +576,9 @@ export default function PracticeModePage() {
                 fontSize: 13,
                 fontWeight: 500,
                 transition: "0.2s",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.background = "rgba(196, 30, 58, 0.15)";
@@ -585,39 +587,23 @@ export default function PracticeModePage() {
                 e.currentTarget.style.background = "rgba(196, 30, 58, 0.08)";
               }}
             >
-              {currentQuestionIndex === questions.length - 1
-                ? "Finish →"
-                : "Next →"}
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <polyline points="9 18 15 12 9 6"></polyline>
+              </svg>
             </button>
           </div>
 
           {!showAnswer ? (
             <div style={{ display: "flex", gap: 12 }}>
-              <button
-                onClick={revealAnswer}
-                style={{
-                  padding: "12px 24px",
-                  background: darkMode ? "rgba(255, 193, 7, 0.7)" : "#e0a800",
-                  color: darkMode ? "#000" : "white",
-                  border: "none",
-                  borderRadius: 6,
-                  fontSize: 14,
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  transition: "all 0.2s",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.opacity = "0.85";
-                  e.currentTarget.style.transform = "translateY(-1px)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.opacity = "1";
-                  e.currentTarget.style.transform = "translateY(0)";
-                }}
-              >
-                Reveal Answer
-              </button>
-
               <button
                 onClick={checkAnswer}
                 style={{

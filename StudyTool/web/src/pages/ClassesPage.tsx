@@ -36,7 +36,6 @@ export default function ClassesPage() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingClass, setEditingClass] = useState<ClassSummary | null>(null);
   const [formName, setFormName] = useState("");
-  const [formDescription, setFormDescription] = useState("");
   const [formColor, setFormColor] = useState("#007bff");
   const [hoveredButton, setHoveredButton] = useState<string | null>(null);
 
@@ -63,10 +62,9 @@ export default function ClassesPage() {
     }
 
     try {
-      await createClass(formName, formDescription || undefined, formColor);
+      await createClass(formName, undefined, formColor);
       setShowCreateModal(false);
       setFormName("");
-      setFormDescription("");
       setFormColor("#007bff");
       loadClasses();
     } catch (e: any) {
@@ -81,11 +79,10 @@ export default function ClassesPage() {
     }
 
     try {
-      await updateClass(editingClass.id, formName, formDescription, formColor);
+      await updateClass(editingClass.id, formName, undefined, formColor);
       setShowEditModal(false);
       setEditingClass(null);
       setFormName("");
-      setFormDescription("");
       setFormColor("#007bff");
       loadClasses();
     } catch (e: any) {
@@ -436,36 +433,6 @@ export default function ClassesPage() {
                 }}
               />
             </div>
-            <div style={{ marginBottom: 16 }}>
-              <label
-                style={{
-                  display: "block",
-                  marginBottom: 4,
-                  fontWeight: "bold",
-                  fontSize: 14,
-                  color: theme.text,
-                }}
-              >
-                Description (optional)
-              </label>
-              <textarea
-                value={formDescription}
-                onChange={(e) => setFormDescription(e.target.value)}
-                placeholder="Brief description of this class"
-                rows={3}
-                style={{
-                  width: "100%",
-                  padding: "8px 12px",
-                  border: `1px solid ${theme.border}`,
-                  borderRadius: 4,
-                  fontSize: 14,
-                  resize: "vertical",
-                  boxSizing: "border-box",
-                  backgroundColor: theme.cardBg,
-                  color: theme.text,
-                }}
-              />
-            </div>
             <div style={{ marginBottom: 24 }}>
               <label
                 style={{
@@ -627,36 +594,6 @@ export default function ClassesPage() {
                   border: `1px solid ${theme.border}`,
                   borderRadius: 4,
                   fontSize: 14,
-                  boxSizing: "border-box",
-                  backgroundColor: theme.cardBg,
-                  color: theme.text,
-                }}
-              />
-            </div>
-            <div style={{ marginBottom: 16 }}>
-              <label
-                style={{
-                  display: "block",
-                  marginBottom: 4,
-                  fontWeight: "bold",
-                  fontSize: 14,
-                  color: theme.text,
-                }}
-              >
-                Description (optional)
-              </label>
-              <textarea
-                value={formDescription}
-                onChange={(e) => setFormDescription(e.target.value)}
-                placeholder="Brief description of this class"
-                rows={3}
-                style={{
-                  width: "100%",
-                  padding: "8px 12px",
-                  border: `1px solid ${theme.border}`,
-                  borderRadius: 4,
-                  fontSize: 14,
-                  resize: "vertical",
                   boxSizing: "border-box",
                   backgroundColor: theme.cardBg,
                   color: theme.text,

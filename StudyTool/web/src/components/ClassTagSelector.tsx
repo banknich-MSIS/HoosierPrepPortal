@@ -5,6 +5,7 @@ import {
   assignUploadToClass,
   removeUploadFromClass,
   createClass,
+  deleteClass,
 } from "../api/client";
 import type { ClassSummary } from "../types";
 
@@ -29,42 +30,55 @@ export default function ClassTagSelector({
   const [hoveredButton, setHoveredButton] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newName, setNewName] = useState("");
-  const [newDesc, setNewDesc] = useState("");
-  const [newColor, setNewColor] = useState("#007bff");
+  const [newColor, setNewColor] = useState("#c41e3a");
 
   const CLASS_COLORS = [
-    { name: "Blue", value: "#007bff", darkBg: "#1a3a52", darkText: "#64b5f6" },
-    { name: "Green", value: "#28a745", darkBg: "#1a3d1a", darkText: "#66bb6a" },
-    { name: "Red", value: "#dc3545", darkBg: "#3d1a1a", darkText: "#ef5350" },
+    // Theme colors first
     {
-      name: "Yellow",
-      value: "#ffc107",
-      darkBg: "#4d4520",
-      darkText: "#ffb74d",
+      name: "Crimson",
+      value: "#c41e3a",
+      darkBg: "#3d1a1f",
+      darkText: "#e85568",
     },
     {
-      name: "Purple",
-      value: "#6f42c1",
-      darkBg: "#2a1a3d",
-      darkText: "#ba68c8",
+      name: "Mustard",
+      value: "#c29b4a",
+      darkBg: "#3d3520",
+      darkText: "#d4ad5e",
+    },
+    // Grayscale palette
+    {
+      name: "Dark Gray",
+      value: "#4b5563",
+      darkBg: "#2d2d2d",
+      darkText: "#9ca3af",
     },
     {
-      name: "Orange",
-      value: "#fd7e14",
-      darkBg: "#3d2a1a",
-      darkText: "#ff9800",
+      name: "Medium Gray",
+      value: "#6b7280",
+      darkBg: "#353535",
+      darkText: "#b0b7c0",
     },
-    { name: "Teal", value: "#20c997", darkBg: "#1a3d35", darkText: "#4db6ac" },
-    { name: "Pink", value: "#e83e8c", darkBg: "#3d1a30", darkText: "#ec407a" },
     {
-      name: "Indigo",
-      value: "#6610f2",
-      darkBg: "#2a1a3d",
-      darkText: "#7c4dff",
+      name: "Light Gray",
+      value: "#9ca3af",
+      darkBg: "#404040",
+      darkText: "#d1d5db",
     },
-    { name: "Cyan", value: "#17a2b8", darkBg: "#1a353d", darkText: "#4fc3f7" },
-    { name: "Brown", value: "#795548", darkBg: "#2a2220", darkText: "#a1887f" },
-    { name: "Gray", value: "#6c757d", darkBg: "#2d2d2d", darkText: "#b0bec5" },
+    { name: "Slate", value: "#64748b", darkBg: "#2a323d", darkText: "#94a3b8" },
+    // Subtle accent colors
+    {
+      name: "Blue Gray",
+      value: "#475569",
+      darkBg: "#1e2933",
+      darkText: "#8b98ab",
+    },
+    {
+      name: "Cool Gray",
+      value: "#6c757d",
+      darkBg: "#2d3032",
+      darkText: "#b0bec5",
+    },
   ];
 
   useEffect(() => {
@@ -102,21 +116,40 @@ export default function ClassTagSelector({
     if (!newName.trim()) return;
     setLoading(true);
     try {
-      const newCls = await createClass(
-        newName.trim(),
-        newDesc || undefined,
-        newColor
-      );
+      const newCls = await createClass(newName.trim(), undefined, newColor);
       // Assign the current upload to the new class
       await assignUploadToClass(uploadId, newCls.id);
       await loadClasses();
       setShowCreateModal(false);
       setNewName("");
-      setNewDesc("");
-      setNewColor("#007bff");
+      setNewColor("#c41e3a");
       onUpdate();
     } catch (e: any) {
       alert(`Failed to create class: ${e?.message || "Unknown error"}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteClass = async (
+    classId: number,
+    className: string,
+    e: React.MouseEvent
+  ) => {
+    e.stopPropagation();
+    if (
+      !confirm(
+        `Delete class "${className}"? This will unassign it from all uploads.`
+      )
+    )
+      return;
+    setLoading(true);
+    try {
+      await deleteClass(classId);
+      await loadClasses();
+      onUpdate();
+    } catch (e: any) {
+      alert(`Failed to delete class: ${e?.message || "Unknown error"}`);
     } finally {
       setLoading(false);
     }
@@ -143,29 +176,6 @@ export default function ClassTagSelector({
         >
           Classes
         </span>
-        <button
-          onClick={() => setShowCreateModal(true)}
-          title="Create new class"
-          disabled={loading}
-          onMouseEnter={() => !loading && setHoveredButton("createClass")}
-          onMouseLeave={() => setHoveredButton(null)}
-          style={{
-            padding: "6px 10px",
-            minWidth: 32,
-            height: 32,
-            borderRadius: 6,
-            border: `1px solid ${theme.glassBorder}`,
-            background:
-              hoveredButton === "createClass" ? theme.navHover : "transparent",
-            cursor: loading ? "not-allowed" : "pointer",
-            color: theme.text,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          +
-        </button>
       </div>
 
       <div style={{ maxHeight: 280, overflowY: "auto" }}>
@@ -228,17 +238,51 @@ export default function ClassTagSelector({
                     marginRight: 4,
                   }}
                 />
-                <span style={{ fontSize: 14, color: theme.text }}>
+                <span style={{ fontSize: 14, color: theme.text, flex: 1 }}>
                   {cls.name}
                 </span>
+                <button
+                  onClick={(e) => handleDeleteClass(cls.id, cls.name, e)}
+                  onMouseEnter={() => setHoveredButton(`delete-${cls.id}`)}
+                  onMouseLeave={() => setHoveredButton(null)}
+                  style={{
+                    padding: "4px",
+                    background: "transparent",
+                    border: "none",
+                    cursor: "pointer",
+                    color: theme.textSecondary,
+                    opacity: hoveredButton === `delete-${cls.id}` ? 1 : 0.6,
+                    transition: "opacity 0.2s ease",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                  title="Delete class"
+                >
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <polyline points="3 6 5 6 21 6"></polyline>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                    <line x1="10" y1="11" x2="10" y2="17"></line>
+                    <line x1="14" y1="11" x2="14" y2="17"></line>
+                  </svg>
+                </button>
               </div>
             );
           })
         )}
       </div>
 
-      {/* Create Class Modal */}
-      {showCreateModal && (
+      {/* Create Class Modal - Temporarily Hidden */}
+      {false && showCreateModal && (
         <div
           style={{
             position: "fixed",
@@ -246,8 +290,9 @@ export default function ClassTagSelector({
             left: 0,
             right: 0,
             bottom: 0,
-            backgroundColor: "rgba(0, 0, 0, 0.6)",
-            backdropFilter: "blur(4px)",
+            backgroundColor: "rgba(0, 0, 0, 0.85)",
+            backdropFilter: "blur(8px)",
+            WebkitBackdropFilter: "blur(8px)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -315,39 +360,6 @@ export default function ClassTagSelector({
               />
             </div>
 
-            <div style={{ marginBottom: 16 }}>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: 13,
-                  fontWeight: 600,
-                  color: theme.text,
-                  marginBottom: 6,
-                }}
-              >
-                Description (Optional)
-              </label>
-              <textarea
-                value={newDesc}
-                onChange={(e) => setNewDesc(e.target.value)}
-                placeholder="Brief description of this class..."
-                disabled={loading}
-                rows={3}
-                style={{
-                  width: "100%",
-                  padding: "10px 12px",
-                  fontSize: 14,
-                  background: darkMode ? "#1a1a1a" : "#fff",
-                  color: theme.text,
-                  border: `1px solid ${theme.glassBorder}`,
-                  borderRadius: 6,
-                  outline: "none",
-                  resize: "vertical",
-                  fontFamily: "inherit",
-                }}
-              />
-            </div>
-
             <div style={{ marginBottom: 24 }}>
               <label
                 style={{
@@ -386,7 +398,9 @@ export default function ClassTagSelector({
                       cursor: loading ? "not-allowed" : "pointer",
                       transition: "all 0.2s ease",
                       transform:
-                        newColor === colorOption.value ? "scale(1.1)" : "scale(1)",
+                        newColor === colorOption.value
+                          ? "scale(1.1)"
+                          : "scale(1)",
                     }}
                     title={colorOption.name}
                   />
@@ -394,13 +408,14 @@ export default function ClassTagSelector({
               </div>
             </div>
 
-            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+            <div
+              style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}
+            >
               <button
                 onClick={() => {
                   setShowCreateModal(false);
                   setNewName("");
-                  setNewDesc("");
-                  setNewColor("#007bff");
+                  setNewColor("#c41e3a");
                 }}
                 disabled={loading}
                 style={{
@@ -423,7 +438,9 @@ export default function ClassTagSelector({
                 style={{
                   padding: "10px 20px",
                   background:
-                    loading || !newName.trim() ? theme.textSecondary : theme.crimson,
+                    loading || !newName.trim()
+                      ? theme.textSecondary
+                      : theme.crimson,
                   color: "white",
                   border: "none",
                   borderRadius: 6,

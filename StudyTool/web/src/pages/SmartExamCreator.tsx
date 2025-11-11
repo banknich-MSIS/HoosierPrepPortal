@@ -51,7 +51,6 @@ export default function SmartExamCreator() {
   const [classes, setClasses] = useState<ClassSummary[]>([]);
   const [showCreateClassModal, setShowCreateClassModal] = useState(false);
   const [newClassName, setNewClassName] = useState("");
-  const [newClassDescription, setNewClassDescription] = useState("");
   const [newClassColor, setNewClassColor] = useState("#007bff");
   const [loading, setLoading] = useState(false);
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
@@ -152,11 +151,17 @@ export default function SmartExamCreator() {
         apiKey,
       });
 
-      // Store job id so global toaster can pick it up
-      localStorage.setItem("active_exam_job", job.jobId);
+      // Store job in array so global toaster can track multiple jobs
+      const activeJobs = localStorage.getItem("active_exam_jobs");
+      const jobList = activeJobs ? JSON.parse(activeJobs) : [];
+      jobList.push({ jobId: job.jobId, examName: examName || "Exam" });
+      localStorage.setItem("active_exam_jobs", JSON.stringify(jobList));
+
       // Signal immediately for the toaster
       window.dispatchEvent(
-        new CustomEvent("exam-job-started", { detail: { jobId: job.jobId } })
+        new CustomEvent("exam-job-started", {
+          detail: { jobId: job.jobId, examName: examName || "Exam" },
+        })
       );
       // Redirect to dashboard while generation proceeds in background
       navigate("/");
@@ -231,7 +236,8 @@ export default function SmartExamCreator() {
           >
             AI Assistant
           </button>{" "}
-          for a consultative, interactive chat approach with AI guidance to plan and refine your exam.
+          for a consultative, interactive chat approach with AI guidance to plan
+          and refine your exam.
         </p>
       </div>
 
@@ -826,36 +832,6 @@ export default function SmartExamCreator() {
                     }}
                   />
                 </div>
-                <div style={{ marginBottom: 16 }}>
-                  <label
-                    style={{
-                      display: "block",
-                      marginBottom: 4,
-                      fontWeight: "bold",
-                      fontSize: 14,
-                      color: theme.text,
-                    }}
-                  >
-                    Description (optional)
-                  </label>
-                  <textarea
-                    value={newClassDescription}
-                    onChange={(e) => setNewClassDescription(e.target.value)}
-                    placeholder="Brief description"
-                    rows={3}
-                    style={{
-                      width: "100%",
-                      padding: "8px 12px",
-                      border: `1px solid ${theme.border}`,
-                      borderRadius: 4,
-                      fontSize: 14,
-                      resize: "vertical",
-                      boxSizing: "border-box",
-                      backgroundColor: theme.cardBg,
-                      color: theme.text,
-                    }}
-                  />
-                </div>
                 <div style={{ marginBottom: 24 }}>
                   <label
                     style={{
@@ -910,7 +886,6 @@ export default function SmartExamCreator() {
                     onClick={() => {
                       setShowCreateClassModal(false);
                       setNewClassName("");
-                      setNewClassDescription("");
                       setNewClassColor("#007bff");
                     }}
                     onMouseEnter={(e) => {
@@ -939,12 +914,11 @@ export default function SmartExamCreator() {
                       try {
                         const newClass = await createClass(
                           newClassName,
-                          newClassDescription || undefined,
+                          undefined,
                           newClassColor
                         );
                         setShowCreateClassModal(false);
                         setNewClassName("");
-                        setNewClassDescription("");
                         setNewClassColor("#007bff");
                         // Add the new class to the list
                         setClasses([...classes, newClass]);
@@ -1126,7 +1100,7 @@ export default function SmartExamCreator() {
                 color: theme.crimson,
               }}
             >
-              ✓ Exam Generated Successfully!
+              Exam Generated Successfully!
             </h2>
             <p
               style={{
@@ -1246,7 +1220,16 @@ export default function SmartExamCreator() {
                         gap: 8,
                       }}
                     >
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <svg
+                        width="20"
+                        height="20"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
                         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
                         <polyline points="14 2 14 8 20 8"></polyline>
                         <line x1="16" y1="13" x2="8" y2="13"></line>
@@ -1298,7 +1281,16 @@ export default function SmartExamCreator() {
                         gap: 8,
                       }}
                     >
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <svg
+                        width="20"
+                        height="20"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
                         <circle cx="12" cy="12" r="10"></circle>
                         <circle cx="12" cy="12" r="6"></circle>
                         <circle cx="12" cy="12" r="2"></circle>

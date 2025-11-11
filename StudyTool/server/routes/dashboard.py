@@ -345,12 +345,29 @@ def download_csv(upload_id: int, db: Session = Depends(get_db)):
     if not upload:
         raise HTTPException(status_code=404, detail="Upload not found")
     
+    # Only allow download for CSV type uploads
+    if upload.file_type == "ai_generated":
+        raise HTTPException(
+            status_code=400,
+            detail="AI-generated exams cannot be downloaded as CSV files. Only uploaded CSVs support downloads."
+        )
+    elif upload.file_type != "csv":
+        raise HTTPException(
+            status_code=400,
+            detail="Only uploaded CSV files can be downloaded. This is a text-based or generated upload."
+        )
+    
     # Check if CSV file exists
     if not upload.csv_file_path or not os.path.exists(upload.csv_file_path):
-        raise HTTPException(
-            status_code=404, 
-            detail="CSV file not found. This upload may be from before file storage was implemented."
-        )
+        # Try alternative path if uploaded as text file but stored as CSV
+        alt_path = upload.csv_file_path.replace('.txt', '.csv') if upload.csv_file_path else None
+        if alt_path and os.path.exists(alt_path):
+            upload.csv_file_path = alt_path
+        else:
+            raise HTTPException(
+                status_code=404, 
+                detail=f"CSV file not found on disk. File type: {upload.file_type}. This upload may not support downloads."
+            )
     
     # Serve the static file
     return FileResponse(

@@ -212,20 +212,59 @@ export default function PerformanceAnalytics({
 
   const timelineChartData = calculateRollingAverage(filteredTimeline);
 
+  // Helper function to format question type names
+  const formatQuestionType = (type: string): string => {
+    const typeMap: Record<string, string> = {
+      mcq: "Multiple Choice",
+      multi: "Multiple Select",
+      short: "Short Answer",
+      truefalse: "True/False",
+      cloze: "Fill in the Blank",
+    };
+    return typeMap[type.toLowerCase()] || type.toUpperCase();
+  };
+
+  // Color palette for question types - theme color + grayscale
+  const QUESTION_TYPE_COLORS = darkMode
+    ? [
+        // Dark mode: Mustard yellow + light grays
+        "#c29b4a", // Mustard yellow (theme color)
+        "#9ca3af", // Gray-400
+        "#6b7280", // Gray-500
+        "#d1d5db", // Gray-300
+        "#4b5563", // Gray-600
+      ]
+    : [
+        // Light mode: Crimson + dark grays
+        "#c41e3a", // IU Crimson (theme color)
+        "#4b5563", // Gray-600
+        "#6b7280", // Gray-500
+        "#374151", // Gray-700
+        "#9ca3af", // Gray-400
+      ];
+
+  // Calculate total questions across all types
+  const totalQuestions = Object.values(analytics.question_type_stats).reduce(
+    (sum, stats) => sum + stats.total,
+    0
+  );
+
   // Prepare question type data for donut chart
   const questionTypeData = Object.entries(analytics.question_type_stats).map(
-    ([type, stats]) => ({
-      name: type.toUpperCase(),
-      accuracy: stats.accuracy,
-      total: stats.total,
-      correct: stats.correct,
-      fill:
-        stats.accuracy >= 80
-          ? "#28a745"
-          : stats.accuracy >= 60
-          ? "#ffc107"
-          : "#dc3545",
-    })
+    ([type, stats], index) => {
+      const distribution =
+        totalQuestions > 0
+          ? Math.round((stats.total / totalQuestions) * 100 * 10) / 10
+          : 0;
+      return {
+        name: formatQuestionType(type),
+        accuracy: stats.accuracy,
+        total: stats.total,
+        correct: stats.correct,
+        distribution: distribution, // Percentage of total questions
+        fill: QUESTION_TYPE_COLORS[index % QUESTION_TYPE_COLORS.length],
+      };
+    }
   );
 
   // Find strongest and weakest types
@@ -235,25 +274,38 @@ export default function PerformanceAnalytics({
   const strongestType = sortedTypes[0];
   const weakestType = sortedTypes[sortedTypes.length - 1];
 
+  // Color palette for source materials - theme color + grayscale
+  const SOURCE_COLORS = darkMode
+    ? [
+        // Dark mode: Mustard yellow + light grays
+        "#c29b4a", // Mustard yellow (theme color)
+        "#9ca3af", // Gray-400
+        "#6b7280", // Gray-500
+        "#d1d5db", // Gray-300
+        "#4b5563", // Gray-600
+        "#8b92a0", // Gray-450 (custom mid-tone)
+      ]
+    : [
+        // Light mode: Crimson + dark grays
+        "#c41e3a", // IU Crimson (theme color)
+        "#4b5563", // Gray-600
+        "#6b7280", // Gray-500
+        "#374151", // Gray-700
+        "#9ca3af", // Gray-400
+        "#525b6b", // Gray-650 (custom mid-tone)
+      ];
+
   // Prepare source material data
   const sourceData = Object.entries(analytics.source_material_stats)
-    .map(([source, stats]) => ({
+    .map(([source, stats], index) => ({
       name: source.length > 25 ? source.substring(0, 22) + "..." : source,
       fullName: source,
       accuracy: stats.accuracy,
       questionCount: stats.question_count,
       appearances: stats.appearances,
-      fill:
-        stats.accuracy >= 80
-          ? "#28a745"
-          : stats.accuracy >= 60
-          ? "#ffc107"
-          : "#dc3545",
+      fill: SOURCE_COLORS[index % SOURCE_COLORS.length],
     }))
     .sort((a, b) => b.accuracy - a.accuracy);
-
-  // Colors for charts
-  const COLORS = ["#28a745", "#ffc107", "#dc3545", "#17a2b8", "#6f42c1"];
 
   return (
     <div
@@ -278,222 +330,224 @@ export default function PerformanceAnalytics({
         Performance Analytics
       </h3>
 
-      {/* AI Insights Card */}
-      <div
-        style={{
-          marginBottom: 24,
-          padding: 18,
-          background: darkMode
-            ? "rgba(212, 166, 80, 0.08)"
-            : "rgba(196, 30, 58, 0.05)",
-          backdropFilter: "blur(8px)",
-          WebkitBackdropFilter: "blur(8px)",
-          borderRadius: 10,
-          border: `1px solid ${theme.glassBorder}`,
-        }}
-      >
+      {/* AI Insights Card - Temporarily Hidden */}
+      {false && (
         <div
           style={{
-            display: "flex",
-            alignItems: "flex-start",
-            justifyContent: "space-between",
-            marginBottom: 12,
+            marginBottom: 24,
+            padding: 18,
+            background: darkMode
+              ? "rgba(212, 166, 80, 0.08)"
+              : "rgba(196, 30, 58, 0.05)",
+            backdropFilter: "blur(8px)",
+            WebkitBackdropFilter: "blur(8px)",
+            borderRadius: 10,
+            border: `1px solid ${theme.glassBorder}`,
           }}
         >
-          <div>
-            <div
-              style={{
-                fontSize: 16,
-                fontWeight: 700,
-                color: theme.crimson,
-              }}
-            >
-              AI Performance Insights
-            </div>
-            {storedInsight && storedInsight.timestamp && (
-              <div
-                style={{
-                  fontSize: 11,
-                  color: theme.textSecondary,
-                  marginTop: 4,
-                }}
-              >
-                Last updated {formatInsightTimestamp(storedInsight.timestamp)}
-              </div>
-            )}
-          </div>
-
-          {/* Clear/Refresh Buttons */}
-          <div style={{ display: "flex", gap: 6 }}>
-            {storedInsight && (
-              <button
-                onClick={handleRefreshInsights}
-                onMouseEnter={() => setHoveredButton("refresh")}
-                onMouseLeave={() => setHoveredButton(null)}
-                disabled={generatingInsights}
-                style={{
-                  padding: "6px 8px",
-                  background: "transparent",
-                  color: theme.crimson,
-                  border: `1px solid ${theme.glassBorder}`,
-                  borderRadius: 6,
-                  cursor: generatingInsights ? "not-allowed" : "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  opacity: generatingInsights
-                    ? 0.5
-                    : hoveredButton === "refresh"
-                    ? 0.8
-                    : 1,
-                  transition: "all 0.2s ease",
-                }}
-                title="Refresh insights"
-              >
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <polyline points="23 4 23 10 17 10"></polyline>
-                  <polyline points="1 20 1 14 7 14"></polyline>
-                  <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
-                </svg>
-              </button>
-            )}
-            {storedInsight && (
-              <button
-                onClick={handleClearInsights}
-                onMouseEnter={() => setHoveredButton("clear")}
-                onMouseLeave={() => setHoveredButton(null)}
-                disabled={generatingInsights}
-                style={{
-                  padding: "6px 8px",
-                  background: "transparent",
-                  color: theme.textSecondary,
-                  border: `1px solid ${theme.glassBorder}`,
-                  borderRadius: 6,
-                  cursor: generatingInsights ? "not-allowed" : "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  opacity: generatingInsights
-                    ? 0.5
-                    : hoveredButton === "clear"
-                    ? 0.8
-                    : 1,
-                  transition: "all 0.2s ease",
-                }}
-                title="Clear insights"
-              >
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <line x1="18" y1="6" x2="6" y2="18"></line>
-                  <line x1="6" y1="6" x2="18" y2="18"></line>
-                </svg>
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Content Area */}
-        {generatingInsights ? (
           <div
             style={{
               display: "flex",
-              alignItems: "center",
-              gap: 8,
-              padding: "12px 0",
+              alignItems: "flex-start",
+              justifyContent: "space-between",
+              marginBottom: 12,
             }}
           >
-            <div
-              style={{
-                width: 16,
-                height: 16,
-                border: `2px solid ${theme.glassBorder}`,
-                borderTop: `2px solid ${theme.crimson}`,
-                borderRadius: "50%",
-                animation: "spin 1s linear infinite",
-              }}
-            />
-            <div
-              style={{
-                fontSize: 14,
-                color: theme.textSecondary,
-                fontStyle: "italic",
-              }}
-            >
-              Updating insights from your latest performance data...
-            </div>
-          </div>
-        ) : storedInsight && storedInsight.insights ? (
-          <div>
-            <div
-              style={{
-                fontSize: 14,
-                lineHeight: 1.6,
-                color: theme.text,
-                whiteSpace: "pre-line",
-              }}
-            >
-              {storedInsight.insights}
-            </div>
-            {showStaleDataNotice && (
+            <div>
               <div
                 style={{
-                  marginTop: 12,
-                  padding: 10,
-                  background: darkMode
-                    ? "rgba(255, 193, 7, 0.08)"
-                    : "rgba(255, 193, 7, 0.12)",
-                  border: "1px solid rgba(255, 193, 7, 0.3)",
-                  borderRadius: 6,
-                  fontSize: 12,
-                  color: theme.text,
+                  fontSize: 16,
+                  fontWeight: 700,
+                  color: theme.crimson,
                 }}
               >
-                <strong>Note:</strong> All exam data has been cleared. These
-                insights are from your previous exams. Clear or wait until you
-                complete new exams to generate fresh insights.
+                AI Performance Insights
               </div>
-            )}
+              {storedInsight && storedInsight.timestamp && (
+                <div
+                  style={{
+                    fontSize: 11,
+                    color: theme.textSecondary,
+                    marginTop: 4,
+                  }}
+                >
+                  Last updated {formatInsightTimestamp(storedInsight.timestamp)}
+                </div>
+              )}
+            </div>
+
+            {/* Clear/Refresh Buttons */}
+            <div style={{ display: "flex", gap: 6 }}>
+              {storedInsight && (
+                <button
+                  onClick={handleRefreshInsights}
+                  onMouseEnter={() => setHoveredButton("refresh")}
+                  onMouseLeave={() => setHoveredButton(null)}
+                  disabled={generatingInsights}
+                  style={{
+                    padding: "6px 8px",
+                    background: "transparent",
+                    color: theme.crimson,
+                    border: `1px solid ${theme.glassBorder}`,
+                    borderRadius: 6,
+                    cursor: generatingInsights ? "not-allowed" : "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    opacity: generatingInsights
+                      ? 0.5
+                      : hoveredButton === "refresh"
+                      ? 0.8
+                      : 1,
+                    transition: "all 0.2s ease",
+                  }}
+                  title="Refresh insights"
+                >
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <polyline points="23 4 23 10 17 10"></polyline>
+                    <polyline points="1 20 1 14 7 14"></polyline>
+                    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                  </svg>
+                </button>
+              )}
+              {storedInsight && (
+                <button
+                  onClick={handleClearInsights}
+                  onMouseEnter={() => setHoveredButton("clear")}
+                  onMouseLeave={() => setHoveredButton(null)}
+                  disabled={generatingInsights}
+                  style={{
+                    padding: "6px 8px",
+                    background: "transparent",
+                    color: theme.textSecondary,
+                    border: `1px solid ${theme.glassBorder}`,
+                    borderRadius: 6,
+                    cursor: generatingInsights ? "not-allowed" : "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    opacity: generatingInsights
+                      ? 0.5
+                      : hoveredButton === "clear"
+                      ? 0.8
+                      : 1,
+                    transition: "all 0.2s ease",
+                  }}
+                  title="Clear insights"
+                >
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                  </svg>
+                </button>
+              )}
+            </div>
           </div>
-        ) : insightsError ? (
-          <div
-            style={{
-              fontSize: 13,
-              color: theme.crimson,
-              padding: "8px 0",
-            }}
-          >
-            {insightsError}
-          </div>
-        ) : (
-          <div
-            style={{
-              fontSize: 13,
-              color: theme.textSecondary,
-              padding: "8px 0",
-            }}
-          >
-            Start completing exams to unlock your personalized AI insights. Your
-            first insight will generate automatically!
-          </div>
-        )}
-      </div>
+
+          {/* Content Area */}
+          {generatingInsights ? (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "12px 0",
+              }}
+            >
+              <div
+                style={{
+                  width: 16,
+                  height: 16,
+                  border: `2px solid ${theme.glassBorder}`,
+                  borderTop: `2px solid ${theme.crimson}`,
+                  borderRadius: "50%",
+                  animation: "spin 1s linear infinite",
+                }}
+              />
+              <div
+                style={{
+                  fontSize: 14,
+                  color: theme.textSecondary,
+                  fontStyle: "italic",
+                }}
+              >
+                Updating insights from your latest performance data...
+              </div>
+            </div>
+          ) : storedInsight && storedInsight.insights ? (
+            <div>
+              <div
+                style={{
+                  fontSize: 14,
+                  lineHeight: 1.6,
+                  color: theme.text,
+                  whiteSpace: "pre-line",
+                }}
+              >
+                {storedInsight.insights}
+              </div>
+              {showStaleDataNotice && (
+                <div
+                  style={{
+                    marginTop: 12,
+                    padding: 10,
+                    background: darkMode
+                      ? "rgba(255, 193, 7, 0.08)"
+                      : "rgba(255, 193, 7, 0.12)",
+                    border: "1px solid rgba(255, 193, 7, 0.3)",
+                    borderRadius: 6,
+                    fontSize: 12,
+                    color: theme.text,
+                  }}
+                >
+                  <strong>Note:</strong> All exam data has been cleared. These
+                  insights are from your previous exams. Clear or wait until you
+                  complete new exams to generate fresh insights.
+                </div>
+              )}
+            </div>
+          ) : insightsError ? (
+            <div
+              style={{
+                fontSize: 13,
+                color: theme.crimson,
+                padding: "8px 0",
+              }}
+            >
+              {insightsError}
+            </div>
+          ) : (
+            <div
+              style={{
+                fontSize: 13,
+                color: theme.textSecondary,
+                padding: "8px 0",
+              }}
+            >
+              Start completing exams to unlock your personalized AI insights.
+              Your first insight will generate automatically!
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Timeline Chart */}
       <div
@@ -648,7 +702,7 @@ export default function PerformanceAnalytics({
                   innerRadius={50}
                   outerRadius={70}
                   paddingAngle={2}
-                  dataKey="accuracy"
+                  dataKey="total"
                 >
                   {questionTypeData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.fill} />
@@ -707,7 +761,7 @@ export default function PerformanceAnalytics({
                         color: type.fill,
                       }}
                     >
-                      {type.accuracy}%
+                      {type.distribution}%
                     </div>
                   </div>
                 ))}
@@ -726,9 +780,11 @@ export default function PerformanceAnalytics({
               <div
                 style={{
                   padding: 10,
-                  background: "rgba(40, 167, 69, 0.08)",
+                  background: darkMode
+                    ? "rgba(255, 255, 255, 0.05)"
+                    : "rgba(0, 0, 0, 0.03)",
                   borderRadius: 6,
-                  border: "1px solid rgba(40, 167, 69, 0.2)",
+                  border: `1px solid ${theme.glassBorder}`,
                 }}
               >
                 <div
@@ -741,7 +797,7 @@ export default function PerformanceAnalytics({
                   Strongest Format
                 </div>
                 <div
-                  style={{ fontSize: 14, fontWeight: 600, color: "#28a745" }}
+                  style={{ fontSize: 14, fontWeight: 600, color: theme.text }}
                 >
                   {strongestType.name} - {strongestType.accuracy}%
                 </div>
@@ -749,9 +805,11 @@ export default function PerformanceAnalytics({
               <div
                 style={{
                   padding: 10,
-                  background: "rgba(220, 53, 69, 0.08)",
+                  background: darkMode
+                    ? "rgba(255, 255, 255, 0.05)"
+                    : "rgba(0, 0, 0, 0.03)",
                   borderRadius: 6,
-                  border: "1px solid rgba(220, 53, 69, 0.2)",
+                  border: `1px solid ${theme.glassBorder}`,
                 }}
               >
                 <div
@@ -764,7 +822,7 @@ export default function PerformanceAnalytics({
                   Needs Practice
                 </div>
                 <div
-                  style={{ fontSize: 14, fontWeight: 600, color: "#dc3545" }}
+                  style={{ fontSize: 14, fontWeight: 600, color: theme.text }}
                 >
                   {weakestType.name} - {weakestType.accuracy}%
                 </div>
@@ -870,36 +928,13 @@ export default function PerformanceAnalytics({
                     color: theme.text,
                   }}
                 >
-                  <span>
-                    {source.fullName}
-                    {source.appearances < 3 && (
-                      <span
-                        style={{
-                          color: "#ffc107",
-                          marginLeft: 6,
-                          fontWeight: 600,
-                        }}
-                      >
-                        !
-                      </span>
-                    )}
-                  </span>
+                  <span>{source.fullName}</span>
                   <span style={{ color: theme.textSecondary }}>
                     {source.appearances} exam
                     {source.appearances !== 1 ? "s" : ""}
                   </span>
                 </div>
               ))}
-            </div>
-            <div
-              style={{
-                marginTop: 8,
-                fontSize: 11,
-                color: theme.textSecondary,
-                fontStyle: "italic",
-              }}
-            >
-              ! indicates under-tested sources (less than 3 exam appearances)
             </div>
           </div>
         </div>

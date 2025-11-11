@@ -786,7 +786,7 @@ Keep it under 100 words."""
     
     try:
         # Use the same model resolution approach as other functions
-        model_name = resolve_model_for_key(api_key)
+        model_name = await resolve_model_for_key(api_key)
         model = genai.GenerativeModel(model_name)
         
         response = model.generate_content(
@@ -870,7 +870,7 @@ Provide 2-3 sentences focusing on:
 Keep the tone conversational and encouraging. Be specific with numbers when relevant."""
 
     try:
-        model_name = resolve_model_for_key(api_key)
+        model_name = await resolve_model_for_key(api_key)
         model = genai.GenerativeModel(model_name)
         
         response = model.generate_content(

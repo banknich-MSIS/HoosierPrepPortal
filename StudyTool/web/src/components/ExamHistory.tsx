@@ -1,10 +1,11 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import type { AttemptSummary } from "../types";
 
 interface ExamHistoryProps {
   attempts: AttemptSummary[];
   onReviewAttempt: (attemptId: number) => void;
   onDeleteAttempt: (attemptId: number) => void;
+  onBulkDeleteAttempts?: (attemptIds: number[]) => Promise<void>;
   darkMode: boolean;
   theme: any;
 }
@@ -13,24 +14,48 @@ export default function ExamHistory({
   attempts,
   onReviewAttempt,
   onDeleteAttempt,
+  onBulkDeleteAttempts,
   darkMode,
   theme,
 }: ExamHistoryProps) {
   const [sortBy, setSortBy] = useState<
-    "date" | "score" | "source" | "duration" | "accuracy" | "difficulty"
+    | "date"
+    | "score"
+    | "source"
+    | "duration"
+    | "accuracy"
+    | "difficulty"
+    | "examType"
   >("date");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [hoveredButton, setHoveredButton] = useState<string | null>(null);
+  const [selectedAttempts, setSelectedAttempts] = useState<Set<number>>(
+    new Set()
+  );
 
-  // Column widths state (in pixels)
+  // Column visibility state
+  const [visibleColumns, setVisibleColumns] = useState({
+    date: true,
+    score: true,
+    source: true,
+    questions: true,
+    duration: true,
+    difficulty: true,
+    examType: true,
+    avgTime: true,
+  });
+  const [showColumnMenu, setShowColumnMenu] = useState(false);
+
+  // Column widths state (in pixels) - optimized to prevent horizontal scroll
   const [columnWidths, setColumnWidths] = useState({
-    date: 180,
-    score: 100,
-    source: 180,
-    questions: 110,
-    duration: 110,
-    difficulty: 110,
-    avgTime: 110,
+    date: 140,
+    score: 80,
+    source: 160,
+    questions: 90,
+    duration: 90,
+    difficulty: 90,
+    examType: 80,
+    avgTime: 90,
   });
   const [resizing, setResizing] = useState<string | null>(null);
   const [startX, setStartX] = useState(0);
@@ -163,6 +188,10 @@ export default function ExamHistory({
         bVal =
           difficultyOrder[b.difficulty as keyof typeof difficultyOrder] || 2;
         break;
+      case "examType":
+        aVal = a.exam_type || "exam";
+        bVal = b.exam_type || "exam";
+        break;
       default:
         return 0;
     }
@@ -175,7 +204,14 @@ export default function ExamHistory({
   });
 
   const handleSort = (
-    column: "date" | "score" | "source" | "duration" | "accuracy" | "difficulty"
+    column:
+      | "date"
+      | "score"
+      | "source"
+      | "duration"
+      | "accuracy"
+      | "difficulty"
+      | "examType"
   ) => {
     if (sortBy === column) {
       setSortOrder(sortOrder === "asc" ? "desc" : "asc");
@@ -186,11 +222,83 @@ export default function ExamHistory({
   };
 
   const getSortIcon = (
-    column: "date" | "score" | "source" | "duration" | "accuracy" | "difficulty"
+    column:
+      | "date"
+      | "score"
+      | "source"
+      | "duration"
+      | "accuracy"
+      | "difficulty"
+      | "examType"
   ) => {
     if (sortBy !== column) return "";
     return sortOrder === "asc" ? " ▲" : " ▼";
   };
+
+  const formatColumnName = (key: string): string => {
+    const names: Record<string, string> = {
+      date: "Date",
+      score: "Score",
+      source: "Source",
+      questions: "Questions",
+      duration: "Duration",
+      difficulty: "Difficulty",
+      examType: "Type",
+      avgTime: "Avg Time/Q",
+    };
+    return names[key] || key;
+  };
+
+  const buildGridTemplate = () => {
+    const cols = ["50px"]; // Checkbox column always visible
+    if (visibleColumns.date) cols.push(`${columnWidths.date}px`);
+    if (visibleColumns.score) cols.push(`${columnWidths.score}px`);
+    if (visibleColumns.source) cols.push(`${columnWidths.source}px`);
+    if (visibleColumns.questions) cols.push(`${columnWidths.questions}px`);
+    if (visibleColumns.duration) cols.push(`${columnWidths.duration}px`);
+    if (visibleColumns.difficulty) cols.push(`${columnWidths.difficulty}px`);
+    if (visibleColumns.examType) cols.push(`${columnWidths.examType}px`);
+    if (visibleColumns.avgTime) cols.push(`${columnWidths.avgTime}px`);
+    cols.push("auto"); // Delete button column
+    return cols.join(" ");
+  };
+
+  const handleBulkDelete = async () => {
+    if (
+      !window.confirm(
+        `Delete ${selectedAttempts.size} selected exam(s)? This cannot be undone.`
+      )
+    )
+      return;
+
+    try {
+      const idsToDelete = Array.from(selectedAttempts);
+
+      // Use bulk delete handler if provided, otherwise delete individually
+      if (onBulkDeleteAttempts) {
+        await onBulkDeleteAttempts(idsToDelete);
+      } else {
+        // Delete all selected attempts in parallel
+        await Promise.all(idsToDelete.map((id) => onDeleteAttempt(id)));
+      }
+
+      // Clear selection after successful deletion
+      setSelectedAttempts(new Set());
+    } catch (error) {
+      alert("Failed to delete some exams. Please try again.");
+    }
+  };
+
+  // Close column menu on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (showColumnMenu) {
+        setShowColumnMenu(false);
+      }
+    };
+    document.addEventListener("click", handleClickOutside);
+    return () => document.removeEventListener("click", handleClickOutside);
+  }, [showColumnMenu]);
 
   // Calculate summary stats
   const totalAttempts = attempts.length;
@@ -336,24 +444,168 @@ export default function ExamHistory({
         )}
       </div>
 
+      {/* Column Selector Menu */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "flex-end",
+          marginBottom: 12,
+        }}
+      >
+        <div style={{ position: "relative" }}>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowColumnMenu(!showColumnMenu);
+            }}
+            style={{
+              padding: "6px 8px",
+              background: "transparent",
+              border: `1px solid ${theme.glassBorder}`,
+              borderRadius: 6,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+            title="Column visibility"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill={theme.text}>
+              <circle cx="12" cy="5" r="1.5" />
+              <circle cx="12" cy="12" r="1.5" />
+              <circle cx="12" cy="19" r="1.5" />
+            </svg>
+          </button>
+
+          {showColumnMenu && (
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                position: "absolute",
+                right: 0,
+                top: 40,
+                background: darkMode ? "#3d2325" : "#ffffff",
+                border: `1px solid ${theme.glassBorder}`,
+                borderRadius: 8,
+                padding: 12,
+                boxShadow: theme.glassShadow,
+                zIndex: 10,
+                minWidth: 200,
+              }}
+            >
+              {Object.entries(visibleColumns).map(([key, visible]) => (
+                <label
+                  key={key}
+                  style={{
+                    display: "flex",
+                    gap: 8,
+                    padding: "6px 0",
+                    cursor: "pointer",
+                    color: theme.text,
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={visible}
+                    onChange={() =>
+                      setVisibleColumns({
+                        ...visibleColumns,
+                        [key]: !visible,
+                      })
+                    }
+                    style={{ cursor: "pointer" }}
+                  />
+                  <span>{formatColumnName(key)}</span>
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Bulk Actions Bar */}
+      {selectedAttempts.size > 0 && (
+        <div
+          style={{
+            padding: 12,
+            background: theme.cardBg,
+            backdropFilter: theme.glassBlur,
+            WebkitBackdropFilter: theme.glassBlur,
+            borderRadius: 8,
+            border: `1px solid ${theme.glassBorder}`,
+            boxShadow: theme.glassShadow,
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: 16,
+          }}
+        >
+          <span
+            style={{
+              fontSize: 14,
+              color: theme.text,
+              fontWeight: 500,
+            }}
+          >
+            {selectedAttempts.size} exam(s) selected
+          </span>
+          <button
+            onClick={handleBulkDelete}
+            onMouseEnter={() => setHoveredButton("bulkDelete")}
+            onMouseLeave={() => setHoveredButton(null)}
+            style={{
+              padding: "8px 16px",
+              background:
+                hoveredButton === "bulkDelete" ? "#b91c1c" : "#dc2626",
+              color: "white",
+              border: "none",
+              borderRadius: 6,
+              cursor: "pointer",
+              fontSize: 13,
+              fontWeight: 600,
+              transition: "all 0.2s ease",
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+            }}
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <polyline points="3 6 5 6 21 6"></polyline>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+            </svg>
+            Delete Selected
+          </button>
+        </div>
+      )}
+
       {/* Attempts Table - Glassmorphism */}
       <div
         ref={tableRef}
         style={{
           border: `1px solid ${theme.glassBorder}`,
           borderRadius: 12,
-          overflow: "hidden",
           background: theme.cardBg,
           backdropFilter: theme.glassBlur,
           WebkitBackdropFilter: theme.glassBlur,
           boxShadow: theme.glassShadow,
+          maxWidth: "100%",
+          overflow: "auto",
         }}
       >
         {/* Fixed Header */}
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: `${columnWidths.date}px ${columnWidths.score}px ${columnWidths.source}px ${columnWidths.questions}px ${columnWidths.duration}px ${columnWidths.difficulty}px ${columnWidths.avgTime}px auto`,
+            gridTemplateColumns: buildGridTemplate(),
             background: theme.navBg,
             padding: "16px 16px 16px 16px",
             fontWeight: 700,
@@ -363,271 +615,404 @@ export default function ExamHistory({
             position: "relative",
           }}
         >
+          {/* Master Checkbox */}
           <div
             style={{
               display: "flex",
               alignItems: "center",
-              gap: 4,
-              position: "relative",
-              paddingRight: 12,
+              justifyContent: "center",
               paddingLeft: 8,
             }}
           >
-            <span
-              onClick={() => handleSort("date")}
+            <input
+              type="checkbox"
+              checked={
+                sortedAttempts.length > 0 &&
+                sortedAttempts.every((a) => selectedAttempts.has(a.id))
+              }
+              onChange={() => {
+                if (
+                  sortedAttempts.length > 0 &&
+                  sortedAttempts.every((a) => selectedAttempts.has(a.id))
+                ) {
+                  setSelectedAttempts(new Set());
+                } else {
+                  setSelectedAttempts(new Set(sortedAttempts.map((a) => a.id)));
+                }
+              }}
+              style={{ cursor: "pointer", width: 16, height: 16 }}
+            />
+          </div>
+          {visibleColumns.date && (
+            <div
               style={{
-                cursor: "pointer",
-                userSelect: "none",
+                display: "flex",
+                alignItems: "center",
+                gap: 4,
+                position: "relative",
+                paddingRight: 12,
+                paddingLeft: 8,
               }}
             >
-              Date {getSortIcon("date")}
-            </span>
+              <span
+                onClick={() => handleSort("date")}
+                style={{
+                  cursor: "pointer",
+                  userSelect: "none",
+                }}
+              >
+                Date {getSortIcon("date")}
+              </span>
+              <div
+                onMouseDown={(e) => handleResizeStart(e, "date")}
+                onMouseEnter={() => setHoverResize("date")}
+                onMouseLeave={() => setHoverResize(null)}
+                style={{
+                  position: "absolute",
+                  right: 0,
+                  top: -8,
+                  bottom: -8,
+                  width: 8,
+                  cursor: "col-resize",
+                  userSelect: "none",
+                  zIndex: 10,
+                  borderRight:
+                    resizing === "date"
+                      ? `2px solid ${theme.crimson}`
+                      : hoverResize === "date"
+                      ? `2px solid ${
+                          darkMode ? theme.glassBorder : "rgba(0,0,0,0.2)"
+                        }`
+                      : `1px solid ${
+                          darkMode ? theme.glassBorder : "rgba(0,0,0,0.15)"
+                        }`,
+                  transition: "border-color 0.2s ease",
+                }}
+                title="Drag to resize"
+              />
+            </div>
+          )}
+          {visibleColumns.score && (
             <div
-              onMouseDown={(e) => handleResizeStart(e, "date")}
-              onMouseEnter={() => setHoverResize("date")}
-              onMouseLeave={() => setHoverResize(null)}
               style={{
-                position: "absolute",
-                right: 0,
-                top: -16,
-                bottom: -16,
-                width: 8,
-                cursor: "col-resize",
-                userSelect: "none",
-                zIndex: 10,
-                borderRight:
-                  resizing === "date"
-                    ? `2px solid ${theme.crimson}`
-                    : `1px solid ${theme.glassBorder}`,
-                transition: "border-color 0.2s ease",
-              }}
-              title="Drag to resize"
-            />
-          </div>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 4,
-              position: "relative",
-              paddingRight: 12,
-              paddingLeft: 8,
-            }}
-          >
-            <span
-              onClick={() => handleSort("score")}
-              style={{
-                cursor: "pointer",
-                userSelect: "none",
+                display: "flex",
+                alignItems: "center",
+                gap: 4,
+                position: "relative",
+                paddingRight: 12,
+                paddingLeft: 8,
               }}
             >
-              Score {getSortIcon("score")}
-            </span>
+              <span
+                onClick={() => handleSort("score")}
+                style={{
+                  cursor: "pointer",
+                  userSelect: "none",
+                }}
+              >
+                Score {getSortIcon("score")}
+              </span>
+              <div
+                onMouseDown={(e) => handleResizeStart(e, "score")}
+                onMouseEnter={() => setHoverResize("score")}
+                onMouseLeave={() => setHoverResize(null)}
+                style={{
+                  position: "absolute",
+                  right: 0,
+                  top: -8,
+                  bottom: -8,
+                  width: 8,
+                  cursor: "col-resize",
+                  userSelect: "none",
+                  zIndex: 10,
+                  borderRight:
+                    resizing === "score"
+                      ? `2px solid ${theme.crimson}`
+                      : hoverResize === "score"
+                      ? `2px solid ${
+                          darkMode ? theme.glassBorder : "rgba(0,0,0,0.2)"
+                        }`
+                      : `1px solid ${
+                          darkMode ? theme.glassBorder : "rgba(0,0,0,0.15)"
+                        }`,
+                  transition: "border-color 0.2s ease",
+                }}
+                title="Drag to resize"
+              />
+            </div>
+          )}
+          {visibleColumns.source && (
             <div
-              onMouseDown={(e) => handleResizeStart(e, "score")}
-              onMouseEnter={() => setHoverResize("score")}
-              onMouseLeave={() => setHoverResize(null)}
               style={{
-                position: "absolute",
-                right: 0,
-                top: -16,
-                bottom: -16,
-                width: 8,
-                cursor: "col-resize",
-                userSelect: "none",
-                zIndex: 10,
-                borderRight:
-                  resizing === "score"
-                    ? `2px solid ${theme.crimson}`
-                    : `1px solid ${theme.glassBorder}`,
-                transition: "border-color 0.2s ease",
-              }}
-              title="Drag to resize"
-            />
-          </div>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 4,
-              position: "relative",
-              paddingRight: 12,
-              paddingLeft: 8,
-            }}
-          >
-            <span
-              onClick={() => handleSort("source")}
-              style={{
-                cursor: "pointer",
-                userSelect: "none",
+                display: "flex",
+                alignItems: "center",
+                gap: 4,
+                position: "relative",
+                paddingRight: 12,
+                paddingLeft: 8,
               }}
             >
-              Source {getSortIcon("source")}
-            </span>
+              <span
+                onClick={() => handleSort("source")}
+                style={{
+                  cursor: "pointer",
+                  userSelect: "none",
+                }}
+              >
+                Source {getSortIcon("source")}
+              </span>
+              <div
+                onMouseDown={(e) => handleResizeStart(e, "source")}
+                onMouseEnter={() => setHoverResize("source")}
+                onMouseLeave={() => setHoverResize(null)}
+                style={{
+                  position: "absolute",
+                  right: 0,
+                  top: -8,
+                  bottom: -8,
+                  width: 8,
+                  cursor: "col-resize",
+                  userSelect: "none",
+                  zIndex: 10,
+                  borderRight:
+                    resizing === "source"
+                      ? `2px solid ${theme.crimson}`
+                      : hoverResize === "source"
+                      ? `2px solid ${
+                          darkMode ? theme.glassBorder : "rgba(0,0,0,0.2)"
+                        }`
+                      : `1px solid ${
+                          darkMode ? theme.glassBorder : "rgba(0,0,0,0.15)"
+                        }`,
+                  transition: "border-color 0.2s ease",
+                }}
+                title="Drag to resize"
+              />
+            </div>
+          )}
+          {visibleColumns.questions && (
             <div
-              onMouseDown={(e) => handleResizeStart(e, "source")}
-              onMouseEnter={() => setHoverResize("source")}
-              onMouseLeave={() => setHoverResize(null)}
               style={{
-                position: "absolute",
-                right: 0,
-                top: -16,
-                bottom: -16,
-                width: 8,
-                cursor: "col-resize",
-                userSelect: "none",
-                zIndex: 10,
-                borderRight:
-                  resizing === "source"
-                    ? `2px solid ${theme.crimson}`
-                    : `1px solid ${theme.glassBorder}`,
-                transition: "border-color 0.2s ease",
-              }}
-              title="Drag to resize"
-            />
-          </div>
-          <div
-            style={{
-              position: "relative",
-              paddingRight: 12,
-              paddingLeft: 8,
-            }}
-          >
-            Questions
-            <div
-              onMouseDown={(e) => handleResizeStart(e, "questions")}
-              onMouseEnter={() => setHoverResize("questions")}
-              onMouseLeave={() => setHoverResize(null)}
-              style={{
-                position: "absolute",
-                right: 0,
-                top: -16,
-                bottom: -16,
-                width: 8,
-                cursor: "col-resize",
-                userSelect: "none",
-                zIndex: 10,
-                borderRight:
-                  resizing === "questions"
-                    ? `2px solid ${theme.crimson}`
-                    : `1px solid ${theme.glassBorder}`,
-                transition: "border-color 0.2s ease",
-              }}
-              title="Drag to resize"
-            />
-          </div>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 4,
-              position: "relative",
-              paddingRight: 12,
-              paddingLeft: 8,
-            }}
-          >
-            <span
-              onClick={() => handleSort("duration")}
-              style={{
-                cursor: "pointer",
-                userSelect: "none",
+                position: "relative",
+                paddingRight: 12,
+                paddingLeft: 8,
               }}
             >
-              Duration {getSortIcon("duration")}
-            </span>
+              Questions
+              <div
+                onMouseDown={(e) => handleResizeStart(e, "questions")}
+                onMouseEnter={() => setHoverResize("questions")}
+                onMouseLeave={() => setHoverResize(null)}
+                style={{
+                  position: "absolute",
+                  right: 0,
+                  top: -8,
+                  bottom: -8,
+                  width: 8,
+                  cursor: "col-resize",
+                  userSelect: "none",
+                  zIndex: 10,
+                  borderRight:
+                    resizing === "questions"
+                      ? `2px solid ${theme.crimson}`
+                      : hoverResize === "questions"
+                      ? `2px solid ${
+                          darkMode ? theme.glassBorder : "rgba(0,0,0,0.2)"
+                        }`
+                      : `1px solid ${
+                          darkMode ? theme.glassBorder : "rgba(0,0,0,0.15)"
+                        }`,
+                  transition: "border-color 0.2s ease",
+                }}
+                title="Drag to resize"
+              />
+            </div>
+          )}
+          {visibleColumns.duration && (
             <div
-              onMouseDown={(e) => handleResizeStart(e, "duration")}
-              onMouseEnter={() => setHoverResize("duration")}
-              onMouseLeave={() => setHoverResize(null)}
               style={{
-                position: "absolute",
-                right: 0,
-                top: -16,
-                bottom: -16,
-                width: 8,
-                cursor: "col-resize",
-                userSelect: "none",
-                zIndex: 10,
-                borderRight:
-                  resizing === "duration"
-                    ? `2px solid ${theme.crimson}`
-                    : `1px solid ${theme.glassBorder}`,
-                transition: "border-color 0.2s ease",
-              }}
-              title="Drag to resize"
-            />
-          </div>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 4,
-              position: "relative",
-              paddingRight: 12,
-              paddingLeft: 8,
-            }}
-          >
-            <span
-              onClick={() => handleSort("difficulty")}
-              style={{
-                cursor: "pointer",
-                userSelect: "none",
+                display: "flex",
+                alignItems: "center",
+                gap: 4,
+                position: "relative",
+                paddingRight: 12,
+                paddingLeft: 8,
               }}
             >
-              Difficulty {getSortIcon("difficulty")}
-            </span>
+              <span
+                onClick={() => handleSort("duration")}
+                style={{
+                  cursor: "pointer",
+                  userSelect: "none",
+                }}
+              >
+                Duration {getSortIcon("duration")}
+              </span>
+              <div
+                onMouseDown={(e) => handleResizeStart(e, "duration")}
+                onMouseEnter={() => setHoverResize("duration")}
+                onMouseLeave={() => setHoverResize(null)}
+                style={{
+                  position: "absolute",
+                  right: 0,
+                  top: -8,
+                  bottom: -8,
+                  width: 8,
+                  cursor: "col-resize",
+                  userSelect: "none",
+                  zIndex: 10,
+                  borderRight:
+                    resizing === "duration"
+                      ? `2px solid ${theme.crimson}`
+                      : hoverResize === "duration"
+                      ? `2px solid ${
+                          darkMode ? theme.glassBorder : "rgba(0,0,0,0.2)"
+                        }`
+                      : `1px solid ${
+                          darkMode ? theme.glassBorder : "rgba(0,0,0,0.15)"
+                        }`,
+                  transition: "border-color 0.2s ease",
+                }}
+                title="Drag to resize"
+              />
+            </div>
+          )}
+          {visibleColumns.difficulty && (
             <div
-              onMouseDown={(e) => handleResizeStart(e, "difficulty")}
-              onMouseEnter={() => setHoverResize("difficulty")}
-              onMouseLeave={() => setHoverResize(null)}
               style={{
-                position: "absolute",
-                right: 0,
-                top: -16,
-                bottom: -16,
-                width: 8,
-                cursor: "col-resize",
-                userSelect: "none",
-                zIndex: 10,
-                borderRight:
-                  resizing === "difficulty"
-                    ? `2px solid ${theme.crimson}`
-                    : `1px solid ${theme.glassBorder}`,
-                transition: "border-color 0.2s ease",
+                display: "flex",
+                alignItems: "center",
+                gap: 4,
+                position: "relative",
+                paddingRight: 12,
+                paddingLeft: 8,
               }}
-              title="Drag to resize"
-            />
-          </div>
-          <div
-            style={{
-              position: "relative",
-              paddingRight: 12,
-              paddingLeft: 8,
-            }}
-          >
-            Avg Time/Q
+            >
+              <span
+                onClick={() => handleSort("difficulty")}
+                style={{
+                  cursor: "pointer",
+                  userSelect: "none",
+                }}
+              >
+                Difficulty {getSortIcon("difficulty")}
+              </span>
+              <div
+                onMouseDown={(e) => handleResizeStart(e, "difficulty")}
+                onMouseEnter={() => setHoverResize("difficulty")}
+                onMouseLeave={() => setHoverResize(null)}
+                style={{
+                  position: "absolute",
+                  right: 0,
+                  top: -8,
+                  bottom: -8,
+                  width: 8,
+                  cursor: "col-resize",
+                  userSelect: "none",
+                  zIndex: 10,
+                  borderRight:
+                    resizing === "difficulty"
+                      ? `2px solid ${theme.crimson}`
+                      : hoverResize === "difficulty"
+                      ? `2px solid ${
+                          darkMode ? theme.glassBorder : "rgba(0,0,0,0.2)"
+                        }`
+                      : `1px solid ${
+                          darkMode ? theme.glassBorder : "rgba(0,0,0,0.15)"
+                        }`,
+                  transition: "border-color 0.2s ease",
+                }}
+                title="Drag to resize"
+              />
+            </div>
+          )}
+          {visibleColumns.examType && (
             <div
-              onMouseDown={(e) => handleResizeStart(e, "avgTime")}
-              onMouseEnter={() => setHoverResize("avgTime")}
-              onMouseLeave={() => setHoverResize(null)}
               style={{
-                position: "absolute",
-                right: 0,
-                top: -16,
-                bottom: -16,
-                width: 8,
-                cursor: "col-resize",
-                userSelect: "none",
-                zIndex: 10,
-                borderRight:
-                  resizing === "avgTime"
-                    ? `2px solid ${theme.crimson}`
-                    : `1px solid ${theme.glassBorder}`,
-                transition: "border-color 0.2s ease",
+                display: "flex",
+                alignItems: "center",
+                gap: 4,
+                position: "relative",
+                paddingRight: 12,
+                paddingLeft: 8,
               }}
-              title="Drag to resize"
-            />
-          </div>
+            >
+              <span
+                onClick={() => handleSort("examType")}
+                style={{
+                  cursor: "pointer",
+                  userSelect: "none",
+                }}
+              >
+                Type {getSortIcon("examType")}
+              </span>
+              <div
+                onMouseDown={(e) => handleResizeStart(e, "examType")}
+                onMouseEnter={() => setHoverResize("examType")}
+                onMouseLeave={() => setHoverResize(null)}
+                style={{
+                  position: "absolute",
+                  right: 0,
+                  top: -8,
+                  bottom: -8,
+                  width: 8,
+                  cursor: "col-resize",
+                  userSelect: "none",
+                  zIndex: 10,
+                  borderRight:
+                    resizing === "examType"
+                      ? `2px solid ${theme.crimson}`
+                      : hoverResize === "examType"
+                      ? `2px solid ${
+                          darkMode ? theme.glassBorder : "rgba(0,0,0,0.2)"
+                        }`
+                      : `1px solid ${
+                          darkMode ? theme.glassBorder : "rgba(0,0,0,0.15)"
+                        }`,
+                  transition: "border-color 0.2s ease",
+                }}
+                title="Drag to resize"
+              />
+            </div>
+          )}
+          {visibleColumns.avgTime && (
+            <div
+              style={{
+                position: "relative",
+                paddingRight: 12,
+                paddingLeft: 8,
+              }}
+            >
+              Avg Time/Q
+              <div
+                onMouseDown={(e) => handleResizeStart(e, "avgTime")}
+                onMouseEnter={() => setHoverResize("avgTime")}
+                onMouseLeave={() => setHoverResize(null)}
+                style={{
+                  position: "absolute",
+                  right: 0,
+                  top: -8,
+                  bottom: -8,
+                  width: 8,
+                  cursor: "col-resize",
+                  userSelect: "none",
+                  zIndex: 10,
+                  borderRight:
+                    resizing === "avgTime"
+                      ? `2px solid ${theme.crimson}`
+                      : hoverResize === "avgTime"
+                      ? `2px solid ${
+                          darkMode ? theme.glassBorder : "rgba(0,0,0,0.2)"
+                        }`
+                      : `1px solid ${
+                          darkMode ? theme.glassBorder : "rgba(0,0,0,0.15)"
+                        }`,
+                  transition: "border-color 0.2s ease",
+                }}
+                title="Drag to resize"
+              />
+            </div>
+          )}
         </div>
 
         {/* Scrollable Body - max 6 rows visible */}
@@ -645,7 +1030,7 @@ export default function ExamHistory({
               onClick={() => onReviewAttempt(attempt.id)}
               style={{
                 display: "grid",
-                gridTemplateColumns: `${columnWidths.date}px ${columnWidths.score}px ${columnWidths.source}px ${columnWidths.questions}px ${columnWidths.duration}px ${columnWidths.difficulty}px ${columnWidths.avgTime}px auto`,
+                gridTemplateColumns: buildGridTemplate(),
                 padding: "12px 16px",
                 borderBottom: `1px solid ${theme.border}`,
                 backgroundColor: darkMode
@@ -664,90 +1049,142 @@ export default function ExamHistory({
                   : "rgba(38, 38, 38, 0.04)";
               }}
             >
+              {/* Row Checkbox */}
               <div
                 style={{
-                  fontSize: 14,
-                  color: theme.text,
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                  paddingRight: 12,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
                   paddingLeft: 8,
                 }}
               >
-                {formatDate(attempt.finished_at)}
+                <input
+                  type="checkbox"
+                  checked={selectedAttempts.has(attempt.id)}
+                  onChange={() => {
+                    const newSelected = new Set(selectedAttempts);
+                    if (newSelected.has(attempt.id)) {
+                      newSelected.delete(attempt.id);
+                    } else {
+                      newSelected.add(attempt.id);
+                    }
+                    setSelectedAttempts(newSelected);
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                  style={{ cursor: "pointer", width: 16, height: 16 }}
+                />
               </div>
-              <div
-                style={{
-                  fontSize: 14,
-                  fontWeight: "bold",
-                  color: getScoreColor(attempt.score_pct),
-                  backgroundColor: getScoreBackground(attempt.score_pct),
-                  padding: "4px 8px",
-                  borderRadius: 4,
-                  textAlign: "center",
-                  display: "inline-block",
-                  width: "fit-content",
-                  marginLeft: 8,
-                }}
-              >
-                {Math.round(attempt.score_pct)}%
-              </div>
-              <div
-                style={{
-                  fontSize: 14,
-                  color: theme.textSecondary,
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                  paddingRight: 12,
-                  paddingLeft: 8,
-                }}
-                title={attempt.upload_filename}
-              >
-                {attempt.upload_filename}
-              </div>
-              <div
-                style={{
-                  fontSize: 14,
-                  color: theme.textSecondary,
-                  paddingRight: 12,
-                  paddingLeft: 8,
-                }}
-              >
-                {attempt.correct_count}/{attempt.question_count}
-              </div>
-              <div
-                style={{
-                  fontSize: 14,
-                  color: theme.textSecondary,
-                  paddingRight: 12,
-                  paddingLeft: 8,
-                }}
-              >
-                {formatDuration(attempt.duration_seconds) || "—"}
-              </div>
-              <div
-                style={{
-                  fontSize: 14,
-                  color: theme.text,
-                  paddingRight: 12,
-                  paddingLeft: 8,
-                  fontWeight: 500,
-                }}
-              >
-                {attempt.difficulty || "Medium"}
-              </div>
-              <div
-                style={{
-                  fontSize: 14,
-                  color: theme.textSecondary,
-                  paddingRight: 12,
-                  paddingLeft: 8,
-                }}
-              >
-                {formatAvgTime(attempt.average_time_per_question) || "—"}
-              </div>
+              {visibleColumns.date && (
+                <div
+                  style={{
+                    fontSize: 14,
+                    color: theme.text,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                    paddingRight: 12,
+                    paddingLeft: 8,
+                  }}
+                >
+                  {formatDate(attempt.finished_at)}
+                </div>
+              )}
+              {visibleColumns.score && (
+                <div
+                  style={{
+                    fontSize: 14,
+                    fontWeight: "bold",
+                    color: getScoreColor(attempt.score_pct),
+                    backgroundColor: getScoreBackground(attempt.score_pct),
+                    padding: "4px 8px",
+                    borderRadius: 4,
+                    textAlign: "center",
+                    display: "inline-block",
+                    width: "fit-content",
+                    marginLeft: 8,
+                  }}
+                >
+                  {Math.round(attempt.score_pct)}%
+                </div>
+              )}
+              {visibleColumns.source && (
+                <div
+                  style={{
+                    fontSize: 14,
+                    color: theme.textSecondary,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                    paddingRight: 12,
+                    paddingLeft: 8,
+                  }}
+                  title={attempt.upload_filename}
+                >
+                  {attempt.upload_filename}
+                </div>
+              )}
+              {visibleColumns.questions && (
+                <div
+                  style={{
+                    fontSize: 14,
+                    color: theme.textSecondary,
+                    paddingRight: 12,
+                    paddingLeft: 8,
+                  }}
+                >
+                  {attempt.correct_count}/{attempt.question_count}
+                </div>
+              )}
+              {visibleColumns.duration && (
+                <div
+                  style={{
+                    fontSize: 14,
+                    color: theme.textSecondary,
+                    paddingRight: 12,
+                    paddingLeft: 8,
+                  }}
+                >
+                  {formatDuration(attempt.duration_seconds) || "—"}
+                </div>
+              )}
+              {visibleColumns.difficulty && (
+                <div
+                  style={{
+                    fontSize: 14,
+                    color: theme.text,
+                    paddingRight: 12,
+                    paddingLeft: 8,
+                    fontWeight: 500,
+                  }}
+                >
+                  {attempt.difficulty || "Medium"}
+                </div>
+              )}
+              {visibleColumns.examType && (
+                <div
+                  style={{
+                    fontSize: 14,
+                    color: theme.text,
+                    paddingRight: 12,
+                    paddingLeft: 8,
+                    fontWeight: 500,
+                  }}
+                >
+                  {attempt.exam_type === "practice" ? "Practice" : "Exam"}
+                </div>
+              )}
+              {visibleColumns.avgTime && (
+                <div
+                  style={{
+                    fontSize: 14,
+                    color: theme.textSecondary,
+                    paddingRight: 12,
+                    paddingLeft: 8,
+                  }}
+                >
+                  {formatAvgTime(attempt.average_time_per_question) || "—"}
+                </div>
+              )}
               <button
                 onClick={(e) => {
                   e.stopPropagation();

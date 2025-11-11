@@ -152,6 +152,20 @@ export default function Dashboard() {
     }
   };
 
+  const handleBulkDeleteAttempts = async (attemptIds: number[]) => {
+    try {
+      // Delete all attempts in parallel
+      await Promise.all(attemptIds.map((id) => deleteAttempt(id)));
+      // Update state once with all deletions
+      setAttempts(attempts.filter((a) => !attemptIds.includes(a.id)));
+      // Trigger insights refresh on exam deletion
+      window.dispatchEvent(new CustomEvent("exam-deleted"));
+    } catch (e: any) {
+      setError(e?.message || "Failed to delete attempts");
+      throw e; // Re-throw to let ExamHistory show error
+    }
+  };
+
   const handleUploadNew = () => {
     navigate("/upload");
   };
@@ -164,13 +178,8 @@ export default function Dashboard() {
     window.dispatchEvent(new CustomEvent("showTutorial"));
   };
 
-  const handlePreviewLayout = (sections: DashboardSection[]) => {
-    // Update state immediately for preview (don't persist yet)
-    setLayoutSections(sections);
-  };
-
   const handleSaveLayout = (sections: DashboardSection[]) => {
-    // Persist to localStorage only when Save is clicked
+    // Update state and persist to localStorage when Save is clicked
     setLayoutSections(sections);
     localStorage.setItem("dashboardLayout", JSON.stringify(sections));
   };
@@ -233,6 +242,7 @@ export default function Dashboard() {
                 attempts={attempts}
                 onReviewAttempt={handleReviewAttempt}
                 onDeleteAttempt={handleDeleteAttempt}
+                onBulkDeleteAttempts={handleBulkDeleteAttempts}
                 darkMode={darkMode}
                 theme={theme}
               />
@@ -419,8 +429,10 @@ export default function Dashboard() {
               strokeLinecap="round"
               strokeLinejoin="round"
             >
-              <circle cx="12" cy="12" r="3"></circle>
-              <path d="M12 1v6m0 6v6m9-9h-6m-6 0H3"></path>
+              <rect x="3" y="3" width="7" height="7"></rect>
+              <rect x="14" y="3" width="7" height="7"></rect>
+              <rect x="14" y="14" width="7" height="7"></rect>
+              <rect x="3" y="14" width="7" height="7"></rect>
             </svg>
             Customize Layout
           </button>
@@ -435,7 +447,6 @@ export default function Dashboard() {
         <DashboardLayoutSettings
           sections={layoutSections}
           onSave={handleSaveLayout}
-          onChange={handlePreviewLayout}
           onClose={() => setShowLayoutSettings(false)}
           darkMode={darkMode}
           theme={theme}
