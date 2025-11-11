@@ -7,6 +7,7 @@ import type {
   QuestionType,
   UploadResponse,
   UploadSummary,
+  DetailedAnalytics,
 } from "../types";
 
 /**
@@ -76,11 +77,26 @@ export async function getExam(examId: number) {
 
 export async function gradeExam(
   examId: number,
-  answers: { questionId: number; response: unknown }[]
+  answers: { questionId: number; response: unknown }[],
+  apiKey?: string,
+  durationSeconds?: number,
+  examType?: "exam" | "practice"
 ) {
+  const headers: Record<string, string> = {};
+  if (apiKey) {
+    headers["X-Gemini-API-Key"] = apiKey;
+  }
+  if (durationSeconds !== undefined) {
+    headers["X-Exam-Duration"] = durationSeconds.toString();
+  }
+  if (examType) {
+    headers["X-Exam-Type"] = examType;
+  }
+
   const { data } = await api.post<GradeReport>(
     `/exams/${examId}/grade`,
-    answers
+    answers,
+    { headers }
   );
   return data;
 }
@@ -369,6 +385,28 @@ export async function sendChatMessage(params: {
     {
       headers: {
         "X-Gemini-API-Key": params.apiKey,
+      },
+    }
+  );
+  return data;
+}
+
+// Analytics endpoints
+export async function fetchDetailedAnalytics(): Promise<DetailedAnalytics> {
+  const { data } = await api.get<DetailedAnalytics>("/analytics/detailed");
+  return data;
+}
+
+export async function generatePerformanceInsights(
+  analyticsData: DetailedAnalytics,
+  apiKey: string
+): Promise<{ insights: string }> {
+  const { data } = await api.post<{ insights: string }>(
+    "/analytics/generate-insights",
+    analyticsData,
+    {
+      headers: {
+        "X-Gemini-API-Key": apiKey,
       },
     }
   );

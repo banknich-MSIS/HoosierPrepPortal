@@ -10,27 +10,38 @@ import PyPDF2
 from docx import Document
 from pptx import Presentation
 from PIL import Image
+import logging
+
+
+# Get logger
+logger = logging.getLogger(__name__)
 
 
 async def extract_text_from_pdf(file: UploadFile) -> str:
     """Extract text content from a PDF file."""
     try:
+        logger.info(f"[PDF] Starting extraction from {file.filename}")
         content = await file.read()
+        logger.info(f"[PDF] Read {len(content)} bytes from {file.filename}")
 
         def _parse_pdf_bytes(data: bytes) -> str:
             pdf_file = io.BytesIO(data)
             pdf_reader = PyPDF2.PdfReader(pdf_file)
             text_parts = []
-            for page in pdf_reader.pages:
+            logger.info(f"[PDF] PDF has {len(pdf_reader.pages)} pages")
+            for i, page in enumerate(pdf_reader.pages):
                 text = page.extract_text()
                 if text:
                     text_parts.append(text)
+                    logger.debug(f"[PDF] Extracted {len(text)} chars from page {i+1}")
             return "\n\n".join(text_parts)
 
         text = await asyncio.to_thread(_parse_pdf_bytes, content)
         await file.seek(0)  # Reset file pointer
+        logger.info(f"[PDF] Successfully extracted {len(text)} chars from {file.filename}")
         return text
     except Exception as e:
+        logger.error(f"[PDF] Failed to extract from {file.filename}: {str(e)}", exc_info=True)
         raise ValueError(f"Failed to extract text from PDF: {str(e)}")
 
 

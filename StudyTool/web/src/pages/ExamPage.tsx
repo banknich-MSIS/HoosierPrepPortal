@@ -13,7 +13,13 @@ export default function ExamPage() {
     darkMode: boolean;
     theme: any;
   }>();
-  const { questions, examId: storeExamId, answers, setExam, reset } = useExamStore();
+  const {
+    questions,
+    examId: storeExamId,
+    answers,
+    setExam,
+    reset,
+  } = useExamStore();
   const [showUnansweredAlert, setShowUnansweredAlert] = useState(false);
   const [unansweredCount, setUnansweredCount] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -21,6 +27,7 @@ export default function ExamPage() {
   const [answeredQuestions, setAnsweredQuestions] = useState<Set<number>>(
     new Set()
   );
+  const [examStartTime, setExamStartTime] = useState<number>(Date.now());
 
   useEffect(() => {
     const loadExam = async () => {
@@ -40,6 +47,7 @@ export default function ExamPage() {
             `Loaded exam ${examId} with ${examData.questions.length} questions`
           );
           setExam(Number(examId), examData.questions);
+          setExamStartTime(Date.now()); // Reset start time when exam loads
         } catch (e) {
           console.error("Failed to load exam:", e);
         } finally {
@@ -93,17 +101,32 @@ export default function ExamPage() {
   const onSubmit = async () => {
     if (!storeExamId) return;
     if (isSubmitting) return; // Prevent double submission
-    
+
     setIsSubmitting(true);
     try {
       const payload = questions.map((it) => ({
         questionId: it.id,
         response: answers[it.id] !== undefined ? answers[it.id] : null,
       }));
-      
+
+      // Get API key for AI explanations
+      const apiKey = localStorage.getItem("gemini_api_key") || undefined;
+
+      // Calculate duration in seconds
+      const durationSeconds = Math.floor((Date.now() - examStartTime) / 1000);
+
       console.log("Submitting exam with payload:", payload);
-      const graded = await gradeExam(storeExamId, payload);
+      const graded = await gradeExam(
+        storeExamId,
+        payload,
+        apiKey,
+        durationSeconds,
+        "exam"
+      );
       console.log("Grading response:", graded);
+
+      // Trigger insights refresh on exam completion
+      window.dispatchEvent(new CustomEvent("exam-completed"));
 
       // Navigate to attempt review page with the attemptId from graded response
       if (graded.attemptId) {
@@ -115,7 +138,11 @@ export default function ExamPage() {
       }
     } catch (error) {
       console.error("Error submitting exam:", error);
-      alert(`Failed to submit exam: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      alert(
+        `Failed to submit exam: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
+      );
       setIsSubmitting(false);
     }
   };
@@ -218,7 +245,7 @@ export default function ExamPage() {
             Questions
           </h3>
           <QuestionNavigator darkMode={darkMode} theme={theme} />
-          
+
           {/* Submit Button */}
           <button
             onClick={handleSubmitClick}
@@ -236,7 +263,9 @@ export default function ExamPage() {
               letterSpacing: "-0.2px",
               cursor: isSubmitting ? "not-allowed" : "pointer",
               transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
-              boxShadow: isSubmitting ? "none" : "0 2px 8px rgba(196, 30, 58, 0.25)",
+              boxShadow: isSubmitting
+                ? "none"
+                : "0 2px 8px rgba(196, 30, 58, 0.25)",
               opacity: isSubmitting ? 0.6 : 1,
             }}
             onMouseEnter={(e) => {
@@ -354,9 +383,12 @@ export default function ExamPage() {
                   color: theme.text,
                 }}
               >
-                You have {unansweredCount} unanswered question(s) that will be marked as incorrect. Ready to submit?
+                You have {unansweredCount} unanswered question(s) that will be
+                marked as incorrect. Ready to submit?
               </p>
-              <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
+              <div
+                style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}
+              >
                 <button
                   onClick={() => setShowUnansweredAlert(false)}
                   style={{

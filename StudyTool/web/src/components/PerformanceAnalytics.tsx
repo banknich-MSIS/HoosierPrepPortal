@@ -1,8 +1,32 @@
-import React from "react";
-import type { AttemptSummary } from "../types";
+import React, { useState, useEffect, useCallback } from "react";
+import {
+  LineChart,
+  Line,
+  PieChart,
+  Pie,
+  Cell,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from "recharts";
+import { fetchDetailedAnalytics } from "../api/client";
+import type { DetailedAnalytics, TimelineDataPoint } from "../types";
+import {
+  loadInsights,
+  clearInsights,
+  generateAndSaveInsights,
+  shouldRegenerateInsights,
+  formatInsightTimestamp,
+  type StoredInsight,
+} from "../utils/insightsManager";
 
 interface PerformanceAnalyticsProps {
-  attempts: AttemptSummary[];
+  attempts: any[];
   darkMode: boolean;
   theme: any;
 }
@@ -12,66 +36,224 @@ export default function PerformanceAnalytics({
   darkMode,
   theme,
 }: PerformanceAnalyticsProps) {
-  if (attempts.length === 0) {
+  const [analytics, setAnalytics] = useState<DetailedAnalytics | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [classFilter, setClassFilter] = useState<string>("all");
+  const [storedInsight, setStoredInsight] = useState<StoredInsight | null>(
+    null
+  );
+  const [generatingInsights, setGeneratingInsights] = useState(false);
+  const [insightsError, setInsightsError] = useState<string | null>(null);
+  const [availableClasses, setAvailableClasses] = useState<string[]>([]);
+  const [showStaleDataNotice, setShowStaleDataNotice] = useState(false);
+  const [hoveredButton, setHoveredButton] = useState<string | null>(null);
+
+  useEffect(() => {
+    loadAnalytics();
+  }, []);
+
+  // Load stored insights on mount
+  useEffect(() => {
+    const stored = loadInsights();
+    if (stored) {
+      setStoredInsight(stored);
+    }
+  }, []);
+
+  // Listen for exam data changes
+  useEffect(() => {
+    const handleExamChange = () => {
+      // Reload analytics and regenerate insights
+      loadAnalytics();
+    };
+
+    window.addEventListener("exam-completed", handleExamChange);
+    window.addEventListener("exam-deleted", handleExamChange);
+    window.addEventListener("insights-refresh-requested", handleExamChange);
+
+    return () => {
+      window.removeEventListener("exam-completed", handleExamChange);
+      window.removeEventListener("exam-deleted", handleExamChange);
+      window.removeEventListener(
+        "insights-refresh-requested",
+        handleExamChange
+      );
+    };
+  }, []);
+
+  // Auto-generate insights when analytics data loads or changes
+  useEffect(() => {
+    if (analytics && analytics.timeline_data.length > 0) {
+      // Check if we need to regenerate
+      if (shouldRegenerateInsights(analytics, storedInsight)) {
+        handleGenerateInsights();
+      } else if (
+        storedInsight &&
+        storedInsight.examCount === 0 &&
+        analytics.timeline_data.length > 0
+      ) {
+        // Edge case: stored insight was for no exams, but now we have exams
+        handleGenerateInsights();
+      }
+    } else if (
+      storedInsight &&
+      storedInsight.examCount > 0 &&
+      (!analytics || analytics.timeline_data.length === 0)
+    ) {
+      // Show stale data notice if all exams were deleted
+      setShowStaleDataNotice(true);
+    } else {
+      setShowStaleDataNotice(false);
+    }
+  }, [analytics, storedInsight]);
+
+  const loadAnalytics = async () => {
+    try {
+      setLoading(true);
+      const data = await fetchDetailedAnalytics();
+      setAnalytics(data);
+
+      // Extract unique classes from attempts
+      const classes = new Set<string>();
+      attempts.forEach((attempt) => {
+        if (attempt.class_tags) {
+          attempt.class_tags.forEach((tag) => classes.add(tag));
+        }
+      });
+      setAvailableClasses(Array.from(classes).sort());
+    } catch (error) {
+      console.error("Failed to load analytics:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGenerateInsights = useCallback(async () => {
+    if (!analytics) return;
+
+    const apiKey = localStorage.getItem("gemini_api_key");
+    if (!apiKey) {
+      setInsightsError(
+        "Please add your Gemini API key in Settings to generate insights."
+      );
+      return;
+    }
+
+    try {
+      setGeneratingInsights(true);
+      setInsightsError(null);
+      setShowStaleDataNotice(false);
+
+      const stored = await generateAndSaveInsights(analytics, apiKey);
+      setStoredInsight(stored);
+    } catch (error: any) {
+      setInsightsError(
+        error?.response?.data?.detail || "Failed to generate insights"
+      );
+    } finally {
+      setGeneratingInsights(false);
+    }
+  }, [analytics]);
+
+  const handleClearInsights = () => {
+    clearInsights();
+    setStoredInsight(null);
+    setInsightsError(null);
+    setShowStaleDataNotice(false);
+  };
+
+  const handleRefreshInsights = () => {
+    if (analytics && analytics.timeline_data.length > 0) {
+      handleGenerateInsights();
+    }
+  };
+
+  if (loading || !analytics || attempts.length === 0) {
     return null;
   }
 
-  // Calculate analytics
-  const totalAttempts = attempts.length;
-  const averageScore =
-    attempts.reduce((sum, a) => sum + a.score_pct, 0) / totalAttempts;
-  const bestScore = Math.max(...attempts.map((a) => a.score_pct));
-  const worstScore = Math.min(...attempts.map((a) => a.score_pct));
+  // Filter timeline data based on selected class
+  const filterTimelineData = (data: TimelineDataPoint[]) => {
+    if (classFilter === "all") return data;
 
-  // Score trend (last 5 attempts)
-  const recentAttempts = attempts.slice(0, 5).reverse();
-  const scoreTrend = recentAttempts.map((a) => a.score_pct);
+    // Filter attempts by class tag
+    const filteredAttemptIds = new Set(
+      attempts
+        .filter((attempt) => attempt.class_tags?.includes(classFilter))
+        .map((attempt) => attempt.id)
+    );
 
-  // Performance by source
-  const sourceStats = attempts.reduce((acc, attempt) => {
-    const source = attempt.upload_filename;
-    if (!acc[source]) {
-      acc[source] = { count: 0, totalScore: 0, scores: [] };
-    }
-    acc[source].count++;
-    acc[source].totalScore += attempt.score_pct;
-    acc[source].scores.push(attempt.score_pct);
-    return acc;
-  }, {} as Record<string, { count: number; totalScore: number; scores: number[] }>);
-
-  // Performance by class analysis
-  const getPerformanceByClass = () => {
-    // Group attempts by class tags
-    const classPerformance = attempts.reduce((acc, attempt) => {
-      const classTags = attempt.class_tags || ["Unassigned"];
-      classTags.forEach((tag) => {
-        if (!acc[tag]) {
-          acc[tag] = { scores: [], count: 0, totalScore: 0 };
-        }
-        acc[tag].scores.push(attempt.score_pct);
-        acc[tag].count++;
-        acc[tag].totalScore += attempt.score_pct;
-      });
-      return acc;
-    }, {} as Record<string, { scores: number[]; count: number; totalScore: number }>);
-
-    return Object.entries(classPerformance)
-      .map(([className, stats]) => ({
-        className,
-        averageScore: stats.totalScore / stats.count,
-        count: stats.count,
-        bestScore: Math.max(...stats.scores),
-        worstScore: Math.min(...stats.scores),
-      }))
-      .sort((a, b) => b.averageScore - a.averageScore);
+    return data.filter((point) => filteredAttemptIds.has(point.attempt_id));
   };
 
-  const performanceByClass = getPerformanceByClass();
+  const filteredTimeline = filterTimelineData(analytics.timeline_data);
 
-  // Simple trend visualization
-  const maxScore = Math.max(...scoreTrend);
-  const minScore = Math.min(...scoreTrend);
-  const range = maxScore - minScore || 1;
+  // Calculate rolling average
+  const calculateRollingAverage = (
+    data: TimelineDataPoint[],
+    windowSize: number = 3
+  ) => {
+    return data.map((point, idx) => {
+      const start = Math.max(0, idx - windowSize + 1);
+      const window = data.slice(start, idx + 1);
+      const avg = window.reduce((sum, p) => sum + p.score, 0) / window.length;
+      return {
+        date: new Date(point.date).toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+        }),
+        score: point.score,
+        rollingAvg: Math.round(avg * 10) / 10,
+        difficulty: point.difficulty || "M",
+        sourceType: point.source_type || "Mixed",
+      };
+    });
+  };
+
+  const timelineChartData = calculateRollingAverage(filteredTimeline);
+
+  // Prepare question type data for donut chart
+  const questionTypeData = Object.entries(analytics.question_type_stats).map(
+    ([type, stats]) => ({
+      name: type.toUpperCase(),
+      accuracy: stats.accuracy,
+      total: stats.total,
+      correct: stats.correct,
+      fill:
+        stats.accuracy >= 80
+          ? "#28a745"
+          : stats.accuracy >= 60
+          ? "#ffc107"
+          : "#dc3545",
+    })
+  );
+
+  // Find strongest and weakest types
+  const sortedTypes = [...questionTypeData].sort(
+    (a, b) => b.accuracy - a.accuracy
+  );
+  const strongestType = sortedTypes[0];
+  const weakestType = sortedTypes[sortedTypes.length - 1];
+
+  // Prepare source material data
+  const sourceData = Object.entries(analytics.source_material_stats)
+    .map(([source, stats]) => ({
+      name: source.length > 25 ? source.substring(0, 22) + "..." : source,
+      fullName: source,
+      accuracy: stats.accuracy,
+      questionCount: stats.question_count,
+      appearances: stats.appearances,
+      fill:
+        stats.accuracy >= 80
+          ? "#28a745"
+          : stats.accuracy >= 60
+          ? "#ffc107"
+          : "#dc3545",
+    }))
+    .sort((a, b) => b.accuracy - a.accuracy);
+
+  // Colors for charts
+  const COLORS = ["#28a745", "#ffc107", "#dc3545", "#17a2b8", "#6f42c1"];
 
   return (
     <div
@@ -96,185 +278,348 @@ export default function PerformanceAnalytics({
         Performance Analytics
       </h3>
 
+      {/* AI Insights Card */}
       <div
         style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-          gap: 16,
-          marginBottom: 20,
+          marginBottom: 24,
+          padding: 18,
+          background: darkMode
+            ? "rgba(212, 166, 80, 0.08)"
+            : "rgba(196, 30, 58, 0.05)",
+          backdropFilter: "blur(8px)",
+          WebkitBackdropFilter: "blur(8px)",
+          borderRadius: 10,
+          border: `1px solid ${theme.glassBorder}`,
         }}
       >
-        {/* Key Metrics - Glassmorphism */}
         <div
           style={{
-            padding: 18,
-            background: "rgba(255, 255, 255, 0.05)",
-            backdropFilter: "blur(8px)",
-            WebkitBackdropFilter: "blur(8px)",
-            borderRadius: 10,
-            border: `1px solid ${theme.glassBorder}`,
+            display: "flex",
+            alignItems: "flex-start",
+            justifyContent: "space-between",
+            marginBottom: 12,
           }}
         >
-          <div
-            style={{
-              fontSize: 12,
-              color: theme.textSecondary,
-              marginBottom: 6,
-              textTransform: "uppercase",
-              letterSpacing: "0.5px",
-            }}
-          >
-            Average Score
+          <div>
+            <div
+              style={{
+                fontSize: 16,
+                fontWeight: 700,
+                color: theme.crimson,
+              }}
+            >
+              AI Performance Insights
+            </div>
+            {storedInsight && storedInsight.timestamp && (
+              <div
+                style={{
+                  fontSize: 11,
+                  color: theme.textSecondary,
+                  marginTop: 4,
+                }}
+              >
+                Last updated {formatInsightTimestamp(storedInsight.timestamp)}
+              </div>
+            )}
           </div>
-          <div
-            style={{
-              fontSize: 28,
-              fontWeight: 700,
-              color: theme.btnSuccess,
-            }}
-          >
-            {Math.round(averageScore)}%
+
+          {/* Clear/Refresh Buttons */}
+          <div style={{ display: "flex", gap: 6 }}>
+            {storedInsight && (
+              <button
+                onClick={handleRefreshInsights}
+                onMouseEnter={() => setHoveredButton("refresh")}
+                onMouseLeave={() => setHoveredButton(null)}
+                disabled={generatingInsights}
+                style={{
+                  padding: "6px 8px",
+                  background: "transparent",
+                  color: theme.crimson,
+                  border: `1px solid ${theme.glassBorder}`,
+                  borderRadius: 6,
+                  cursor: generatingInsights ? "not-allowed" : "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  opacity: generatingInsights
+                    ? 0.5
+                    : hoveredButton === "refresh"
+                    ? 0.8
+                    : 1,
+                  transition: "all 0.2s ease",
+                }}
+                title="Refresh insights"
+              >
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <polyline points="23 4 23 10 17 10"></polyline>
+                  <polyline points="1 20 1 14 7 14"></polyline>
+                  <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                </svg>
+              </button>
+            )}
+            {storedInsight && (
+              <button
+                onClick={handleClearInsights}
+                onMouseEnter={() => setHoveredButton("clear")}
+                onMouseLeave={() => setHoveredButton(null)}
+                disabled={generatingInsights}
+                style={{
+                  padding: "6px 8px",
+                  background: "transparent",
+                  color: theme.textSecondary,
+                  border: `1px solid ${theme.glassBorder}`,
+                  borderRadius: 6,
+                  cursor: generatingInsights ? "not-allowed" : "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  opacity: generatingInsights
+                    ? 0.5
+                    : hoveredButton === "clear"
+                    ? 0.8
+                    : 1,
+                  transition: "all 0.2s ease",
+                }}
+                title="Clear insights"
+              >
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+            )}
           </div>
         </div>
 
-        <div
-          style={{
-            padding: 18,
-            background: "rgba(255, 255, 255, 0.05)",
-            backdropFilter: "blur(8px)",
-            WebkitBackdropFilter: "blur(8px)",
-            borderRadius: 10,
-            border: `1px solid ${theme.glassBorder}`,
-          }}
-        >
-          <div
-            style={{
-              fontSize: 12,
-              color: theme.textSecondary,
-              marginBottom: 6,
-              textTransform: "uppercase",
-              letterSpacing: "0.5px",
-            }}
-          >
-            Best Score
-          </div>
-          <div
-            style={{
-              fontSize: 28,
-              fontWeight: 700,
-              color: theme.crimson,
-            }}
-          >
-            {Math.round(bestScore)}%
-          </div>
-        </div>
-
-        <div
-          style={{
-            padding: 18,
-            background: "rgba(255, 255, 255, 0.05)",
-            backdropFilter: "blur(8px)",
-            WebkitBackdropFilter: "blur(8px)",
-            borderRadius: 10,
-            border: `1px solid ${theme.glassBorder}`,
-          }}
-        >
-          <div
-            style={{
-              fontSize: 12,
-              color: theme.textSecondary,
-              marginBottom: 6,
-              textTransform: "uppercase",
-              letterSpacing: "0.5px",
-            }}
-          >
-            Total Exams
-          </div>
-          <div
-            style={{
-              fontSize: 28,
-              fontWeight: 700,
-              color: theme.amber,
-            }}
-          >
-            {totalAttempts}
-          </div>
-        </div>
-      </div>
-
-      {/* Score Trend Chart - Glassmorphism */}
-      {scoreTrend.length > 1 && (
-        <div
-          style={{
-            marginBottom: 20,
-            padding: 18,
-            background: "rgba(255, 255, 255, 0.03)",
-            backdropFilter: "blur(8px)",
-            WebkitBackdropFilter: "blur(8px)",
-            borderRadius: 10,
-            border: `1px solid ${theme.glassBorder}`,
-          }}
-        >
-          <div
-            style={{
-              fontSize: 14,
-              fontWeight: "bold",
-              marginBottom: 12,
-              color: theme.text,
-            }}
-          >
-            Recent Score Trend (Last {scoreTrend.length} Exams)
-          </div>
+        {/* Content Area */}
+        {generatingInsights ? (
           <div
             style={{
               display: "flex",
-              alignItems: "end",
-              height: 60,
+              alignItems: "center",
               gap: 8,
-              padding: "0 8px",
+              padding: "12px 0",
             }}
           >
-            {scoreTrend.map((score, index) => {
-              const height = ((score - minScore) / range) * 40 + 10;
-              return (
-                <div
-                  key={index}
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    flex: 1,
-                  }}
-                >
-                  <div
-                    style={{
-                      width: "100%",
-                      height: `${height}px`,
-                      backgroundColor:
-                        score >= 80
-                          ? "#28a745"
-                          : score >= 60
-                          ? "#ffc107"
-                          : "#dc3545",
-                      borderRadius: "2px 2px 0 0",
-                      marginBottom: 4,
-                    }}
-                  />
-                  <div style={{ fontSize: 10, color: theme.textSecondary }}>
-                    {Math.round(score)}%
-                  </div>
-                </div>
-              );
-            })}
+            <div
+              style={{
+                width: 16,
+                height: 16,
+                border: `2px solid ${theme.glassBorder}`,
+                borderTop: `2px solid ${theme.crimson}`,
+                borderRadius: "50%",
+                animation: "spin 1s linear infinite",
+              }}
+            />
+            <div
+              style={{
+                fontSize: 14,
+                color: theme.textSecondary,
+                fontStyle: "italic",
+              }}
+            >
+              Updating insights from your latest performance data...
+            </div>
           </div>
-        </div>
-      )}
+        ) : storedInsight && storedInsight.insights ? (
+          <div>
+            <div
+              style={{
+                fontSize: 14,
+                lineHeight: 1.6,
+                color: theme.text,
+                whiteSpace: "pre-line",
+              }}
+            >
+              {storedInsight.insights}
+            </div>
+            {showStaleDataNotice && (
+              <div
+                style={{
+                  marginTop: 12,
+                  padding: 10,
+                  background: darkMode
+                    ? "rgba(255, 193, 7, 0.08)"
+                    : "rgba(255, 193, 7, 0.12)",
+                  border: "1px solid rgba(255, 193, 7, 0.3)",
+                  borderRadius: 6,
+                  fontSize: 12,
+                  color: theme.text,
+                }}
+              >
+                <strong>Note:</strong> All exam data has been cleared. These
+                insights are from your previous exams. Clear or wait until you
+                complete new exams to generate fresh insights.
+              </div>
+            )}
+          </div>
+        ) : insightsError ? (
+          <div
+            style={{
+              fontSize: 13,
+              color: theme.crimson,
+              padding: "8px 0",
+            }}
+          >
+            {insightsError}
+          </div>
+        ) : (
+          <div
+            style={{
+              fontSize: 13,
+              color: theme.textSecondary,
+              padding: "8px 0",
+            }}
+          >
+            Start completing exams to unlock your personalized AI insights. Your
+            first insight will generate automatically!
+          </div>
+        )}
+      </div>
 
-      {/* Performance by Source - Glassmorphism */}
-      {Object.keys(sourceStats).length > 1 && (
+      {/* Timeline Chart */}
+      <div
+        style={{
+          marginBottom: 24,
+          padding: 18,
+          background: "rgba(255, 255, 255, 0.03)",
+          backdropFilter: "blur(8px)",
+          WebkitBackdropFilter: "blur(8px)",
+          borderRadius: 10,
+          border: `1px solid ${theme.glassBorder}`,
+        }}
+      >
         <div
           style={{
-            marginBottom: 20,
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: 16,
+          }}
+        >
+          <div
+            style={{
+              fontSize: 16,
+              fontWeight: 700,
+              color: theme.text,
+            }}
+          >
+            Performance Over Time
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <label
+              style={{
+                fontSize: 13,
+                color: theme.textSecondary,
+                fontWeight: 500,
+              }}
+            >
+              Filter by Class:
+            </label>
+            <select
+              value={classFilter}
+              onChange={(e) => setClassFilter(e.target.value)}
+              style={{
+                padding: "6px 12px",
+                background: darkMode
+                  ? "rgba(255, 255, 255, 0.05)"
+                  : "rgba(0, 0, 0, 0.05)",
+                color: theme.text,
+                border: `1px solid ${theme.glassBorder}`,
+                borderRadius: 6,
+                cursor: "pointer",
+                fontSize: 13,
+                fontWeight: 500,
+                outline: "none",
+              }}
+            >
+              <option value="all">All Classes</option>
+              {availableClasses.map((className) => (
+                <option key={className} value={className}>
+                  {className}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+        <ResponsiveContainer width="100%" height={200}>
+          <LineChart data={timelineChartData}>
+            <CartesianGrid strokeDasharray="3 3" stroke={theme.glassBorder} />
+            <XAxis
+              dataKey="date"
+              stroke={theme.textSecondary}
+              style={{ fontSize: 11 }}
+            />
+            <YAxis
+              domain={[0, 100]}
+              stroke={theme.textSecondary}
+              style={{ fontSize: 11 }}
+            />
+            <Tooltip
+              contentStyle={{
+                backgroundColor: darkMode ? "#2d1819" : "#fff",
+                border: `1px solid ${theme.glassBorder}`,
+                borderRadius: 6,
+                fontSize: 12,
+              }}
+              formatter={(value: any, name: string) => {
+                if (name === "score") return [`${value}%`, "Score"];
+                if (name === "rollingAvg") return [`${value}%`, "Avg"];
+                return [value, name];
+              }}
+            />
+            <Line
+              type="monotone"
+              dataKey="score"
+              stroke={theme.crimson}
+              strokeWidth={2}
+              dot={{ fill: theme.crimson, r: 4 }}
+            />
+            <Line
+              type="monotone"
+              dataKey="rollingAvg"
+              stroke={theme.amber}
+              strokeWidth={2}
+              strokeDasharray="5 5"
+              dot={false}
+            />
+          </LineChart>
+        </ResponsiveContainer>
+        <div
+          style={{
+            marginTop: 8,
+            fontSize: 11,
+            color: theme.textSecondary,
+            textAlign: "center",
+          }}
+        >
+          Solid line: actual scores | Dashed line: rolling average
+        </div>
+      </div>
+
+      {/* Question Type Breakdown */}
+      {questionTypeData.length > 0 && (
+        <div
+          style={{
+            marginBottom: 24,
             padding: 18,
             background: "rgba(255, 255, 255, 0.03)",
             backdropFilter: "blur(8px)",
@@ -285,72 +630,152 @@ export default function PerformanceAnalytics({
         >
           <div
             style={{
-              fontSize: 14,
-              fontWeight: "bold",
-              marginBottom: 12,
+              fontSize: 16,
+              fontWeight: 700,
+              marginBottom: 16,
               color: theme.text,
             }}
           >
-            Performance by Study Material
+            Question Type Breakdown
           </div>
-          <div style={{ display: "grid", gap: 8 }}>
-            {Object.entries(sourceStats).map(([source, stats]) => {
-              const avgScore = stats.totalScore / stats.count;
-              return (
+          <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
+            <ResponsiveContainer width="40%" height={180}>
+              <PieChart>
+                <Pie
+                  data={questionTypeData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={50}
+                  outerRadius={70}
+                  paddingAngle={2}
+                  dataKey="accuracy"
+                >
+                  {questionTypeData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.fill} />
+                  ))}
+                </Pie>
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: darkMode ? "#2d1819" : "#fff",
+                    border: `1px solid ${theme.glassBorder}`,
+                    borderRadius: 6,
+                    fontSize: 12,
+                  }}
+                  formatter={(value: any, name: string, props: any) => [
+                    `${value}% (${props.payload.correct}/${props.payload.total})`,
+                    props.payload.name,
+                  ]}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+            <div style={{ flex: 1 }}>
+              <div style={{ display: "grid", gap: 8 }}>
+                {questionTypeData.map((type) => (
+                  <div
+                    key={type.name}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      padding: "6px 10px",
+                      background: darkMode
+                        ? "rgba(255, 255, 255, 0.02)"
+                        : "rgba(0, 0, 0, 0.02)",
+                      borderRadius: 4,
+                      border: `1px solid ${theme.glassBorder}`,
+                    }}
+                  >
+                    <div
+                      style={{ display: "flex", alignItems: "center", gap: 8 }}
+                    >
+                      <div
+                        style={{
+                          width: 12,
+                          height: 12,
+                          borderRadius: 2,
+                          backgroundColor: type.fill,
+                        }}
+                      />
+                      <span style={{ fontSize: 13, color: theme.text }}>
+                        {type.name}
+                      </span>
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 13,
+                        fontWeight: 600,
+                        color: type.fill,
+                      }}
+                    >
+                      {type.accuracy}%
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+          {strongestType && weakestType && (
+            <div
+              style={{
+                marginTop: 16,
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: 12,
+              }}
+            >
+              <div
+                style={{
+                  padding: 10,
+                  background: "rgba(40, 167, 69, 0.08)",
+                  borderRadius: 6,
+                  border: "1px solid rgba(40, 167, 69, 0.2)",
+                }}
+              >
                 <div
-                  key={source}
                   style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    padding: 8,
-                    backgroundColor: darkMode ? "#3d3d3d" : "#f8f9fa",
-                    borderRadius: 4,
+                    fontSize: 11,
+                    color: theme.textSecondary,
+                    marginBottom: 4,
                   }}
                 >
-                  <div style={{ fontSize: 12, color: theme.text, flex: 1 }}>
-                    {source}
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 12,
-                      color: theme.textSecondary,
-                      marginRight: 8,
-                    }}
-                  >
-                    {stats.count} exam{stats.count > 1 ? "s" : ""}
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 12,
-                      fontWeight: "bold",
-                      color:
-                        avgScore >= 80
-                          ? "#28a745"
-                          : avgScore >= 60
-                          ? "#ffc107"
-                          : "#dc3545",
-                      backgroundColor:
-                        avgScore >= 80
-                          ? "#d4edda"
-                          : avgScore >= 60
-                          ? "#fff3cd"
-                          : "#f8d7da",
-                      padding: "2px 6px",
-                      borderRadius: 4,
-                    }}
-                  >
-                    {Math.round(avgScore)}%
-                  </div>
+                  Strongest Format
                 </div>
-              );
-            })}
-          </div>
+                <div
+                  style={{ fontSize: 14, fontWeight: 600, color: "#28a745" }}
+                >
+                  {strongestType.name} - {strongestType.accuracy}%
+                </div>
+              </div>
+              <div
+                style={{
+                  padding: 10,
+                  background: "rgba(220, 53, 69, 0.08)",
+                  borderRadius: 6,
+                  border: "1px solid rgba(220, 53, 69, 0.2)",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 11,
+                    color: theme.textSecondary,
+                    marginBottom: 4,
+                  }}
+                >
+                  Needs Practice
+                </div>
+                <div
+                  style={{ fontSize: 14, fontWeight: 600, color: "#dc3545" }}
+                >
+                  {weakestType.name} - {weakestType.accuracy}%
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
-      {/* Performance by Class - Glassmorphism */}
-      {performanceByClass.length > 0 && (
+      {/* Source Material Insights */}
+      {sourceData.length > 0 && (
         <div
           style={{
             padding: 18,
@@ -365,85 +790,128 @@ export default function PerformanceAnalytics({
             style={{
               fontSize: 16,
               fontWeight: 700,
-              marginBottom: 12,
-              color: theme.crimson,
+              marginBottom: 16,
+              color: theme.text,
             }}
           >
-            Performance by Class
+            Source Material Performance
           </div>
-          <div style={{ display: "grid", gap: 10 }}>
-            {performanceByClass.map((classData) => {
-              const scoreColor =
-                classData.averageScore >= 80
-                  ? theme.btnSuccess
-                  : classData.averageScore >= 60
-                  ? theme.amber
-                  : theme.btnDanger;
-              
-              return (
+          <ResponsiveContainer
+            width="100%"
+            height={Math.max(150, sourceData.length * 35)}
+          >
+            <BarChart
+              data={sourceData}
+              layout="vertical"
+              margin={{ left: 10, right: 30 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" stroke={theme.glassBorder} />
+              <XAxis
+                type="number"
+                domain={[0, 100]}
+                stroke={theme.textSecondary}
+                style={{ fontSize: 11 }}
+              />
+              <YAxis
+                type="category"
+                dataKey="name"
+                stroke={theme.textSecondary}
+                width={150}
+                style={{ fontSize: 11 }}
+              />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: darkMode ? "#2d1819" : "#fff",
+                  border: `1px solid ${theme.glassBorder}`,
+                  borderRadius: 6,
+                  fontSize: 12,
+                }}
+                formatter={(value: any, name: string, props: any) => [
+                  `${value}% accuracy (${props.payload.questionCount} questions, ${props.payload.appearances} exams)`,
+                  props.payload.fullName,
+                ]}
+              />
+              <Bar dataKey="accuracy" fill={theme.crimson}>
+                {sourceData.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={entry.fill} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+          <div
+            style={{
+              marginTop: 16,
+              padding: 12,
+              background: darkMode
+                ? "rgba(255, 193, 7, 0.08)"
+                : "rgba(255, 193, 7, 0.12)",
+              borderRadius: 6,
+              border: "1px solid rgba(255, 193, 7, 0.3)",
+            }}
+          >
+            <div
+              style={{
+                fontSize: 13,
+                fontWeight: 600,
+                color: theme.text,
+                marginBottom: 8,
+              }}
+            >
+              Study Coverage
+            </div>
+            <div style={{ display: "grid", gap: 6 }}>
+              {sourceData.map((source) => (
                 <div
-                  key={classData.className}
+                  key={source.fullName}
                   style={{
                     display: "flex",
                     justifyContent: "space-between",
-                    alignItems: "center",
-                    padding: "10px 12px",
-                    background: darkMode
-                      ? "rgba(255, 255, 255, 0.03)"
-                      : "rgba(0, 0, 0, 0.02)",
-                    borderRadius: 8,
-                    border: `1px solid ${theme.glassBorder}`,
+                    fontSize: 12,
+                    color: theme.text,
                   }}
                 >
-                  <div style={{ flex: 1 }}>
-                    <div
-                      style={{
-                        fontSize: 14,
-                        fontWeight: 600,
-                        color: theme.text,
-                        marginBottom: 4,
-                      }}
-                    >
-                      {classData.className}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: 12,
-                        color: theme.textSecondary,
-                      }}
-                    >
-                      {classData.count} exam{classData.count > 1 ? "s" : ""}
-                    </div>
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 20,
-                      fontWeight: 700,
-                      color: scoreColor,
-                    }}
-                  >
-                    {Math.round(classData.averageScore)}%
-                  </div>
+                  <span>
+                    {source.fullName}
+                    {source.appearances < 3 && (
+                      <span
+                        style={{
+                          color: "#ffc107",
+                          marginLeft: 6,
+                          fontWeight: 600,
+                        }}
+                      >
+                        !
+                      </span>
+                    )}
+                  </span>
+                  <span style={{ color: theme.textSecondary }}>
+                    {source.appearances} exam
+                    {source.appearances !== 1 ? "s" : ""}
+                  </span>
                 </div>
-              );
-            })}
-          </div>
-          <div
-            style={{
-              marginTop: 12,
-              padding: 10,
-              background: darkMode
-                ? "rgba(212, 166, 80, 0.05)"
-                : "rgba(196, 30, 58, 0.05)",
-              borderRadius: 6,
-              fontSize: 12,
-              color: theme.textSecondary,
-            }}
-          >
-            💡 Focus on classes with lower averages to improve overall performance
+              ))}
+            </div>
+            <div
+              style={{
+                marginTop: 8,
+                fontSize: 11,
+                color: theme.textSecondary,
+                fontStyle: "italic",
+              }}
+            >
+              ! indicates under-tested sources (less than 3 exam appearances)
+            </div>
           </div>
         </div>
       )}
+
+      {/* CSS Animation for Spinner */}
+      <style>{`
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
 }

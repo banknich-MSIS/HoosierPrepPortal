@@ -745,3 +745,148 @@ async def validate_api_key(api_key: str) -> bool:
         )
         raise ValueError(error_msg)
 
+
+async def generate_answer_explanation(
+    question_stem: str,
+    question_type: str,
+    correct_answer: Any,
+    user_answer: Any,
+    options: Optional[List[str]],
+    api_key: str
+) -> str:
+    """
+    Generate a concise AI explanation for why an answer is incorrect.
+    Returns a 2-3 sentence explanation comparing the user's answer to the correct answer.
+    """
+    if not api_key or not api_key.strip():
+        return ""
+    
+    configure_gemini(api_key)
+    
+    # Format answers for display
+    user_ans_str = str(user_answer) if user_answer is not None else "No answer provided"
+    correct_ans_str = str(correct_answer) if correct_answer is not None else "N/A"
+    
+    # Build context based on question type
+    question_context = f"Question: {question_stem}\n"
+    if options and len(options) > 0:
+        question_context += f"Options: {', '.join(options)}\n"
+    question_context += f"Correct Answer: {correct_ans_str}\n"
+    question_context += f"Student's Answer: {user_ans_str}\n"
+    
+    prompt = f"""{question_context}
+
+Provide a brief, helpful explanation (2-3 sentences) for why the student's answer is incorrect and why the correct answer is right. Be concise and educational.
+
+Focus on:
+1. Why the correct answer is right
+2. What misconception might have led to the student's choice (if applicable)
+
+Keep it under 100 words."""
+    
+    try:
+        # Use the same model resolution approach as other functions
+        model_name = resolve_model_for_key(api_key)
+        model = genai.GenerativeModel(model_name)
+        
+        response = model.generate_content(
+            prompt,
+            generation_config=genai.GenerationConfig(
+                temperature=0.7,
+                top_p=0.9,
+                top_k=40,
+                max_output_tokens=200,  # Keep explanations concise
+            ),
+        )
+        
+        explanation = response.text.strip()
+        return explanation if explanation else ""
+        
+    except Exception as e:
+        print(f"[Explanation] Failed to generate: {str(e)}")
+        # Return empty string on failure - don't block the grading process
+        return ""
+
+
+async def generate_performance_insights(
+    timeline_data: List[Dict[str, Any]],
+    question_type_stats: Dict[str, Any],
+    source_material_stats: Dict[str, Any],
+    api_key: str
+) -> str:
+    """
+    Generate AI-powered performance insights from analytics data.
+    Returns 2-3 sentence actionable summary of student performance.
+    """
+    if not api_key or not api_key.strip():
+        return "Add your Gemini API key to generate personalized performance insights."
+    
+    configure_gemini(api_key)
+    
+    # Prepare summary data
+    recent_attempts = timeline_data[-5:] if len(timeline_data) >= 5 else timeline_data
+    
+    # Format timeline summary
+    timeline_summary = []
+    for attempt in recent_attempts:
+        timeline_summary.append(f"Score: {attempt['score']}% on {attempt['date'][:10]}")
+    
+    # Find strongest and weakest question types
+    sorted_qtypes = sorted(
+        question_type_stats.items(),
+        key=lambda x: x[1]["accuracy"],
+        reverse=True
+    )
+    strongest_type = sorted_qtypes[0] if sorted_qtypes else None
+    weakest_type = sorted_qtypes[-1] if sorted_qtypes else None
+    
+    # Find best and worst performing sources
+    sorted_sources = sorted(
+        source_material_stats.items(),
+        key=lambda x: x[1]["accuracy"],
+        reverse=True
+    )
+    best_source = sorted_sources[0] if sorted_sources else None
+    worst_source = sorted_sources[-1] if sorted_sources else None
+    
+    # Build prompt
+    prompt = f"""Analyze this student's exam performance data and provide 2-3 actionable insights:
+
+RECENT PERFORMANCE:
+{chr(10).join(timeline_summary)}
+
+QUESTION TYPE PERFORMANCE:
+{chr(10).join([f"- {qtype}: {stats['accuracy']}% accuracy ({stats['correct']}/{stats['total']})" for qtype, stats in question_type_stats.items()])}
+
+SOURCE MATERIAL PERFORMANCE:
+{chr(10).join([f"- {source}: {stats['accuracy']}% accuracy ({stats['question_count']} questions, {stats['appearances']} exam appearances)" for source, stats in source_material_stats.items()])}
+
+Provide 2-3 sentences focusing on:
+1. Overall performance trends (improving, declining, or stable)
+2. Specific strengths or weaknesses in question formats
+3. Study material recommendations based on source performance
+4. One specific, actionable next step
+
+Keep the tone conversational and encouraging. Be specific with numbers when relevant."""
+
+    try:
+        model_name = resolve_model_for_key(api_key)
+        model = genai.GenerativeModel(model_name)
+        
+        response = model.generate_content(
+            prompt,
+            generation_config=genai.GenerationConfig(
+                temperature=0.8,
+                top_p=0.9,
+                top_k=40,
+                max_output_tokens=300,
+            ),
+        )
+        
+        insights = response.text.strip()
+        return insights if insights else "Unable to generate insights at this time."
+        
+    except Exception as e:
+        print(f"[Performance Insights] Failed to generate: {str(e)}")
+        return f"Unable to generate insights: {str(e)}"
+

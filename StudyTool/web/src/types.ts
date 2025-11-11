@@ -47,6 +47,11 @@ export interface AttemptSummary {
   finished_at: string;
   question_count: number;
   correct_count: number;
+  duration_seconds?: number | null;
+  difficulty?: string | null;
+  class_tags?: string[];
+  exam_type?: string;
+  average_time_per_question?: number | null;
 }
 
 export interface QuestionReview {
@@ -54,6 +59,7 @@ export interface QuestionReview {
   user_answer: unknown;
   correct_answer: unknown;
   is_correct: boolean;
+  ai_explanation?: string | null;
 }
 
 export interface AttemptDetail {
@@ -87,4 +93,36 @@ export interface Class {
 
 export interface ClassSummary extends Class {
   upload_count: number;
+}
+
+// Analytics types
+export interface TimelineDataPoint {
+  attempt_id: number;
+  date: string;
+  score: number;
+  difficulty?: string;
+  source_type?: string;
+  upload_names: string[];
+}
+
+export interface QuestionTypeStats {
+  [type: string]: {
+    total: number;
+    correct: number;
+    accuracy: number;
+  };
+}
+
+export interface SourceMaterialStats {
+  [sourceName: string]: {
+    accuracy: number;
+    question_count: number;
+    appearances: number;
+  };
+}
+
+export interface DetailedAnalytics {
+  timeline_data: TimelineDataPoint[];
+  question_type_stats: QuestionTypeStats;
+  source_material_stats: SourceMaterialStats;
 }

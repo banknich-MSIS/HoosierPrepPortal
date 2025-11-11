@@ -25,56 +25,38 @@ const TutorialModal: React.FC<TutorialModalProps> = ({
             This tool helps you create and take practice exams from your study
             materials using AI-powered generation.
           </p>
-          <p>Choose between two approaches based on your preference.</p>
+          <p>Let's walk through how to get started.</p>
         </div>
       ),
     },
     {
-      title: "Two Ways to Generate Exams",
+      title: "Step 1: Generate Your Exam",
       content: (
         <div>
-          <div style={{ marginBottom: 20 }}>
-            <strong style={{ color: theme.crimson }}>
-              Option 1: Exam Generator
-            </strong>
-            <p>
-              Fast and streamlined. Upload files, configure settings, and
-              generate instantly—no conversation needed.
-            </p>
-          </div>
-          <div>
-            <strong style={{ color: theme.amber }}>
-              Option 2: AI Assistant
-            </strong>
-            <p>
-              Guided, interactive experience with built-in AI chat. Talk with the assistant about your study goals, upload documents during the conversation, and refine your exam plan before generating.
-            </p>
-            <p style={{ fontSize: 14, color: theme.textSecondary }}>
-              Perfect for when you want guidance on what to study, how to structure your materials, or need help deciding on question types and difficulty levels.
-            </p>
-          </div>
-        </div>
-      ),
-    },
-    {
-      title: "Step 2: Using AI Assistant Chat",
-      content: (
-        <div>
-          <p>If you choose the AI Assistant with chat guidance:</p>
+          <p>
+            Use the{" "}
+            <strong style={{ color: theme.crimson }}>Exam Generator</strong> to
+            create practice exams:
+          </p>
           <ol style={{ paddingLeft: 20, marginTop: 12 }}>
-            <li>Chat with the AI assistant about your study goals</li>
-            <li>Upload documents during the conversation</li>
-            <li>Configure exam settings (question count, difficulty, types)</li>
-            <li>Generate your exam - it appears automatically in your Dashboard</li>
+            <li>Upload your study materials (PDFs, Word docs, slides, etc.)</li>
+            <li>
+              Configure your exam settings (question count, difficulty, types)
+            </li>
+            <li>Click "Generate Exam"</li>
+            <li>Your exam will appear in the Dashboard</li>
           </ol>
-          <p style={{ marginTop: 12, fontSize: 14, color: theme.textSecondary }}>
-            The chat assistant helps you plan and refine your approach before generating questions.
+          <p
+            style={{ marginTop: 12, fontSize: 14, color: theme.textSecondary }}
+          >
+            Fast and streamlined—no conversation needed, just upload and
+            configure.
           </p>
         </div>
       ),
     },
     {
-      title: "Step 3: Take Your Exam",
+      title: "Step 2: Take Your Exam",
       content: (
         <div>
           <p>Start your practice exam from the Dashboard!</p>
@@ -204,7 +186,10 @@ const TutorialModal: React.FC<TutorialModalProps> = ({
                   setDontShowAgain(checked);
                   // Save immediately when checked
                   if (checked) {
-                    localStorage.setItem("studytool_tutorial_completed", "true");
+                    localStorage.setItem(
+                      "studytool_tutorial_completed",
+                      "true"
+                    );
                   } else {
                     localStorage.removeItem("studytool_tutorial_completed");
                   }

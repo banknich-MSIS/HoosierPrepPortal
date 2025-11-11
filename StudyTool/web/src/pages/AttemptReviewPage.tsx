@@ -106,7 +106,7 @@ export default function AttemptReviewPage() {
 
   const formatDate = (date: string) => {
     // Ensure UTC parsing if 'Z' is missing
-    const dateStr = date.endsWith('Z') ? date : date + 'Z';
+    const dateStr = date.endsWith("Z") ? date : date + "Z";
     return new Date(dateStr).toLocaleString("en-US", {
       year: "numeric",
       month: "long",
@@ -181,6 +181,41 @@ export default function AttemptReviewPage() {
           overflow: "auto",
         }}
       >
+        {/* Back to Dashboard Button - Top */}
+        <button
+          onClick={() => navigate("/")}
+          style={{
+            width: "100%",
+            padding: "10px 16px",
+            background: darkMode
+              ? "rgba(196, 30, 58, 0.2)"
+              : "rgba(220, 53, 69, 0.12)",
+            color: darkMode ? "#ef5350" : "#c41e3a",
+            border: `1px solid ${
+              darkMode ? "rgba(196, 30, 58, 0.3)" : "rgba(196, 30, 58, 0.2)"
+            }`,
+            borderRadius: 6,
+            cursor: "pointer",
+            fontWeight: 600,
+            fontSize: 14,
+            transition: "all 0.2s ease",
+            textAlign: "center",
+            marginBottom: 16,
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = darkMode
+              ? "rgba(196, 30, 58, 0.3)"
+              : "rgba(220, 53, 69, 0.18)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = darkMode
+              ? "rgba(196, 30, 58, 0.2)"
+              : "rgba(220, 53, 69, 0.12)";
+          }}
+        >
+          ← Back to Dashboard
+        </button>
+
         <div style={{ marginBottom: 16 }}>
           <h3
             style={{ margin: "0 0 8px 0", fontSize: "18px", color: theme.text }}
@@ -199,6 +234,75 @@ export default function AttemptReviewPage() {
           <div style={{ fontSize: "14px", color: theme.textSecondary }}>
             {correctCount} / {totalCount} correct
           </div>
+        </div>
+
+        {/* Show Wrong Only Toggle */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "12px",
+            background: darkMode
+              ? "rgba(194, 155, 74, 0.08)"
+              : "rgba(194, 155, 74, 0.05)",
+            border: `1px solid ${theme.glassBorder}`,
+            borderRadius: 8,
+            marginBottom: 20,
+          }}
+        >
+          <span style={{ fontSize: 14, color: theme.text, fontWeight: 500 }}>
+            Show Wrong Only
+          </span>
+          <label
+            style={{
+              position: "relative",
+              display: "inline-block",
+              width: 44,
+              height: 24,
+              cursor: "pointer",
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={showWrongOnly}
+              onChange={(e) => setShowWrongOnly(e.target.checked)}
+              style={{ opacity: 0, width: 0, height: 0 }}
+            />
+            <span
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                background: showWrongOnly
+                  ? darkMode
+                    ? "rgba(194, 155, 74, 0.4)"
+                    : "rgba(194, 155, 74, 0.3)"
+                  : darkMode
+                  ? "rgba(194, 155, 74, 0.15)"
+                  : "rgba(194, 155, 74, 0.1)",
+                borderRadius: 12,
+                transition: "all 0.3s ease",
+                border: `1px solid ${theme.glassBorder}`,
+              }}
+            >
+              <span
+                style={{
+                  position: "absolute",
+                  height: 16,
+                  width: 16,
+                  left: showWrongOnly ? 24 : 4,
+                  bottom: 3,
+                  background: darkMode ? "#d4a650" : "#c29b4a",
+                  borderRadius: "50%",
+                  transition: "all 0.3s ease",
+                  boxShadow: "0 1px 3px rgba(0, 0, 0, 0.3)",
+                }}
+              />
+            </span>
+          </label>
         </div>
 
         {/* Question Navigator Grid */}
@@ -247,108 +351,6 @@ export default function AttemptReviewPage() {
 
       {/* Main Content */}
       <main style={{ overflow: "auto", padding: "16px" }}>
-        {/* Top Bar */}
-        <div
-          style={{
-            display: "flex",
-            gap: 12,
-            marginBottom: 24,
-            padding: "12px 0",
-            borderBottom: `2px solid ${theme.border}`,
-            flexWrap: "wrap",
-            alignItems: "center",
-          }}
-        >
-          <button
-            onClick={() => navigate("/upload")}
-            style={{
-              padding: "10px 24px",
-              background: theme.crimson,
-              color: "white",
-              border: "none",
-              borderRadius: 6,
-              cursor: "pointer",
-              fontWeight: 600,
-              letterSpacing: "-0.2px",
-              fontSize: 15,
-              transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
-              boxShadow: "0 2px 8px rgba(196, 30, 58, 0.25)",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.boxShadow =
-                "0 4px 12px rgba(196, 30, 58, 0.35)";
-              e.currentTarget.style.transform = "translateY(-1px)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.boxShadow =
-                "0 2px 8px rgba(196, 30, 58, 0.25)";
-              e.currentTarget.style.transform = "translateY(0)";
-            }}
-          >
-            Start Over
-          </button>
-          <button
-            onClick={() => navigate("/")}
-            style={{
-              padding: "10px 24px",
-              background: theme.amber,
-              color: "white",
-              border: "none",
-              borderRadius: 6,
-              cursor: "pointer",
-              fontWeight: 600,
-              letterSpacing: "-0.2px",
-              fontSize: 15,
-              transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
-              boxShadow: "0 2px 8px rgba(212, 166, 80, 0.25)",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.boxShadow =
-                "0 4px 12px rgba(212, 166, 80, 0.35)";
-              e.currentTarget.style.transform = "translateY(-1px)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.boxShadow =
-                "0 2px 8px rgba(212, 166, 80, 0.25)";
-              e.currentTarget.style.transform = "translateY(0)";
-            }}
-          >
-            Home
-          </button>
-          <button
-            onClick={() => setShowWrongOnly(!showWrongOnly)}
-            style={{
-              padding: "10px 24px",
-              background: showWrongOnly ? theme.btnWarning : theme.crimson,
-              color: "white",
-              border: "none",
-              borderRadius: 6,
-              cursor: "pointer",
-              fontWeight: 600,
-              letterSpacing: "-0.2px",
-              fontSize: 15,
-              transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
-              boxShadow: showWrongOnly
-                ? "0 2px 8px rgba(255, 193, 7, 0.25)"
-                : "0 2px 8px rgba(196, 30, 58, 0.25)",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = "translateY(-1px)";
-              e.currentTarget.style.boxShadow = showWrongOnly
-                ? "0 4px 12px rgba(255, 193, 7, 0.35)"
-                : "0 4px 12px rgba(196, 30, 58, 0.35)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = "translateY(0)";
-              e.currentTarget.style.boxShadow = showWrongOnly
-                ? "0 2px 8px rgba(255, 193, 7, 0.25)"
-                : "0 2px 8px rgba(196, 30, 58, 0.25)";
-            }}
-          >
-            {showWrongOnly ? "Show All Questions" : "Show Wrong Answers Only"}
-          </button>
-        </div>
-
         {/* Questions */}
         <div
           style={{
@@ -403,7 +405,9 @@ export default function AttemptReviewPage() {
                     marginBottom: 12,
                   }}
                 >
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <div
+                    style={{ display: "flex", alignItems: "center", gap: 10 }}
+                  >
                     <h3
                       style={{
                         margin: 0,
@@ -420,9 +424,15 @@ export default function AttemptReviewPage() {
                           borderRadius: 4,
                           fontSize: "12px",
                           fontWeight: 600,
-                          backgroundColor: darkMode ? "rgba(194, 155, 74, 0.2)" : "rgba(194, 155, 74, 0.15)",
+                          backgroundColor: darkMode
+                            ? "rgba(194, 155, 74, 0.2)"
+                            : "rgba(194, 155, 74, 0.15)",
                           color: darkMode ? "#d4a650" : "#c29b4a",
-                          border: `1.5px solid ${darkMode ? "rgba(194, 155, 74, 0.4)" : "rgba(194, 155, 74, 0.3)"}`,
+                          border: `1.5px solid ${
+                            darkMode
+                              ? "rgba(194, 155, 74, 0.4)"
+                              : "rgba(194, 155, 74, 0.3)"
+                          }`,
                           fontStyle: "italic",
                         }}
                       >
@@ -501,7 +511,7 @@ export default function AttemptReviewPage() {
                         const isUserAnswer =
                           !isAnswerEmpty(questionReview.user_answer) &&
                           String(questionReview.user_answer).toLowerCase() ===
-                          option.toLowerCase();
+                            option.toLowerCase();
                         const isCorrectAnswer =
                           String(
                             questionReview.correct_answer
@@ -514,12 +524,12 @@ export default function AttemptReviewPage() {
                         if (isCorrectAnswer) {
                           backgroundColor = darkMode ? "#1a3d1a" : "#d4edda";
                           borderColor = "#28a745";
-                          label = "✓ Correct Answer";
+                          label = "Correct Answer";
                         }
                         if (isUserAnswer && !isCorrectAnswer) {
                           backgroundColor = darkMode ? "#3d1a1a" : "#f8d7da";
                           borderColor = "#dc3545";
-                          label = "✗ Your Answer";
+                          label = "Your Answer";
                         }
 
                         return (
@@ -567,8 +577,8 @@ export default function AttemptReviewPage() {
                           !isAnswerEmpty(questionReview.user_answer) &&
                           (String(questionReview.user_answer) ===
                             String(option) ||
-                          (Array.isArray(questionReview.user_answer) &&
-                            questionReview.user_answer.includes(option)));
+                            (Array.isArray(questionReview.user_answer) &&
+                              questionReview.user_answer.includes(option)));
                         const isCorrectAnswer =
                           String(questionReview.correct_answer) ===
                             String(option) ||
@@ -582,12 +592,12 @@ export default function AttemptReviewPage() {
                         if (isCorrectAnswer) {
                           backgroundColor = darkMode ? "#1a3d1a" : "#d4edda";
                           borderColor = "#28a745";
-                          label = "✓ Correct Answer";
+                          label = "Correct Answer";
                         }
                         if (isUserAnswer && !isCorrectAnswer) {
                           backgroundColor = darkMode ? "#3d1a1a" : "#f8d7da";
                           borderColor = "#dc3545";
-                          label = "✗ Your Answer";
+                          label = "Your Answer";
                         }
 
                         return (
@@ -689,8 +699,8 @@ export default function AttemptReviewPage() {
                             color: theme.text,
                           }}
                         >
-                          {isAnswerEmpty(questionReview.user_answer) 
-                            ? "—" 
+                          {isAnswerEmpty(questionReview.user_answer)
+                            ? "—"
                             : String(questionReview.user_answer)}
                         </div>
                       </div>
@@ -719,6 +729,45 @@ export default function AttemptReviewPage() {
                         </div>
                       </div>
                     </div>
+
+                    {/* AI Explanation for Incorrect Answers */}
+                    {!questionReview.is_correct &&
+                      questionReview.ai_explanation && (
+                        <div
+                          style={{
+                            marginTop: 16,
+                            padding: 16,
+                            backgroundColor: darkMode ? "#1a2228" : "#f0f7ff",
+                            borderLeft: `4px solid ${theme.crimson}`,
+                            borderRadius: 6,
+                          }}
+                        >
+                          <div
+                            style={{
+                              fontWeight: "bold",
+                              fontSize: 14,
+                              marginBottom: 8,
+                              color: theme.crimson,
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 6,
+                            }}
+                          >
+                            <span style={{ fontSize: "16px" }}>💡</span>{" "}
+                            Explanation
+                          </div>
+                          <div
+                            style={{
+                              fontSize: 14,
+                              color: theme.text,
+                              lineHeight: 1.6,
+                            }}
+                          >
+                            {questionReview.ai_explanation}
+                          </div>
+                        </div>
+                      )}
+
                     <div
                       style={{
                         fontSize: "13px",

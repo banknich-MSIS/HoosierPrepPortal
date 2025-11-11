@@ -114,6 +114,27 @@ def get_recent_attempts(limit: int = 10, db: Session = Depends(get_db)) -> List[
         if attempt.answers:
             correct_count = sum(1 for answer in attempt.answers if answer.correct)
         
+        # Get duration from attempt record (preferred) or calculate from timestamps
+        duration_seconds = attempt.duration_seconds
+        if duration_seconds is None and attempt.started_at and attempt.finished_at:
+            duration_seconds = int((attempt.finished_at - attempt.started_at).total_seconds())
+        
+        # Calculate average time per question
+        average_time_per_question = None
+        if duration_seconds and len(exam.question_ids) > 0:
+            average_time_per_question = round(duration_seconds / len(exam.question_ids), 1)
+        
+        # Extract difficulty from exam settings
+        difficulty = None
+        if exam.settings and isinstance(exam.settings, dict):
+            difficulty = exam.settings.get("difficulty", "Medium")
+        
+        # Get class tags from upload
+        class_tags = [cls.name for cls in upload.classes] if upload.classes else []
+        
+        # Get exam type
+        exam_type = attempt.exam_type or "exam"
+        
         result.append(
             AttemptSummary(
                 id=attempt.id,
@@ -123,6 +144,11 @@ def get_recent_attempts(limit: int = 10, db: Session = Depends(get_db)) -> List[
                 finished_at=attempt.finished_at or attempt.started_at,
                 question_count=len(exam.question_ids),
                 correct_count=correct_count,
+                duration_seconds=duration_seconds,
+                difficulty=difficulty,
+                class_tags=class_tags,
+                exam_type=exam_type,
+                average_time_per_question=average_time_per_question,
             )
         )
     
@@ -203,6 +229,7 @@ def get_attempt_detail(attempt_id: int, db: Session = Depends(get_db)) -> Attemp
                 user_answer=answer.response.get("value") if answer and answer.response else None,
                 correct_answer=(question.answer or {}).get("value"),
                 is_correct=answer.correct if answer else False,
+                ai_explanation=answer.ai_explanation if answer else None,
             )
         )
     

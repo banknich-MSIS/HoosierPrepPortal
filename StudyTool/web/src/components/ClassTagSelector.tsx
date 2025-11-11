@@ -27,6 +27,10 @@ export default function ClassTagSelector({
   const [allClasses, setAllClasses] = useState<ClassSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [hoveredButton, setHoveredButton] = useState<string | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newDesc, setNewDesc] = useState("");
+  const [newColor, setNewColor] = useState("#007bff");
 
   const CLASS_COLORS = [
     { name: "Blue", value: "#007bff", darkBg: "#1a3a52", darkText: "#64b5f6" },
@@ -106,9 +110,10 @@ export default function ClassTagSelector({
       // Assign the current upload to the new class
       await assignUploadToClass(uploadId, newCls.id);
       await loadClasses();
-      setShowCreate(false);
+      setShowCreateModal(false);
       setNewName("");
       setNewDesc("");
+      setNewColor("#007bff");
       onUpdate();
     } catch (e: any) {
       alert(`Failed to create class: ${e?.message || "Unknown error"}`);
@@ -139,8 +144,8 @@ export default function ClassTagSelector({
           Classes
         </span>
         <button
-          onClick={() => navigate("/classes")}
-          title="Go to classes page"
+          onClick={() => setShowCreateModal(true)}
+          title="Create new class"
           disabled={loading}
           onMouseEnter={() => !loading && setHoveredButton("createClass")}
           onMouseLeave={() => setHoveredButton(null)}
@@ -231,6 +236,210 @@ export default function ClassTagSelector({
           })
         )}
       </div>
+
+      {/* Create Class Modal */}
+      {showCreateModal && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0, 0, 0, 0.6)",
+            backdropFilter: "blur(4px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 10000,
+          }}
+          onClick={() => setShowCreateModal(false)}
+        >
+          <div
+            style={{
+              background: darkMode ? "#2d1819" : "#ffffff",
+              borderRadius: 12,
+              border: `1px solid ${theme.glassBorder}`,
+              boxShadow: "0 20px 60px rgba(0, 0, 0, 0.5)",
+              padding: 24,
+              width: "90%",
+              maxWidth: 450,
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3
+              style={{
+                margin: "0 0 20px 0",
+                fontSize: 20,
+                fontWeight: 700,
+                color: theme.crimson,
+              }}
+            >
+              Create New Class
+            </h3>
+
+            <div style={{ marginBottom: 16 }}>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: theme.text,
+                  marginBottom: 6,
+                }}
+              >
+                Class Name *
+              </label>
+              <input
+                type="text"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                placeholder="e.g., Finance 101"
+                disabled={loading}
+                autoFocus
+                style={{
+                  width: "100%",
+                  padding: "10px 12px",
+                  fontSize: 14,
+                  background: darkMode ? "#1a1a1a" : "#fff",
+                  color: theme.text,
+                  border: `1px solid ${theme.glassBorder}`,
+                  borderRadius: 6,
+                  outline: "none",
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && newName.trim()) {
+                    handleCreate();
+                  }
+                }}
+              />
+            </div>
+
+            <div style={{ marginBottom: 16 }}>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: theme.text,
+                  marginBottom: 6,
+                }}
+              >
+                Description (Optional)
+              </label>
+              <textarea
+                value={newDesc}
+                onChange={(e) => setNewDesc(e.target.value)}
+                placeholder="Brief description of this class..."
+                disabled={loading}
+                rows={3}
+                style={{
+                  width: "100%",
+                  padding: "10px 12px",
+                  fontSize: 14,
+                  background: darkMode ? "#1a1a1a" : "#fff",
+                  color: theme.text,
+                  border: `1px solid ${theme.glassBorder}`,
+                  borderRadius: 6,
+                  outline: "none",
+                  resize: "vertical",
+                  fontFamily: "inherit",
+                }}
+              />
+            </div>
+
+            <div style={{ marginBottom: 24 }}>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: theme.text,
+                  marginBottom: 8,
+                }}
+              >
+                Color
+              </label>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(6, 1fr)",
+                  gap: 8,
+                }}
+              >
+                {CLASS_COLORS.map((colorOption) => (
+                  <button
+                    key={colorOption.value}
+                    onClick={() => setNewColor(colorOption.value)}
+                    disabled={loading}
+                    style={{
+                      width: "100%",
+                      height: 36,
+                      borderRadius: 6,
+                      border:
+                        newColor === colorOption.value
+                          ? `3px solid ${theme.crimson}`
+                          : `1px solid ${theme.glassBorder}`,
+                      backgroundColor: darkMode
+                        ? colorOption.darkBg
+                        : colorOption.value,
+                      cursor: loading ? "not-allowed" : "pointer",
+                      transition: "all 0.2s ease",
+                      transform:
+                        newColor === colorOption.value ? "scale(1.1)" : "scale(1)",
+                    }}
+                    title={colorOption.name}
+                  />
+                ))}
+              </div>
+            </div>
+
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <button
+                onClick={() => {
+                  setShowCreateModal(false);
+                  setNewName("");
+                  setNewDesc("");
+                  setNewColor("#007bff");
+                }}
+                disabled={loading}
+                style={{
+                  padding: "10px 20px",
+                  background: "transparent",
+                  color: theme.textSecondary,
+                  border: `1px solid ${theme.glassBorder}`,
+                  borderRadius: 6,
+                  cursor: loading ? "not-allowed" : "pointer",
+                  fontSize: 14,
+                  fontWeight: 600,
+                  transition: "all 0.2s ease",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreate}
+                disabled={loading || !newName.trim()}
+                style={{
+                  padding: "10px 20px",
+                  background:
+                    loading || !newName.trim() ? theme.textSecondary : theme.crimson,
+                  color: "white",
+                  border: "none",
+                  borderRadius: 6,
+                  cursor:
+                    loading || !newName.trim() ? "not-allowed" : "pointer",
+                  fontSize: 14,
+                  fontWeight: 600,
+                  transition: "all 0.2s ease",
+                }}
+              >
+                {loading ? "Creating..." : "Create Class"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

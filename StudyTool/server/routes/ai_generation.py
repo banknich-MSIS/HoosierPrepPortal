@@ -4,6 +4,7 @@ AI-powered exam generation routes using Gemini API.
 from typing import List, Optional
 from fastapi import APIRouter, UploadFile, File, Form, Header, HTTPException
 from pydantic import BaseModel
+import logging
 
 from ..services import file_processor, gemini_service
 from ..services.gemini_service import ExamConfig
@@ -17,6 +18,10 @@ from datetime import datetime
 import json
 import csv
 from pathlib import Path
+
+
+# Get logger
+logger = logging.getLogger(__name__)
 
 
 router = APIRouter(tags=["AI Generation"])
@@ -495,17 +500,21 @@ class ChatResponse(BaseModel):
 
 @router.post("/ai/chat-with-files")
 async def chat_with_files_attached(
-    message: str = Form(...),
     conversation_history: str = Form("[]"),  # JSON string
-    files: Optional[List[UploadFile]] = File(None),
+    message: str = Form(""),  # Allow empty message when files are present
+    files: Optional[List[UploadFile]] = File(default=None),
     x_gemini_api_key: str = Header(..., alias="X-Gemini-API-Key")
 ):
     """
     Chat endpoint that accepts file uploads and extracts their content for AI context.
     """
-    print(f"[Chat-Files] Received request with message length: {len(message)}")
-    print(f"[Chat-Files] Number of files: {len(files) if files else 0}")
-    print(f"[Chat-Files] API key present: {bool(x_gemini_api_key)}")
+    logger.info(f"[Chat-Files] Received request with message: '{message}' (length: {len(message)})")
+    logger.info(f"[Chat-Files] Number of files: {len(files) if files else 0}")
+    logger.info(f"[Chat-Files] API key present: {bool(x_gemini_api_key)}")
+    
+    # Set default message if empty and files are present
+    if not message and files:
+        message = "I've uploaded some files for you to review."
     
     try:
         # Parse conversation history from JSON string
@@ -519,48 +528,46 @@ async def chat_with_files_attached(
         # Extract content from uploaded files if any
         file_context = ""
         if files and len(files) > 0:
-            print(f"[Chat] Processing {len(files)} file(s)...")
+            logger.info(f"[Chat] Processing {len(files)} file(s)...")
             file_summaries = []
             for file in files:
                 try:
-                    print(f"[Chat] Extracting text from {file.filename}...")
+                    logger.info(f"[Chat] Extracting text from {file.filename}...")
                     # Extract text from file
                     content = await file_processor.process_single_file(file)
                     # Limit to first 3000 chars for chat context
                     summary = content[:3000] if content else ""
                     if summary:
                         file_summaries.append(f"[File: {file.filename}]\n{summary}...")
-                        print(f"[Chat] Successfully extracted {len(summary)} chars from {file.filename}")
+                        logger.info(f"[Chat] Successfully extracted {len(summary)} chars from {file.filename}")
                     else:
-                        print(f"[Chat] No content extracted from {file.filename}")
+                        logger.warning(f"[Chat] No content extracted from {file.filename}")
                 except Exception as e:
-                    print(f"[Chat] Error processing {file.filename}: {str(e)}")
+                    logger.error(f"[Chat] Error processing {file.filename}: {str(e)}", exc_info=True)
                     file_summaries.append(f"[File: {file.filename} - Could not extract text: {str(e)}]")
             
             if file_summaries:
                 file_context = "\n\n".join(file_summaries)
                 # Prepend file context to user message
                 message = f"{message}\n\n[Uploaded Files Context]:\n{file_context}"
-                print(f"[Chat] Added {len(file_context)} chars of file context to message")
+                logger.info(f"[Chat] Added {len(file_context)} chars of file context to message")
         
         # Generate response using Gemini service
-        print(f"[Chat-Files] Calling Gemini service...")
+        logger.info(f"[Chat-Files] Calling Gemini service...")
         response_text = await gemini_service.generate_chat_response(
             message=message,
             conversation_history=history_dicts,
             api_key=x_gemini_api_key
         )
         
-        print(f"[Chat-Files] Success! Response length: {len(response_text)}")
+        logger.info(f"[Chat-Files] Success! Response length: {len(response_text)}")
         return ChatResponse(response=response_text)
         
     except ValueError as e:
-        print(f"[Chat-Files] ValueError: {str(e)}")
+        logger.error(f"[Chat-Files] ValueError: {str(e)}", exc_info=True)
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        print(f"[Chat-Files] Exception: {str(e)}")
-        import traceback
-        traceback.print_exc()
+        logger.error(f"[Chat-Files] Exception: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=500,
             detail=f"Failed to generate chat response: {str(e)}"

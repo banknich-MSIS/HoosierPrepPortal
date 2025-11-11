@@ -4,7 +4,7 @@ import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import App from "./App";
 import "./index.css";
 import Dashboard from "./pages/Dashboard";
-import UploadPage from "./pages/UploadPage";
+// import UploadPage from "./pages/UploadPage";  // Hidden for release
 import SmartExamCreator from "./pages/SmartExamCreator";
 import SettingsPage from "./pages/SettingsPage";
 import ExamPage from "./pages/ExamPage";
@@ -25,7 +25,7 @@ const router = createBrowserRouter([
     children: [
       { index: true, element: <Dashboard /> },
       { path: "ai-exam-creator", element: <SmartExamCreator /> },
-      { path: "upload", element: <UploadPage /> },
+      // { path: "upload", element: <UploadPage /> },  // AI Assistant - hidden for release
       { path: "settings", element: <SettingsPage /> },
       { path: "exam/:examId", element: <ExamPage /> },
       { path: "practice/:examId", element: <PracticeModePage /> },

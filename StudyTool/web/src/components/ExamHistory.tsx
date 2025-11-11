@@ -16,13 +16,83 @@ export default function ExamHistory({
   darkMode,
   theme,
 }: ExamHistoryProps) {
-  const [sortBy, setSortBy] = useState<"date" | "score" | "source">("date");
+  const [sortBy, setSortBy] = useState<
+    "date" | "score" | "source" | "duration" | "accuracy" | "difficulty"
+  >("date");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [hoveredButton, setHoveredButton] = useState<string | null>(null);
 
+  // Column widths state (in pixels)
+  const [columnWidths, setColumnWidths] = useState({
+    date: 180,
+    score: 100,
+    source: 180,
+    questions: 110,
+    duration: 110,
+    difficulty: 110,
+    avgTime: 110,
+  });
+  const [resizing, setResizing] = useState<string | null>(null);
+  const [startX, setStartX] = useState(0);
+  const [startWidth, setStartWidth] = useState(0);
+  const [hoverResize, setHoverResize] = useState<string | null>(null);
+  const tableRef = React.useRef<HTMLDivElement>(null);
+
+  const handleResizeStart = (
+    e: React.MouseEvent,
+    column: keyof typeof columnWidths
+  ) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setResizing(column);
+    setStartX(e.clientX);
+    setStartWidth(columnWidths[column]);
+  };
+
+  const handleResizeMove = (e: MouseEvent) => {
+    if (!resizing || !tableRef.current) return;
+    const diff = e.clientX - startX;
+    const newWidth = Math.max(80, startWidth + diff); // Minimum width of 80px
+
+    // Calculate total width including the delete button column (estimate ~50px)
+    const otherColumnsWidth = Object.entries(columnWidths)
+      .filter(([key]) => key !== resizing)
+      .reduce((sum, [, width]) => sum + width, 0);
+
+    // Get actual container width
+    const containerWidth = tableRef.current.offsetWidth;
+    const maxAvailableWidth = containerWidth - otherColumnsWidth - 50 - 80; // 50px for delete button, 80px for column padding (20px per column)
+
+    // Constrain the new width
+    const constrainedWidth = Math.min(
+      newWidth,
+      Math.max(80, maxAvailableWidth)
+    );
+
+    setColumnWidths((prev) => ({
+      ...prev,
+      [resizing]: constrainedWidth,
+    }));
+  };
+
+  const handleResizeEnd = () => {
+    setResizing(null);
+  };
+
+  React.useEffect(() => {
+    if (resizing) {
+      document.addEventListener("mousemove", handleResizeMove);
+      document.addEventListener("mouseup", handleResizeEnd);
+      return () => {
+        document.removeEventListener("mousemove", handleResizeMove);
+        document.removeEventListener("mouseup", handleResizeEnd);
+      };
+    }
+  }, [resizing, startX, startWidth]);
+
   const formatDate = (date: string) => {
     // Ensure UTC parsing if 'Z' is missing
-    const dateStr = date.endsWith('Z') ? date : date + 'Z';
+    const dateStr = date.endsWith("Z") ? date : date + "Z";
     return new Date(dateStr).toLocaleString("en-US", {
       year: "numeric",
       month: "short",
@@ -30,6 +100,18 @@ export default function ExamHistory({
       hour: "numeric",
       minute: "2-digit",
     });
+  };
+
+  const formatDuration = (seconds: number | null | undefined) => {
+    if (!seconds) return null;
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}m ${secs}s`;
+  };
+
+  const formatAvgTime = (avgTimePerQuestion: number | null | undefined) => {
+    if (!avgTimePerQuestion) return null;
+    return `${Math.round(avgTimePerQuestion)}s`;
   };
 
   const getScoreColor = (score: number) => {
@@ -45,12 +127,16 @@ export default function ExamHistory({
   };
 
   const sortedAttempts = [...attempts].sort((a, b) => {
-    let aVal, bVal;
+    let aVal: any, bVal: any;
 
     switch (sortBy) {
       case "date":
-        const aDate = a.finished_at.endsWith('Z') ? a.finished_at : a.finished_at + 'Z';
-        const bDate = b.finished_at.endsWith('Z') ? b.finished_at : b.finished_at + 'Z';
+        const aDate = a.finished_at.endsWith("Z")
+          ? a.finished_at
+          : a.finished_at + "Z";
+        const bDate = b.finished_at.endsWith("Z")
+          ? b.finished_at
+          : b.finished_at + "Z";
         aVal = new Date(aDate).getTime();
         bVal = new Date(bDate).getTime();
         break;
@@ -61,6 +147,21 @@ export default function ExamHistory({
       case "source":
         aVal = a.upload_filename.toLowerCase();
         bVal = b.upload_filename.toLowerCase();
+        break;
+      case "duration":
+        aVal = a.duration_seconds || 0;
+        bVal = b.duration_seconds || 0;
+        break;
+      case "accuracy":
+        aVal = (a.correct_count / a.question_count) * 100;
+        bVal = (b.correct_count / b.question_count) * 100;
+        break;
+      case "difficulty":
+        const difficultyOrder = { Easy: 1, Medium: 2, Hard: 3 };
+        aVal =
+          difficultyOrder[a.difficulty as keyof typeof difficultyOrder] || 2;
+        bVal =
+          difficultyOrder[b.difficulty as keyof typeof difficultyOrder] || 2;
         break;
       default:
         return 0;
@@ -73,7 +174,9 @@ export default function ExamHistory({
     }
   });
 
-  const handleSort = (column: "date" | "score" | "source") => {
+  const handleSort = (
+    column: "date" | "score" | "source" | "duration" | "accuracy" | "difficulty"
+  ) => {
     if (sortBy === column) {
       setSortOrder(sortOrder === "asc" ? "desc" : "asc");
     } else {
@@ -82,7 +185,9 @@ export default function ExamHistory({
     }
   };
 
-  const getSortIcon = (column: "date" | "score" | "source") => {
+  const getSortIcon = (
+    column: "date" | "score" | "source" | "duration" | "accuracy" | "difficulty"
+  ) => {
     if (sortBy !== column) return "";
     return sortOrder === "asc" ? " ▲" : " ▼";
   };
@@ -233,6 +338,7 @@ export default function ExamHistory({
 
       {/* Attempts Table - Glassmorphism */}
       <div
+        ref={tableRef}
         style={{
           border: `1px solid ${theme.glassBorder}`,
           borderRadius: 12,
@@ -243,151 +349,453 @@ export default function ExamHistory({
           boxShadow: theme.glassShadow,
         }}
       >
+        {/* Fixed Header */}
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "1fr 1fr 1fr 1fr 80px",
+            gridTemplateColumns: `${columnWidths.date}px ${columnWidths.score}px ${columnWidths.source}px ${columnWidths.questions}px ${columnWidths.duration}px ${columnWidths.difficulty}px ${columnWidths.avgTime}px auto`,
             background: theme.navBg,
-            padding: 16,
+            padding: "16px 16px 16px 16px",
             fontWeight: 700,
             fontSize: 14,
             borderBottom: `1px solid ${theme.glassBorder}`,
             color: theme.crimson,
+            position: "relative",
           }}
         >
           <div
             style={{
-              cursor: "pointer",
               display: "flex",
               alignItems: "center",
               gap: 4,
+              position: "relative",
+              paddingRight: 12,
+              paddingLeft: 8,
             }}
-            onClick={() => handleSort("date")}
           >
-            Date {getSortIcon("date")}
+            <span
+              onClick={() => handleSort("date")}
+              style={{
+                cursor: "pointer",
+                userSelect: "none",
+              }}
+            >
+              Date {getSortIcon("date")}
+            </span>
+            <div
+              onMouseDown={(e) => handleResizeStart(e, "date")}
+              onMouseEnter={() => setHoverResize("date")}
+              onMouseLeave={() => setHoverResize(null)}
+              style={{
+                position: "absolute",
+                right: 0,
+                top: -16,
+                bottom: -16,
+                width: 8,
+                cursor: "col-resize",
+                userSelect: "none",
+                zIndex: 10,
+                borderRight:
+                  resizing === "date"
+                    ? `2px solid ${theme.crimson}`
+                    : `1px solid ${theme.glassBorder}`,
+                transition: "border-color 0.2s ease",
+              }}
+              title="Drag to resize"
+            />
           </div>
           <div
             style={{
-              cursor: "pointer",
               display: "flex",
               alignItems: "center",
               gap: 4,
+              position: "relative",
+              paddingRight: 12,
+              paddingLeft: 8,
             }}
-            onClick={() => handleSort("score")}
           >
-            Score {getSortIcon("score")}
+            <span
+              onClick={() => handleSort("score")}
+              style={{
+                cursor: "pointer",
+                userSelect: "none",
+              }}
+            >
+              Score {getSortIcon("score")}
+            </span>
+            <div
+              onMouseDown={(e) => handleResizeStart(e, "score")}
+              onMouseEnter={() => setHoverResize("score")}
+              onMouseLeave={() => setHoverResize(null)}
+              style={{
+                position: "absolute",
+                right: 0,
+                top: -16,
+                bottom: -16,
+                width: 8,
+                cursor: "col-resize",
+                userSelect: "none",
+                zIndex: 10,
+                borderRight:
+                  resizing === "score"
+                    ? `2px solid ${theme.crimson}`
+                    : `1px solid ${theme.glassBorder}`,
+                transition: "border-color 0.2s ease",
+              }}
+              title="Drag to resize"
+            />
           </div>
           <div
             style={{
-              cursor: "pointer",
               display: "flex",
               alignItems: "center",
               gap: 4,
+              position: "relative",
+              paddingRight: 12,
+              paddingLeft: 8,
             }}
-            onClick={() => handleSort("source")}
           >
-            Source {getSortIcon("source")}
+            <span
+              onClick={() => handleSort("source")}
+              style={{
+                cursor: "pointer",
+                userSelect: "none",
+              }}
+            >
+              Source {getSortIcon("source")}
+            </span>
+            <div
+              onMouseDown={(e) => handleResizeStart(e, "source")}
+              onMouseEnter={() => setHoverResize("source")}
+              onMouseLeave={() => setHoverResize(null)}
+              style={{
+                position: "absolute",
+                right: 0,
+                top: -16,
+                bottom: -16,
+                width: 8,
+                cursor: "col-resize",
+                userSelect: "none",
+                zIndex: 10,
+                borderRight:
+                  resizing === "source"
+                    ? `2px solid ${theme.crimson}`
+                    : `1px solid ${theme.glassBorder}`,
+                transition: "border-color 0.2s ease",
+              }}
+              title="Drag to resize"
+            />
           </div>
-          <div>Questions</div>
-          <div>Actions</div>
+          <div
+            style={{
+              position: "relative",
+              paddingRight: 12,
+              paddingLeft: 8,
+            }}
+          >
+            Questions
+            <div
+              onMouseDown={(e) => handleResizeStart(e, "questions")}
+              onMouseEnter={() => setHoverResize("questions")}
+              onMouseLeave={() => setHoverResize(null)}
+              style={{
+                position: "absolute",
+                right: 0,
+                top: -16,
+                bottom: -16,
+                width: 8,
+                cursor: "col-resize",
+                userSelect: "none",
+                zIndex: 10,
+                borderRight:
+                  resizing === "questions"
+                    ? `2px solid ${theme.crimson}`
+                    : `1px solid ${theme.glassBorder}`,
+                transition: "border-color 0.2s ease",
+              }}
+              title="Drag to resize"
+            />
+          </div>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 4,
+              position: "relative",
+              paddingRight: 12,
+              paddingLeft: 8,
+            }}
+          >
+            <span
+              onClick={() => handleSort("duration")}
+              style={{
+                cursor: "pointer",
+                userSelect: "none",
+              }}
+            >
+              Duration {getSortIcon("duration")}
+            </span>
+            <div
+              onMouseDown={(e) => handleResizeStart(e, "duration")}
+              onMouseEnter={() => setHoverResize("duration")}
+              onMouseLeave={() => setHoverResize(null)}
+              style={{
+                position: "absolute",
+                right: 0,
+                top: -16,
+                bottom: -16,
+                width: 8,
+                cursor: "col-resize",
+                userSelect: "none",
+                zIndex: 10,
+                borderRight:
+                  resizing === "duration"
+                    ? `2px solid ${theme.crimson}`
+                    : `1px solid ${theme.glassBorder}`,
+                transition: "border-color 0.2s ease",
+              }}
+              title="Drag to resize"
+            />
+          </div>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 4,
+              position: "relative",
+              paddingRight: 12,
+              paddingLeft: 8,
+            }}
+          >
+            <span
+              onClick={() => handleSort("difficulty")}
+              style={{
+                cursor: "pointer",
+                userSelect: "none",
+              }}
+            >
+              Difficulty {getSortIcon("difficulty")}
+            </span>
+            <div
+              onMouseDown={(e) => handleResizeStart(e, "difficulty")}
+              onMouseEnter={() => setHoverResize("difficulty")}
+              onMouseLeave={() => setHoverResize(null)}
+              style={{
+                position: "absolute",
+                right: 0,
+                top: -16,
+                bottom: -16,
+                width: 8,
+                cursor: "col-resize",
+                userSelect: "none",
+                zIndex: 10,
+                borderRight:
+                  resizing === "difficulty"
+                    ? `2px solid ${theme.crimson}`
+                    : `1px solid ${theme.glassBorder}`,
+                transition: "border-color 0.2s ease",
+              }}
+              title="Drag to resize"
+            />
+          </div>
+          <div
+            style={{
+              position: "relative",
+              paddingRight: 12,
+              paddingLeft: 8,
+            }}
+          >
+            Avg Time/Q
+            <div
+              onMouseDown={(e) => handleResizeStart(e, "avgTime")}
+              onMouseEnter={() => setHoverResize("avgTime")}
+              onMouseLeave={() => setHoverResize(null)}
+              style={{
+                position: "absolute",
+                right: 0,
+                top: -16,
+                bottom: -16,
+                width: 8,
+                cursor: "col-resize",
+                userSelect: "none",
+                zIndex: 10,
+                borderRight:
+                  resizing === "avgTime"
+                    ? `2px solid ${theme.crimson}`
+                    : `1px solid ${theme.glassBorder}`,
+                transition: "border-color 0.2s ease",
+              }}
+              title="Drag to resize"
+            />
+          </div>
         </div>
 
-        {sortedAttempts.map((attempt) => (
-          <div
-            key={attempt.id}
-            onClick={() => onReviewAttempt(attempt.id)}
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr 1fr 1fr 80px",
-              padding: 12,
-              borderBottom: `1px solid ${theme.border}`,
-              backgroundColor: darkMode ? theme.cardBg : "rgba(38, 38, 38, 0.04)",
-              transition: "background-color 0.2s ease",
-              alignItems: "center",
-              cursor: "pointer",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = theme.navHover;
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = darkMode ? theme.cardBg : "rgba(38, 38, 38, 0.04)";
-            }}
-          >
-            <div style={{ fontSize: 14, color: theme.text }}>
-              {formatDate(attempt.finished_at)}
-            </div>
+        {/* Scrollable Body - max 6 rows visible */}
+        <div
+          className="exam-history-scroll"
+          style={{
+            maxHeight: "330px", // Force scroll at 6 entries
+            overflowY: "auto",
+            overflowX: "hidden",
+          }}
+        >
+          {sortedAttempts.map((attempt) => (
             <div
+              key={attempt.id}
+              onClick={() => onReviewAttempt(attempt.id)}
               style={{
-                fontSize: 14,
-                fontWeight: "bold",
-                color: getScoreColor(attempt.score_pct),
-                backgroundColor: getScoreBackground(attempt.score_pct),
-                padding: "4px 8px",
-                borderRadius: 4,
-                textAlign: "center",
-                display: "inline-block",
-                width: "fit-content",
-              }}
-            >
-              {Math.round(attempt.score_pct)}%
-            </div>
-            <div
-              style={{
-                fontSize: 14,
-                color: theme.textSecondary,
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-              }}
-              title={attempt.upload_filename}
-            >
-              {attempt.upload_filename}
-            </div>
-            <div
-              style={{
-                fontSize: 14,
-                color: theme.textSecondary,
-              }}
-            >
-              {attempt.correct_count}/{attempt.question_count}
-            </div>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                if (
-                  window.confirm(
-                    "Are you sure you want to delete this exam attempt?"
-                  )
-                ) {
-                  onDeleteAttempt(attempt.id);
-                }
-              }}
-              onMouseEnter={() => setHoveredButton(`delete-${attempt.id}`)}
-              onMouseLeave={() => setHoveredButton(null)}
-              style={{
-                padding: "6px 12px",
-                background:
-                  hoveredButton === `delete-${attempt.id}`
-                    ? theme.btnDangerHover
-                    : theme.btnDanger,
-                color: "white",
-                border: "none",
-                borderRadius: 6,
+                display: "grid",
+                gridTemplateColumns: `${columnWidths.date}px ${columnWidths.score}px ${columnWidths.source}px ${columnWidths.questions}px ${columnWidths.duration}px ${columnWidths.difficulty}px ${columnWidths.avgTime}px auto`,
+                padding: "12px 16px",
+                borderBottom: `1px solid ${theme.border}`,
+                backgroundColor: darkMode
+                  ? theme.cardBg
+                  : "rgba(38, 38, 38, 0.04)",
+                transition: "background-color 0.2s ease",
+                alignItems: "center",
                 cursor: "pointer",
-                fontSize: "12px",
-                fontWeight: 600,
-                transition: "all 0.2s ease",
-                boxShadow:
-                  hoveredButton === `delete-${attempt.id}`
-                    ? "0 4px 12px rgba(220, 53, 69, 0.4)"
-                    : "0 2px 8px rgba(220, 53, 69, 0.3)",
               }}
-              title="Delete attempt"
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = theme.navHover;
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = darkMode
+                  ? theme.cardBg
+                  : "rgba(38, 38, 38, 0.04)";
+              }}
             >
-              Delete
-            </button>
-          </div>
-        ))}
+              <div
+                style={{
+                  fontSize: 14,
+                  color: theme.text,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                  paddingRight: 12,
+                  paddingLeft: 8,
+                }}
+              >
+                {formatDate(attempt.finished_at)}
+              </div>
+              <div
+                style={{
+                  fontSize: 14,
+                  fontWeight: "bold",
+                  color: getScoreColor(attempt.score_pct),
+                  backgroundColor: getScoreBackground(attempt.score_pct),
+                  padding: "4px 8px",
+                  borderRadius: 4,
+                  textAlign: "center",
+                  display: "inline-block",
+                  width: "fit-content",
+                  marginLeft: 8,
+                }}
+              >
+                {Math.round(attempt.score_pct)}%
+              </div>
+              <div
+                style={{
+                  fontSize: 14,
+                  color: theme.textSecondary,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                  paddingRight: 12,
+                  paddingLeft: 8,
+                }}
+                title={attempt.upload_filename}
+              >
+                {attempt.upload_filename}
+              </div>
+              <div
+                style={{
+                  fontSize: 14,
+                  color: theme.textSecondary,
+                  paddingRight: 12,
+                  paddingLeft: 8,
+                }}
+              >
+                {attempt.correct_count}/{attempt.question_count}
+              </div>
+              <div
+                style={{
+                  fontSize: 14,
+                  color: theme.textSecondary,
+                  paddingRight: 12,
+                  paddingLeft: 8,
+                }}
+              >
+                {formatDuration(attempt.duration_seconds) || "—"}
+              </div>
+              <div
+                style={{
+                  fontSize: 14,
+                  color: theme.text,
+                  paddingRight: 12,
+                  paddingLeft: 8,
+                  fontWeight: 500,
+                }}
+              >
+                {attempt.difficulty || "Medium"}
+              </div>
+              <div
+                style={{
+                  fontSize: 14,
+                  color: theme.textSecondary,
+                  paddingRight: 12,
+                  paddingLeft: 8,
+                }}
+              >
+                {formatAvgTime(attempt.average_time_per_question) || "—"}
+              </div>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (
+                    window.confirm(
+                      "Are you sure you want to delete this exam attempt?"
+                    )
+                  ) {
+                    onDeleteAttempt(attempt.id);
+                  }
+                }}
+                onMouseEnter={() => setHoveredButton(`delete-${attempt.id}`)}
+                onMouseLeave={() => setHoveredButton(null)}
+                style={{
+                  padding: "6px 8px",
+                  background: "transparent",
+                  color: theme.textSecondary,
+                  border: `1px solid ${theme.glassBorder}`,
+                  borderRadius: 6,
+                  cursor: "pointer",
+                  transition: "all 0.2s ease",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  opacity: hoveredButton === `delete-${attempt.id}` ? 1 : 0.7,
+                  justifySelf: "end",
+                }}
+                title="Delete attempt"
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <polyline points="3 6 5 6 21 6"></polyline>
+                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                  <line x1="10" y1="11" x2="10" y2="17"></line>
+                  <line x1="14" y1="11" x2="14" y2="17"></line>
+                </svg>
+              </button>
+            </div>
+          ))}
+        </div>
       </div>
 
       {attempts.length === 0 && (

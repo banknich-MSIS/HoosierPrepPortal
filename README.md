@@ -16,10 +16,9 @@ It's designed for students looking for a **no-nonsense, quick way** to generate 
 
 ## Features
 
-### 🎯 Two Ways to Generate Exams
+### 🎯 Exam Generation
 
 - **Exam Generator**: Fast and streamlined. Upload PDFs, Word docs, PowerPoint slides, or other study materials, configure your settings, and generate instantly.
-- **AI Assistant**: Interactive chat experience. Discuss your study goals with the AI, upload files during the conversation, and get guided through exam configuration.
 
 ### 📚 Smart File Processing
 
@@ -129,19 +128,11 @@ If you prefer not to create a shortcut, you can run `.\start.ps1` directly from 
 
 ### Creating Your First Exam
 
-**Option 1: Exam Generator (Fast)**
 1. Navigate to "Exam Generator" from the sidebar
 2. Upload your study materials
 3. Configure settings (question count, difficulty, types)
 4. Click "Generate Exam"
 5. Start the exam from your Dashboard
-
-**Option 2: AI Assistant (Guided)**
-1. Navigate to "AI Assistant" from the sidebar
-2. Chat with the AI about what you want to study
-3. Upload files during the conversation
-4. AI helps configure the exam based on your needs
-5. Generate and take the exam from your Dashboard
 
 ### Taking Exams
 

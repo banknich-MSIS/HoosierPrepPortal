@@ -120,7 +120,9 @@ export default function SupportPage() {
                 lineHeight: 1.6,
               }}
             >
-              You have two options: (1) <strong>Exam Generator</strong> - Upload PDFs, Word docs, PowerPoint slides, or other study materials and configure settings to generate an exam instantly. (2) <strong>AI Assistant</strong> - Chat with an AI to discuss your study goals, upload files during the conversation, and get guided through exam configuration.
+              Use the <strong>Exam Generator</strong> to upload PDFs, Word docs,
+              PowerPoint slides, or other study materials and configure settings
+              to generate an exam instantly.
             </p>
           </div>
           <div>
@@ -140,7 +142,10 @@ export default function SupportPage() {
                 lineHeight: 1.6,
               }}
             >
-              The tool supports PDFs, Word documents (.docx), PowerPoint presentations (.pptx), images (with OCR), text files, Excel/CSV files, and more. Files are processed to extract text and generate questions automatically using AI.
+              The tool supports PDFs, Word documents (.docx), PowerPoint
+              presentations (.pptx), images (with OCR), text files, Excel/CSV
+              files, and more. Files are processed to extract text and generate
+              questions automatically using AI.
             </p>
           </div>
           <div>
@@ -160,7 +165,18 @@ export default function SupportPage() {
                 lineHeight: 1.6,
               }}
             >
-              Visit <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" style={{ color: theme.crimson, textDecoration: "underline" }}>Google AI Studio</a> to get a free API key. Use a personal Google account (not IU school account) for best compatibility. The free tier provides 60 requests/hour and 1M tokens/day.
+              Visit{" "}
+              <a
+                href="https://aistudio.google.com/app/apikey"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ color: theme.crimson, textDecoration: "underline" }}
+              >
+                Google AI Studio
+              </a>{" "}
+              to get a free API key. Use a personal Google account (not IU
+              school account) for best compatibility. The free tier provides 60
+              requests/hour and 1M tokens/day.
             </p>
           </div>
           <div>
@@ -180,7 +196,10 @@ export default function SupportPage() {
                 lineHeight: 1.6,
               }}
             >
-              Yes! You'll get a warning showing how many questions are unanswered, but you can proceed with submission. Unanswered questions will be marked as incorrect and clearly labeled as "No answer provided" in your results.
+              Yes! You'll get a warning showing how many questions are
+              unanswered, but you can proceed with submission. Unanswered
+              questions will be marked as incorrect and clearly labeled as "No
+              answer provided" in your results.
             </p>
           </div>
           <div>
@@ -200,7 +219,10 @@ export default function SupportPage() {
                 lineHeight: 1.6,
               }}
             >
-              Go to Utilities → Backup & Restore. Create a backup to download all your study materials, exams, and performance history as a JSON file. You can restore this backup on another computer or after reinstalling the tool.
+              Go to Utilities → Backup & Restore. Create a backup to download
+              all your study materials, exams, and performance history as a JSON
+              file. You can restore this backup on another computer or after
+              reinstalling the tool.
             </p>
           </div>
           <div>
@@ -222,16 +244,22 @@ export default function SupportPage() {
               }}
             >
               <li>
-                <strong>"Invalid API key":</strong> Trim whitespace from your key, ensure the API is enabled in Google AI Studio, and use a personal Google account (not school account).
+                <strong>"Invalid API key":</strong> Trim whitespace from your
+                key, ensure the API is enabled in Google AI Studio, and use a
+                personal Google account (not school account).
               </li>
               <li>
-                <strong>"Network Error":</strong> Ensure the backend server is running (run start.ps1 from the StudyTool folder).
+                <strong>"Network Error":</strong> Ensure the backend server is
+                running (run start.ps1 from the StudyTool folder).
               </li>
               <li>
-                <strong>"Could not extract content":</strong> Upload files with selectable text (not scanned images). For images, ensure text is clear and readable for OCR.
+                <strong>"Could not extract content":</strong> Upload files with
+                selectable text (not scanned images). For images, ensure text is
+                clear and readable for OCR.
               </li>
               <li>
-                <strong>"File too large":</strong> Keep files under 10MB. For large PDFs, consider splitting into chapters.
+                <strong>"File too large":</strong> Keep files under 10MB. For
+                large PDFs, consider splitting into chapters.
               </li>
             </ul>
           </div>

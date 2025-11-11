@@ -64,6 +64,7 @@ class QuestionReview(BaseModel):
     user_answer: Any
     correct_answer: Any
     is_correct: bool
+    ai_explanation: str | None = None
 
 
 class ExamCreate(BaseModel):
@@ -105,6 +106,11 @@ class AttemptSummary(BaseModel):
     finished_at: datetime
     question_count: int
     correct_count: int
+    duration_seconds: Optional[int] = None
+    difficulty: Optional[str] = None
+    class_tags: List[str] = []
+    exam_type: Optional[str] = "exam"  # "exam" or "practice"
+    average_time_per_question: Optional[float] = None  # Calculated from duration
 
 
 class AttemptDetail(BaseModel):

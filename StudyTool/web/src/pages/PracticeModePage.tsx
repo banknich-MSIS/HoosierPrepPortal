@@ -11,7 +11,13 @@ export default function PracticeModePage() {
     darkMode: boolean;
     theme: any;
   }>();
-  const { questions, examId: storeExamId, answers, setExam, reset } = useExamStore();
+  const {
+    questions,
+    examId: storeExamId,
+    answers,
+    setExam,
+    reset,
+  } = useExamStore();
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [showAnswer, setShowAnswer] = useState(false);
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
@@ -27,6 +33,9 @@ export default function PracticeModePage() {
   const [questionResults, setQuestionResults] = useState<
     Record<number, boolean>
   >({});
+  const [practiceStartTime, setPracticeStartTime] = useState<number>(
+    Date.now()
+  );
 
   // Load exam questions if not in store
   useEffect(() => {
@@ -45,6 +54,7 @@ export default function PracticeModePage() {
             `Loaded practice exam ${examId} with ${examData.questions.length} questions`
           );
           setExam(Number(examId), examData.questions);
+          setPracticeStartTime(Date.now()); // Reset start time when practice loads
         } catch (e) {
           console.error("Failed to load exam:", e);
         } finally {
@@ -197,7 +207,23 @@ export default function PracticeModePage() {
       questionId: it.id,
       response: answers[it.id],
     }));
-    const graded = await gradeExam(storeExamId, payload);
+
+    // Get API key for AI explanations
+    const apiKey = localStorage.getItem("gemini_api_key") || undefined;
+
+    // Calculate duration in seconds
+    const durationSeconds = Math.floor((Date.now() - practiceStartTime) / 1000);
+
+    const graded = await gradeExam(
+      storeExamId,
+      payload,
+      apiKey,
+      durationSeconds,
+      "practice"
+    );
+
+    // Trigger insights refresh on exam completion
+    window.dispatchEvent(new CustomEvent("exam-completed"));
 
     // Navigate to attempt review page with the attemptId from graded response
     if (graded.attemptId) {

@@ -103,6 +103,8 @@ class Attempt(Base):
     )
     finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     score_pct: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    exam_type: Mapped[Optional[str]] = mapped_column(String(16), nullable=True, default="exam")  # "exam" or "practice"
+    duration_seconds: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # Total duration in seconds
 
     exam: Mapped[Exam] = relationship(back_populates="attempts")
     answers: Mapped[List["AttemptAnswer"]] = relationship(
@@ -118,6 +120,7 @@ class AttemptAnswer(Base):
     question_id: Mapped[int] = mapped_column(ForeignKey("questions.id"), index=True)
     response: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     correct: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
+    ai_explanation: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     attempt: Mapped[Attempt] = relationship(back_populates="answers")
 
