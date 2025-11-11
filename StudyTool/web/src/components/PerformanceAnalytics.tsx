@@ -319,16 +319,7 @@ export default function PerformanceAnalytics({
         boxShadow: theme.glassShadow,
       }}
     >
-      <h3
-        style={{
-          margin: "0 0 20px 0",
-          fontSize: 24,
-          fontWeight: 700,
-          color: theme.crimson,
-        }}
-      >
-        Performance Analytics
-      </h3>
+      {/* Heading removed per request */}
 
       {/* AI Insights Card - Temporarily Hidden */}
       {false && (
