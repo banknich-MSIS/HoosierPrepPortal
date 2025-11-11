@@ -304,123 +304,135 @@ export default function CSVLibrary({
   return (
     <div>
       {/* Class Filter */}
-      {allClassTags.length > 0 && (
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: 8,
+          marginBottom: 16,
+          flexWrap: "wrap",
+        }}
+      >
         <div
           style={{
             display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
             gap: 8,
-            marginBottom: 16,
+            alignItems: "center",
             flexWrap: "wrap",
+            flex: 1,
           }}
         >
-          <div
+          {allClassTags.length > 0 ? (
+            <>
+              <span style={{ fontSize: 14, color: theme.text, fontWeight: 500 }}>
+                Filter by class:
+              </span>
+              <button
+                onClick={() => setSelectedClassFilter(null)}
+                onMouseEnter={() => setHoveredButton("filterAll")}
+                onMouseLeave={() => setHoveredButton(null)}
+                style={{
+                  padding: "8px 16px",
+                  background: !selectedClassFilter ? theme.crimson : theme.cardBg,
+                  backdropFilter: !selectedClassFilter ? "none" : theme.glassBlur,
+                  WebkitBackdropFilter: !selectedClassFilter
+                    ? "none"
+                    : theme.glassBlur,
+                  color: !selectedClassFilter ? "white" : theme.text,
+                  border: `1px solid ${
+                    !selectedClassFilter ? theme.crimson : theme.glassBorder
+                  }`,
+                  borderRadius: 8,
+                  cursor: "pointer",
+                  fontSize: 13,
+                  fontWeight: !selectedClassFilter ? 600 : 500,
+                  transition: "all 0.2s ease",
+                  boxShadow: !selectedClassFilter
+                    ? "0 2px 8px rgba(196, 30, 58, 0.3)"
+                    : "none",
+                }}
+              >
+                All
+              </button>
+              {allClassTags.map((tag) => {
+                const classColor = getClassColor(tag);
+                const isSelected = selectedClassFilter === tag;
+                return (
+                  <button
+                    key={tag}
+                    onClick={() => setSelectedClassFilter(tag)}
+                    onMouseEnter={() => setHoveredButton(`filter-${tag}`)}
+                    onMouseLeave={() => setHoveredButton(null)}
+                    style={{
+                      padding: "8px 16px",
+                      background: isSelected ? classColor : theme.cardBg,
+                      backdropFilter: isSelected ? "none" : theme.glassBlur,
+                      WebkitBackdropFilter: isSelected ? "none" : theme.glassBlur,
+                      color: isSelected
+                        ? getContrastTextColor(classColor)
+                        : theme.text,
+                      border: `1px solid ${
+                        isSelected ? classColor : theme.glassBorder
+                      }`,
+                      borderRadius: 8,
+                      cursor: "pointer",
+                      fontSize: 13,
+                      fontWeight: isSelected ? 600 : 500,
+                      transition: "all 0.2s ease",
+                      boxShadow: isSelected
+                        ? `0 2px 8px ${classColor}40`
+                        : "none",
+                    }}
+                  >
+                    {tag}
+                  </button>
+                );
+              })}
+            </>
+          ) : (
+            <span
+              style={{
+                fontSize: 14,
+                color: theme.textSecondary,
+                fontStyle: "italic",
+              }}
+            >
+              No classes yet
+            </span>
+          )}
+        </div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <button
+            onClick={() => setShowCreateClass(true)}
+            title="Create Class"
             style={{
+              width: 36,
+              height: 36,
+              borderRadius: 8,
+              border: `1px solid ${theme.glassBorder}`,
+              background: theme.cardBg,
+              color: theme.text,
+              cursor: "pointer",
               display: "flex",
-              gap: 8,
               alignItems: "center",
-              flexWrap: "wrap",
-              flex: 1,
+              justifyContent: "center",
             }}
           >
-            <span style={{ fontSize: 14, color: theme.text, fontWeight: 500 }}>
-              Filter by class:
-            </span>
-            <button
-              onClick={() => setSelectedClassFilter(null)}
-              onMouseEnter={() => setHoveredButton("filterAll")}
-              onMouseLeave={() => setHoveredButton(null)}
-              style={{
-                padding: "8px 16px",
-                background: !selectedClassFilter ? theme.crimson : theme.cardBg,
-                backdropFilter: !selectedClassFilter ? "none" : theme.glassBlur,
-                WebkitBackdropFilter: !selectedClassFilter
-                  ? "none"
-                  : theme.glassBlur,
-                color: !selectedClassFilter ? "white" : theme.text,
-                border: `1px solid ${
-                  !selectedClassFilter ? theme.crimson : theme.glassBorder
-                }`,
-                borderRadius: 8,
-                cursor: "pointer",
-                fontSize: 13,
-                fontWeight: !selectedClassFilter ? 600 : 500,
-                transition: "all 0.2s ease",
-                boxShadow: !selectedClassFilter
-                  ? "0 2px 8px rgba(196, 30, 58, 0.3)"
-                  : "none",
-              }}
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke={theme.text}
+              strokeWidth="2.5"
             >
-              All
-            </button>
-            {allClassTags.map((tag) => {
-              const classColor = getClassColor(tag);
-              const isSelected = selectedClassFilter === tag;
-              return (
-                <button
-                  key={tag}
-                  onClick={() => setSelectedClassFilter(tag)}
-                  onMouseEnter={() => setHoveredButton(`filter-${tag}`)}
-                  onMouseLeave={() => setHoveredButton(null)}
-                  style={{
-                    padding: "8px 16px",
-                    background: isSelected ? classColor : theme.cardBg,
-                    backdropFilter: isSelected ? "none" : theme.glassBlur,
-                    WebkitBackdropFilter: isSelected ? "none" : theme.glassBlur,
-                    color: isSelected
-                      ? getContrastTextColor(classColor)
-                      : theme.text,
-                    border: `1px solid ${
-                      isSelected ? classColor : theme.glassBorder
-                    }`,
-                    borderRadius: 8,
-                    cursor: "pointer",
-                    fontSize: 13,
-                    fontWeight: isSelected ? 600 : 500,
-                    transition: "all 0.2s ease",
-                    boxShadow: isSelected
-                      ? `0 2px 8px ${classColor}40`
-                      : "none",
-                  }}
-                >
-                  {tag}
-                </button>
-              );
-            })}
-          </div>
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <button
-              onClick={() => setShowCreateClass(true)}
-              title="Create Class"
-              style={{
-                width: 36,
-                height: 36,
-                borderRadius: 8,
-                border: `1px solid ${theme.glassBorder}`,
-                background: theme.cardBg,
-                color: theme.text,
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke={theme.text}
-                strokeWidth="2.5"
-              >
-                <line x1="12" y1="5" x2="12" y2="19" />
-                <line x1="5" y1="12" x2="19" y2="12" />
-              </svg>
-            </button>
-          </div>
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+          </button>
         </div>
-      )}
+      </div>
 
       {/* Multi-select Actions - Glassmorphism */}
       {uploads.length > 0 && (
