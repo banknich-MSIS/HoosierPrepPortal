@@ -33,6 +33,8 @@ export default function PracticeModePage() {
     Date.now()
   );
   const [hasFinished, setHasFinished] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const anyCompleted = completedQuestions.size > 0;
 
   // Warn user before leaving if they have unsaved progress
   useEffect(() => {
@@ -93,6 +95,21 @@ export default function PracticeModePage() {
       reset();
     };
   }, [reset]);
+
+  // Auto-submit when all questions have been checked/answered
+  useEffect(() => {
+    if (
+      !hasFinished &&
+      questions.length > 0 &&
+      completedQuestions.size === questions.length
+    ) {
+      // Small timeout to allow last UI update to render before submit
+      const t = setTimeout(() => {
+        finishPractice();
+      }, 150);
+      return () => clearTimeout(t);
+    }
+  }, [completedQuestions, questions.length, hasFinished]);
 
   // Fetch correct answers for practice mode
   useEffect(() => {
@@ -256,14 +273,21 @@ export default function PracticeModePage() {
   };
 
   const finishPractice = async () => {
-    if (!storeExamId) return;
+    if (!storeExamId || questions.length === 0) {
+      alert("Exam is still loading. Please wait a moment and try again.");
+      return;
+    }
 
-    setHasFinished(true); // Mark as finished to disable warnings
+    setIsSubmitting(true);
 
     // Submit exam for final grading
     const payload = questions.map((it) => ({
       questionId: it.id,
-      response: answers[it.id],
+      // Ensure we always send a response key; use null when unanswered
+      response:
+        answers[it.id] === undefined || answers[it.id] === ""
+          ? null
+          : answers[it.id],
     }));
 
     // Get API key for AI explanations
@@ -272,24 +296,57 @@ export default function PracticeModePage() {
     // Calculate duration in seconds
     const durationSeconds = Math.floor((Date.now() - practiceStartTime) / 1000);
 
-    const graded = await gradeExam(
-      storeExamId,
-      payload,
-      apiKey,
-      durationSeconds,
-      "practice"
-    );
+    try {
+      const graded = await gradeExam(
+        storeExamId,
+        payload,
+        apiKey,
+        durationSeconds,
+        "practice"
+      );
 
-    // Trigger insights refresh on exam completion
-    window.dispatchEvent(new CustomEvent("exam-completed"));
+      // Trigger insights refresh on exam completion
+      window.dispatchEvent(new CustomEvent("exam-completed"));
 
-    // Navigate to attempt review page with the attemptId from graded response
-    if (graded.attemptId) {
-      nav(`/history/${graded.attemptId}`);
-    } else {
-      console.error("No attemptId returned from grading");
-      alert("Error: Could not load exam results");
+      // Navigate to attempt review page with the attemptId from graded response
+      if (graded.attemptId) {
+        // Mark finished before navigation to suppress leave warning
+        setHasFinished(true);
+        // Prefer SPA navigation, with a hard redirect fallback
+        try {
+          nav(`/history/${graded.attemptId}`);
+        } catch {
+          window.location.assign(`/history/${graded.attemptId}`);
+        }
+      } else {
+        console.error("No attemptId returned from grading");
+        alert("Error: Could not load exam results");
+      }
+    } catch (e: any) {
+      console.error("Failed to submit practice:", e);
+      alert(
+        e?.response?.data?.detail ||
+          e?.message ||
+          "Failed to submit practice. Please try again."
+      );
+    } finally {
+      setIsSubmitting(false);
     }
+  };
+
+  const handleSubmitPractice = () => {
+    if (hasFinished || isSubmitting) return;
+    if (!storeExamId || questions.length === 0) {
+      alert("Exam is still loading. Please wait a moment and try again.");
+      return;
+    }
+    if (completedQuestions.size < questions.length) {
+      const ok = window.confirm(
+        "You haven’t checked all questions. Submit anyway?"
+      );
+      if (!ok) return;
+    }
+    finishPractice();
   };
 
   const getQuestionStatusColor = (index: number) => {
@@ -390,6 +447,64 @@ export default function PracticeModePage() {
             );
           })}
         </div>
+
+        {/* Submit Practice - Sidebar (below question index) */}
+        <button
+          onClick={handleSubmitPractice}
+          disabled={hasFinished || isSubmitting || !storeExamId || questions.length === 0}
+          style={{
+            width: "100%",
+            padding: "12px 16px",
+            background:
+              hasFinished || isSubmitting || !storeExamId || questions.length === 0
+                ? theme.border
+                : theme.crimson,
+            color: "white",
+            border: "none",
+            borderRadius: 8,
+            cursor:
+              hasFinished || isSubmitting || !storeExamId || questions.length === 0
+                ? "not-allowed"
+                : "pointer",
+            fontWeight: 700,
+            fontSize: 14,
+            marginTop: 16,
+            transition: "0.2s",
+          }}
+          onMouseEnter={(e) => {
+            if (!(
+              hasFinished ||
+              isSubmitting ||
+              !storeExamId ||
+              questions.length === 0
+            )) {
+              e.currentTarget.style.filter = "brightness(1.1)";
+            }
+          }}
+          onMouseLeave={(e) => {
+            if (!(
+              hasFinished ||
+              isSubmitting ||
+              !storeExamId ||
+              questions.length === 0
+            )) {
+              e.currentTarget.style.filter = "brightness(1)";
+            }
+          }}
+          title={
+            hasFinished
+              ? "Already submitted"
+              : isSubmitting
+              ? "Submitting..."
+              : !storeExamId || questions.length === 0
+              ? "Exam is still loading"
+              : completedQuestions.size < questions.length
+              ? "You haven’t checked all questions. Click to submit anyway."
+              : "Submit practice for review"
+          }
+        >
+          {isSubmitting ? "Submitting..." : "Submit Practice"}
+        </button>
       </aside>
 
       {/* Main Content */}
@@ -602,8 +717,8 @@ export default function PracticeModePage() {
             </button>
           </div>
 
-          {!showAnswer ? (
-            <div style={{ display: "flex", gap: 12 }}>
+          <div style={{ display: "flex", gap: 12 }}>
+            {!showAnswer && (
               <button
                 onClick={checkAnswer}
                 style={{
@@ -629,8 +744,8 @@ export default function PracticeModePage() {
               >
                 Check Answer
               </button>
-            </div>
-          ) : null}
+            )}
+          </div>
         </div>
       </main>
     </div>

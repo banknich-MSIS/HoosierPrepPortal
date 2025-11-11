@@ -56,10 +56,20 @@ export default function Dashboard() {
       ];
     }
   );
+  const [showRestorePrompt, setShowRestorePrompt] = useState(false);
 
   useEffect(() => {
     loadDashboardData();
   }, []);
+
+  // Show restore prompt on first dashboard load when no data exists
+  useEffect(() => {
+    if (!loaded) return;
+    const alreadyShown = localStorage.getItem("restore_prompt_shown") === "true";
+    if (!alreadyShown && uploads.length === 0 && attempts.length === 0) {
+      setShowRestorePrompt(true);
+    }
+  }, [loaded, uploads.length, attempts.length]);
 
   // Targeted refresh of CSV Library while page is visible
   useEffect(() => {
@@ -199,15 +209,60 @@ export default function Dashboard() {
                 boxShadow: theme.glassShadow,
               }}
             />
-          )) ||
-          (attempts.length > 0 && (
-            <PerformanceAnalytics
-              key="analytics"
-              attempts={attempts}
-              darkMode={darkMode}
-              theme={theme}
-            />
-          ))
+          )) || (
+            <section key="analytics">
+              <h2
+                style={{
+                  margin: "0 0 16px 0",
+                  fontSize: 28,
+                  fontWeight: 700,
+                  color: theme.crimson,
+                  letterSpacing: "-0.5px",
+                }}
+              >
+                Performance Analytics
+              </h2>
+              {attempts.length > 0 ? (
+                <PerformanceAnalytics
+                  attempts={attempts}
+                  darkMode={darkMode}
+                  theme={theme}
+                />
+              ) : (
+                <div
+                  style={{
+                    padding: 48,
+                    textAlign: "center",
+                    background: theme.cardBg,
+                    backdropFilter: theme.glassBlur,
+                    WebkitBackdropFilter: theme.glassBlur,
+                    borderRadius: 12,
+                    border: `2px dashed ${theme.glassBorder}`,
+                    boxShadow: theme.glassShadow,
+                  }}
+                >
+                  <h3
+                    style={{
+                      margin: "0 0 8px 0",
+                      color: theme.textSecondary,
+                      fontSize: 18,
+                    }}
+                  >
+                    No analytics yet
+                  </h3>
+                  <p
+                    style={{
+                      margin: "0",
+                      color: theme.textSecondary,
+                      fontSize: 14,
+                    }}
+                  >
+                    Take an exam to see your performance analytics here.
+                  </p>
+                </div>
+              )}
+            </section>
+          )
         );
       case "history":
         return (
@@ -275,8 +330,7 @@ export default function Dashboard() {
                     fontSize: 14,
                   }}
                 >
-                  Upload a CSV and take your first exam to see your history
-                  here.
+                  Generate an exam and take it to see your history here.
                 </p>
               </div>
             )}
@@ -451,6 +505,92 @@ export default function Dashboard() {
           darkMode={darkMode}
           theme={theme}
         />
+      )}
+
+      {/* Restore Data Prompt */}
+      {showRestorePrompt && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0,0,0,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 2200,
+          }}
+          onClick={() => {
+            localStorage.setItem("restore_prompt_shown", "true");
+            setShowRestorePrompt(false);
+          }}
+        >
+          <div
+            style={{
+              background: theme.modalBg,
+              borderRadius: 12,
+              padding: 24,
+              width: "90%",
+              maxWidth: 480,
+              border: `1px solid ${theme.glassBorder}`,
+              boxShadow: theme.glassShadowHover,
+            }}
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+          >
+            <h3
+              style={{
+                margin: "0 0 12px 0",
+                fontSize: 20,
+                fontWeight: 700,
+                color: theme.text,
+              }}
+            >
+              Restore your previous data?
+            </h3>
+            <p style={{ margin: "0 0 16px 0", color: theme.textSecondary }}>
+              If you want to restore a backup, you can do so in Utilities at the bottom of the app.
+            </p>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+              <button
+                onClick={() => {
+                  localStorage.setItem("restore_prompt_shown", "true");
+                  setShowRestorePrompt(false);
+                }}
+                style={{
+                  padding: "10px 16px",
+                  background: "transparent",
+                  border: `1px solid ${theme.glassBorder}`,
+                  borderRadius: 8,
+                  color: theme.text,
+                  cursor: "pointer",
+                }}
+              >
+                Not now
+              </button>
+              <button
+                onClick={() => {
+                  localStorage.setItem("restore_prompt_shown", "true");
+                  setShowRestorePrompt(false);
+                  navigate("/utilities");
+                }}
+                style={{
+                  padding: "10px 16px",
+                  background: theme.crimson,
+                  border: "none",
+                  borderRadius: 8,
+                  color: "white",
+                  cursor: "pointer",
+                }}
+              >
+                Go to Utilities
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </>
   );

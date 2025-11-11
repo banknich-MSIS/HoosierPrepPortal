@@ -109,7 +109,7 @@ export default function UploadPage() {
 
     const apiKey = getStoredApiKey();
     if (!apiKey) {
-      navigate("/settings");
+      navigate("/api-keys");
       return;
     }
 
@@ -419,7 +419,7 @@ export default function UploadPage() {
   const handleGenerate = async () => {
     const apiKey = getStoredApiKey();
     if (!apiKey) {
-      navigate("/settings");
+      navigate("/api-keys");
       return;
     }
 
@@ -595,7 +595,7 @@ export default function UploadPage() {
             assistant.
           </p>
           <button
-            onClick={() => navigate("/settings")}
+            onClick={() => navigate("/api-keys")}
             style={{
               padding: "10px 20px",
               background: theme.amber,
@@ -607,7 +607,7 @@ export default function UploadPage() {
               boxShadow: "0 4px 12px rgba(212, 166, 80, 0.3)",
             }}
           >
-            Go to Settings
+            Go to API Keys
           </button>
         </div>
       )}

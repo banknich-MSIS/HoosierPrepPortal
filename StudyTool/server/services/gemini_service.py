@@ -162,7 +162,7 @@ def build_exam_prompt(content: str, config: ExamConfig) -> str:
     question_types_str = ", ".join(config.question_types)
     
     prompt = EXAM_GENERATION_PROMPT.format(
-        content=content[:15000],  # Limit content to avoid token limits
+        content=content[:10000],  # Slightly lower cap to reduce truncation risk
         question_count=config.question_count,
         difficulty=config.difficulty,
         question_types=question_types_str,
@@ -263,14 +263,11 @@ def parse_gemini_response(response_text: str) -> GeneratedExam:
         return exam
         
     except json.JSONDecodeError as e:
-        # Check if response was likely truncated
-        if len(response_text) > 15000:
-            raise ValueError(
-                f"Gemini response appears to be truncated (too many questions requested). "
-                f"Try reducing the number of questions or simplifying the request.\n"
-                f"Error: {str(e)}"
-            )
-        raise ValueError(f"Failed to parse JSON from Gemini response: {str(e)}\nResponse: {response_text[:500]}")
+        # Provide a more actionable error without assuming truncation purely by length
+        raise ValueError(
+            "Failed to parse JSON from Gemini response. The model may have returned incomplete JSON. "
+            "Try requesting fewer questions (e.g., 10-15) or reducing input size."
+        )
     except Exception as e:
         raise ValueError(f"Failed to validate exam structure: {str(e)}")
 
@@ -372,23 +369,25 @@ async def generate_exam_from_content(
         import asyncio as _asyncio
         response = await _asyncio.to_thread(_gen, prompt)
         
-        # Check if response was truncated by checking finish_reason
+        # Extract response text robustly and check finish_reason
+        truncated_by_tokens = False
+        response_text = ""
         try:
             if hasattr(response, 'candidates') and response.candidates and len(response.candidates) > 0:
                 candidate = response.candidates[0]
-                finish_reason = candidate.finish_reason
-                
+                finish_reason = getattr(candidate, "finish_reason", None)
                 # Log for debugging
                 print(f"DEBUG: Gemini finish_reason: {finish_reason}")
-                print(f"DEBUG: Response length: {len(response.text)} characters")
-                
-                # Check for truncation (finish_reason codes: 1=STOP, 2=MAX_TOKENS, 3=SAFETY, 4=RECITATION)
+                # Extract text from parts when available
+                if getattr(candidate, "content", None) and getattr(candidate.content, "parts", None):
+                    parts_text = []
+                    for part in candidate.content.parts:
+                        if hasattr(part, 'text') and part.text:
+                            parts_text.append(part.text)
+                    response_text = ' '.join(parts_text).strip()
+                # Flag truncation but do not fail yet; we will top-up if needed
                 if finish_reason == 2 or str(finish_reason) == "MAX_TOKENS":
-                    raise ValueError(
-                        "Response truncated - too many questions requested. "
-                        "The Gemini model's per-request limit was reached. "
-                        "Try requesting 10-15 questions instead of 20+."
-                    )
+                    truncated_by_tokens = True
                 elif finish_reason == 3 or str(finish_reason) == "SAFETY":
                     raise ValueError(
                         "Response blocked by safety filters. "
@@ -399,14 +398,45 @@ async def generate_exam_from_content(
                         "Response blocked due to recitation detection. "
                         "Content may be too similar to copyrighted material."
                     )
-                elif finish_reason not in [1, "STOP"]:
-                    raise ValueError(f"Unexpected finish_reason: {finish_reason}")
         except AttributeError:
-            # Response structure doesn't have candidates (shouldn't happen but be safe)
+            # Fall back to default accessor if structure differs
             pass
+
+        if not response_text:
+            try:
+                response_text = response.text.strip()  # fallback
+            except Exception:
+                raise ValueError("Empty response from Gemini model")
         
         # Parse response
-        exam = parse_gemini_response(response.text)
+        exam = parse_gemini_response(response_text)
+
+        # If fewer questions than requested or we detected truncation, attempt top-up
+        requested = max(1, int(config.question_count))
+        have = len(exam.questions or [])
+        if truncated_by_tokens or have < requested:
+            missing = max(0, requested - have)
+            if missing > 0:
+                try:
+                    # Avoid duplicates by passing existing stems
+                    existing_stems = [q.question for q in exam.questions if q and q.question]
+                    extras = await generate_additional_questions(
+                        content=content,
+                        base_config=config,
+                        missing_count=min(missing, 10),  # request in small batches
+                        api_key=api_key,
+                        existing_stems=existing_stems,
+                    )
+                    merged = dedupe_questions((exam.questions or []) + (extras or []))
+                    # If still short, synthesize safe variants locally
+                    if len(merged) < requested:
+                        variants = synthesize_variants(merged, requested - len(merged))
+                        merged = dedupe_questions(merged + variants)
+                    # Truncate to requested count
+                    exam.questions = merged[:requested]
+                except Exception as _e:
+                    # If top-up fails, keep the original parsed questions
+                    print(f"DEBUG: Top-up failed: {_e}")
 
         # Attach the chosen model name on the fly for upstream usage (stored in metadata by route)
         # We return a tuple via an attribute to avoid breaking existing types elsewhere

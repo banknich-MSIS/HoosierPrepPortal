@@ -47,7 +47,7 @@ export default function SettingsPage() {
   const [newClassName, setNewClassName] = useState("");
   const [newClassDescription, setNewClassDescription] = useState("");
   const [loading, setLoading] = useState(false);
-  const [loadingUpload, setLoadingUpload] = useState(true);
+  const [loadingUpload, setLoadingUpload] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [uploadData, setUploadData] = useState<UploadSummary | null>(null);
   const [classes, setClasses] = useState<ClassSummary[]>([]);
@@ -225,7 +225,7 @@ export default function SettingsPage() {
   return (
     <div style={{ display: "grid", gap: 24, color: theme.text }}>
       {/* API Key Management Section - Only show if no valid key */}
-      {!apiKeyValid && (
+      {false && (
         <section
           style={{
             background: theme.cardBg,
@@ -317,9 +317,7 @@ export default function SettingsPage() {
               style={{
                 padding: "10px 24px",
                 background:
-                  apiKey.trim() && !validatingKey
-                    ? theme.crimson
-                    : theme.border,
+                  apiKey.trim() && !validatingKey ? theme.crimson : theme.border,
                 color: "white",
                 border: "none",
                 borderRadius: 8,
@@ -390,12 +388,6 @@ export default function SettingsPage() {
           </div>
         </section>
       )}
-
-      {!uploadId && (
-        <div style={{ color: "crimson" }}>
-          No upload selected. Go back to Upload.
-        </div>
-      )}
       {error && (
         <div
           style={{
@@ -410,11 +402,7 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {loadingUpload ? (
-        <div style={{ padding: 24, textAlign: "center", color: theme.text }}>
-          Loading CSV details...
-        </div>
-      ) : uploadData ? (
+      {uploadData ? (
         <>
           {/* Questions Available Section - Glassmorphism */}
           <section

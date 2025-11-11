@@ -264,13 +264,13 @@ export default function CSVLibrary({
         }}
       >
         <h3 style={{ margin: "0 0 8px 0", color: theme.textSecondary }}>
-          No CSVs uploaded yet
+          No CSVs in library
         </h3>
         <p style={{ margin: "0 0 16px 0", color: theme.textSecondary }}>
-          Upload your first CSV file to start creating practice exams.
+          Generate your first exam to get started.
         </p>
         <button
-          onClick={() => navigate("/upload")}
+          onClick={() => navigate("/ai-exam-creator")}
           style={{
             padding: "12px 32px",
             background: theme.crimson,
@@ -295,7 +295,7 @@ export default function CSVLibrary({
               "0 2px 8px rgba(196, 30, 58, 0.25)";
           }}
         >
-          Upload Your First CSV
+          Generate Your First Exam
         </button>
       </div>
     );

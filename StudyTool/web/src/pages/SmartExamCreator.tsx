@@ -32,6 +32,8 @@ export default function SmartExamCreator() {
     theme: any;
   }>();
 
+  const showGuidedLine = false;
+
   const [files, setFiles] = useState<File[]>([]);
   const [questionCount, setQuestionCount] = useState(15);
   const [difficulty, setDifficulty] = useState<"easy" | "medium" | "hard">(
@@ -104,7 +106,7 @@ export default function SmartExamCreator() {
   const generateExam = async () => {
     const apiKey = getStoredApiKey();
     if (!apiKey) {
-      navigate("/settings");
+      navigate("/api-keys");
       return;
     }
 
@@ -212,33 +214,18 @@ export default function SmartExamCreator() {
           Fast and streamlined exam generation. Upload files, configure
           settings, and generate—no conversation needed.
         </p>
-        <p
-          style={{
-            margin: 0,
-            color: theme.text,
-            fontSize: 14,
-            lineHeight: 1.5,
-          }}
-        >
-          <strong>Prefer a guided experience?</strong> Try the{" "}
-          <button
-            onClick={() => navigate("/upload")}
+        {showGuidedLine && (
+          <p
             style={{
-              background: "none",
-              border: "none",
-              color: theme.crimson,
-              textDecoration: "underline",
-              cursor: "pointer",
+              margin: 0,
+              color: theme.text,
               fontSize: 14,
-              fontFamily: "inherit",
-              padding: 0,
+              lineHeight: 1.5,
             }}
           >
-            AI Assistant
-          </button>{" "}
-          for a consultative, interactive chat approach with AI guidance to plan
-          and refine your exam.
-        </p>
+            Prefer a guided experience? Try the AI Assistant for a consultative, interactive chat approach with AI guidance to plan and refine your exam.
+          </p>
+        )}
       </div>
 
       {/* API Key Warning */}
@@ -270,7 +257,7 @@ export default function SmartExamCreator() {
             You need to set up your free Gemini API key before generating exams.
           </p>
           <button
-            onClick={() => navigate("/settings")}
+            onClick={() => navigate("/api-keys")}
             style={{
               padding: "10px 20px",
               background: theme.amber,
@@ -282,7 +269,7 @@ export default function SmartExamCreator() {
               boxShadow: "0 4px 12px rgba(212, 166, 80, 0.3)",
             }}
           >
-            Go to Settings
+            Go to API Keys
           </button>
         </div>
       )}
@@ -330,7 +317,7 @@ export default function SmartExamCreator() {
             color: theme.text,
             padding: 12,
             borderRadius: 8,
-            border: `2px dashed ${theme.glassBorder}`,
+            border: `2px dashed ${darkMode ? theme.glassBorder : theme.borderSolid}`,
             width: "100%",
             backgroundColor: theme.cardBgSolid,
           }}
@@ -527,7 +514,7 @@ export default function SmartExamCreator() {
                     type="checkbox"
                     checked={questionTypes.includes(option.value)}
                     onChange={() => toggleQuestionType(option.value)}
-                    style={{ marginRight: 12, cursor: "pointer" }}
+                    style={{ marginRight: 12, cursor: "pointer", accentColor: darkMode ? theme.amber : theme.crimson }}
                   />
                   <span style={{ color: theme.text }}>{option.label}</span>
                 </label>
@@ -567,6 +554,7 @@ export default function SmartExamCreator() {
                   name="generation-mode"
                   checked={generationMode === "strict"}
                   onChange={() => setGenerationMode("strict")}
+                  style={{ accentColor: darkMode ? theme.amber : theme.crimson }}
                 />
                 <span style={{ color: theme.text }}>
                   Strict (from provided content only)
@@ -591,6 +579,7 @@ export default function SmartExamCreator() {
                   name="generation-mode"
                   checked={generationMode === "mixed"}
                   onChange={() => setGenerationMode("mixed")}
+                  style={{ accentColor: darkMode ? theme.amber : theme.crimson }}
                 />
                 <span style={{ color: theme.text }}>
                   Mixed (approx. 50/50 blend)
@@ -615,6 +604,7 @@ export default function SmartExamCreator() {
                   name="generation-mode"
                   checked={generationMode === "creative"}
                   onChange={() => setGenerationMode("creative")}
+                  style={{ accentColor: darkMode ? theme.amber : theme.crimson }}
                 />
                 <span style={{ color: theme.text }}>
                   Creative (concept-adjacent improvisation)

@@ -382,13 +382,8 @@ export default function AttemptReviewPage() {
               question.type === "short" || question.type === "cloze";
             const isCorrect = questionReview.is_correct;
 
-            // Determine border color
-            let borderColor = "#28a745"; // green
-            if (isShortAnswer) {
-              borderColor = "#ffc107"; // yellow/amber for short answer
-            } else if (!isCorrect) {
-              borderColor = "#dc3545"; // red
-            }
+            // Determine border color (green for correct, red for incorrect)
+            let borderColor = isCorrect ? "#28a745" : "#dc3545";
 
             return (
               <div
@@ -398,11 +393,7 @@ export default function AttemptReviewPage() {
                   border: `2px solid ${borderColor}`,
                   borderRadius: 8,
                   padding: 16,
-                  backgroundColor: isShortAnswer
-                    ? darkMode
-                      ? "#3d3d1a"
-                      : "#fffbf0"
-                    : isCorrect
+                  backgroundColor: isCorrect
                     ? darkMode
                       ? "#1e2e1e"
                       : "#f8fff9"
@@ -464,41 +455,31 @@ export default function AttemptReviewPage() {
                         borderRadius: 4,
                         fontWeight: "bold",
                         fontSize: "14px",
-                        backgroundColor: isShortAnswer
-                          ? "#ffc107"
-                          : isCorrect
-                          ? "#28a745"
-                          : "#dc3545",
-                        color: isShortAnswer ? "#000" : "white",
+                        backgroundColor: isCorrect ? "#28a745" : "#dc3545",
+                        color: "white",
                       }}
                     >
-                      {isShortAnswer
-                        ? "Manual Review"
-                        : isCorrect
-                        ? "Correct"
-                        : "Incorrect"}
+                      {isCorrect ? "Correct" : "Incorrect"}
                     </div>
-                    {/* Grade Override Button - only for non-short answer */}
-                    {!isShortAnswer && (
-                      <button
-                        onClick={() =>
-                          handleGradeOverride(question.id, isCorrect)
-                        }
-                        title="Override grade (toggle correct/incorrect)"
-                        style={{
-                          padding: "4px 10px",
-                          backgroundColor: darkMode ? "#4d4d4d" : "#e0e0e0",
-                          border: `1px solid ${theme.border}`,
-                          borderRadius: 4,
-                          cursor: "pointer",
-                          fontSize: "11px",
-                          color: theme.text,
-                          fontWeight: "bold",
-                        }}
-                      >
-                        ⚙ Override
-                      </button>
-                    )}
+                    {/* Grade Override Button - allow for all types */}
+                    <button
+                      onClick={() =>
+                        handleGradeOverride(question.id, isCorrect)
+                      }
+                      title="Override grade (toggle correct/incorrect)"
+                      style={{
+                        padding: "4px 10px",
+                        backgroundColor: darkMode ? "#4d4d4d" : "#e0e0e0",
+                        border: `1px solid ${theme.border}`,
+                        borderRadius: 4,
+                        cursor: "pointer",
+                        fontSize: "11px",
+                        color: theme.text,
+                        fontWeight: "bold",
+                      }}
+                    >
+                      ⚙ Override
+                    </button>
                   </div>
                 </div>
 
@@ -733,9 +714,9 @@ export default function AttemptReviewPage() {
                         <div
                           style={{
                             padding: "12px",
-                            border: "2px solid #ffc107",
+                            border: `2px solid ${darkMode ? "#555" : "#ccc"}`,
                             borderRadius: 4,
-                            backgroundColor: darkMode ? "#3d3d1a" : "#fffbf0",
+                            backgroundColor: darkMode ? "#3d3d3d" : "#f5f5f5",
                             minHeight: 40,
                             color: theme.text,
                           }}
