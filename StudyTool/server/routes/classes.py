@@ -15,8 +15,27 @@ router = APIRouter(tags=["classes"])
 @router.post("/classes", response_model=ClassOut)
 def create_class(payload: ClassCreate, db: Session = Depends(get_db)) -> ClassOut:
     """Create a new class"""
+    # Check for existing class with same name (case-insensitive, trimmed)
+    normalized_name = payload.name.strip().lower()
+    existing_class = db.query(ClassModel).filter(
+        ClassModel.name.ilike(normalized_name)
+    ).first()
+    
+    # Also check exact match for databases that might be case-sensitive without ilike
+    if not existing_class:
+        # Get all classes and check in python to be sure if ilike isn't sufficient for sqlite in some envs
+        # (SQLite LIKE is case-insensitive for ASCII by default, but let's be robust)
+        all_classes = db.query(ClassModel).all()
+        for cls in all_classes:
+            if cls.name.strip().lower() == normalized_name:
+                existing_class = cls
+                break
+    
+    if existing_class:
+        raise HTTPException(status_code=400, detail="Tag with this name already exists")
+
     new_class = ClassModel(
-        name=payload.name,
+        name=payload.name.strip(), # Store trimmed name
         description=payload.description,
         color=payload.color
     )

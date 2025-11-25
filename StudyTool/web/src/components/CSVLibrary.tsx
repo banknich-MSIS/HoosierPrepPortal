@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useToast } from "../contexts/ToastContext";
 import type { UploadSummary, ClassSummary, QuestionType } from "../types";
 import ClassTagSelector from "./ClassTagSelector";
 import {
@@ -43,6 +44,9 @@ interface CSVLibraryProps {
   onUpdate: () => void;
   darkMode: boolean;
   theme: any;
+  isArchiveView?: boolean;
+  onArchive?: (uploadId: number) => void;
+  onUnarchive?: (uploadId: number) => void;
 }
 
 export default function CSVLibrary({
@@ -53,16 +57,18 @@ export default function CSVLibrary({
   onUpdate,
   darkMode,
   theme,
+  isArchiveView = false,
+  onArchive,
+  onUnarchive,
 }: CSVLibraryProps) {
   const navigate = useNavigate();
+  const { showToast } = useToast();
   const [selectedUploads, setSelectedUploads] = useState<Set<number>>(
     new Set()
   );
   const [allClasses, setAllClasses] = useState<ClassSummary[]>([]);
   const [hoveredButton, setHoveredButton] = useState<string | null>(null);
-  const [selectedClassFilter, setSelectedClassFilter] = useState<string | null>(
-    null
-  );
+  const [selectedClassFilters, setSelectedClassFilters] = useState<string[]>([]);
   const [openClassDropdown, setOpenClassDropdown] = useState<number | null>(
     null
   );
@@ -74,6 +80,14 @@ export default function CSVLibrary({
   const [showStartModal, setShowStartModal] = useState(false);
   const [modalUploadIds, setModalUploadIds] = useState<number[]>([]);
   const [selectedMode, setSelectedMode] = useState<"exam" | "practice">("exam");
+  const [viewMode, setViewMode] = useState<"grid" | "list">(() => {
+    return (localStorage.getItem("csvLibraryViewMode") as "grid" | "list") || "grid";
+  });
+
+  const toggleViewMode = (mode: "grid" | "list") => {
+    setViewMode(mode);
+    localStorage.setItem("csvLibraryViewMode", mode);
+  };
 
   // Load classes to get actual colors
   useEffect(() => {
@@ -165,7 +179,7 @@ export default function CSVLibrary({
     try {
       const totalQuestions = getTotalQuestionsForIds(modalUploadIds);
       if (totalQuestions <= 0) {
-        alert("No questions available in the selected uploads.");
+        showToast("No questions available in the selected uploads.", "warning");
         return;
       }
       const params: any = {
@@ -187,7 +201,10 @@ export default function CSVLibrary({
         navigate(`/exam/${exam.examId}`);
       }
     } catch (e: any) {
-      alert(e?.response?.data?.detail || e?.message || "Failed to start exam.");
+      showToast(
+        e?.response?.data?.detail || e?.message || "Failed to start exam.",
+        "error"
+      );
     }
   };
 
@@ -207,7 +224,7 @@ export default function CSVLibrary({
       onUpdate();
     } catch (error) {
       console.error("Failed to rename upload:", error);
-      alert("Failed to rename upload");
+      showToast("Failed to rename upload", "error");
     }
   };
 
@@ -232,9 +249,12 @@ export default function CSVLibrary({
     new Set(uploads.flatMap((u) => u.class_tags || []))
   ).sort();
 
-  // Filter uploads based on selected class
-  const filteredUploads = selectedClassFilter
-    ? uploads.filter((u) => u.class_tags?.includes(selectedClassFilter))
+  // Filter uploads based on selected class (AND logic)
+  const filteredUploads = selectedClassFilters.length > 0
+    ? uploads.filter((u) => {
+        const uploadTags = u.class_tags || [];
+        return selectedClassFilters.every(tag => uploadTags.includes(tag));
+      })
     : uploads;
 
   // Debug logging
@@ -326,29 +346,29 @@ export default function CSVLibrary({
           {allClassTags.length > 0 ? (
             <>
               <span style={{ fontSize: 14, color: theme.text, fontWeight: 500 }}>
-                Filter by class:
+                Filter by tag:
               </span>
               <button
-                onClick={() => setSelectedClassFilter(null)}
+                onClick={() => setSelectedClassFilters([])}
                 onMouseEnter={() => setHoveredButton("filterAll")}
                 onMouseLeave={() => setHoveredButton(null)}
                 style={{
                   padding: "8px 16px",
-                  background: !selectedClassFilter ? theme.crimson : theme.cardBg,
-                  backdropFilter: !selectedClassFilter ? "none" : theme.glassBlur,
-                  WebkitBackdropFilter: !selectedClassFilter
+                  background: selectedClassFilters.length === 0 ? theme.crimson : theme.cardBg,
+                  backdropFilter: selectedClassFilters.length === 0 ? "none" : theme.glassBlur,
+                  WebkitBackdropFilter: selectedClassFilters.length === 0
                     ? "none"
                     : theme.glassBlur,
-                  color: !selectedClassFilter ? "white" : theme.text,
+                  color: selectedClassFilters.length === 0 ? "white" : theme.text,
                   border: `1px solid ${
-                    !selectedClassFilter ? theme.crimson : theme.glassBorder
+                    selectedClassFilters.length === 0 ? theme.crimson : theme.glassBorder
                   }`,
                   borderRadius: 8,
                   cursor: "pointer",
                   fontSize: 13,
-                  fontWeight: !selectedClassFilter ? 600 : 500,
+                  fontWeight: selectedClassFilters.length === 0 ? 600 : 500,
                   transition: "all 0.2s ease",
-                  boxShadow: !selectedClassFilter
+                  boxShadow: selectedClassFilters.length === 0
                     ? "0 2px 8px rgba(196, 30, 58, 0.3)"
                     : "none",
                 }}
@@ -357,11 +377,17 @@ export default function CSVLibrary({
               </button>
               {allClassTags.map((tag) => {
                 const classColor = getClassColor(tag);
-                const isSelected = selectedClassFilter === tag;
+                const isSelected = selectedClassFilters.includes(tag);
                 return (
                   <button
                     key={tag}
-                    onClick={() => setSelectedClassFilter(tag)}
+                    onClick={() => {
+                      if (isSelected) {
+                        setSelectedClassFilters(prev => prev.filter(t => t !== tag));
+                      } else {
+                        setSelectedClassFilters(prev => [...prev, tag]);
+                      }
+                    }}
                     onMouseEnter={() => setHoveredButton(`filter-${tag}`)}
                     onMouseLeave={() => setHoveredButton(null)}
                     style={{
@@ -398,11 +424,67 @@ export default function CSVLibrary({
                 fontStyle: "italic",
               }}
             >
-              No classes yet
+              No tags yet
             </span>
           )}
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          {/* View Toggle */}
+          <div style={{ 
+            display: "flex", 
+            background: theme.cardBg, 
+            border: `1px solid ${theme.glassBorder}`, 
+            borderRadius: 8, 
+            padding: 2 
+          }}>
+            <button
+              onClick={() => toggleViewMode("grid")}
+              title="Grid View"
+              style={{
+                padding: "6px",
+                background: viewMode === "grid" ? (darkMode ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.05)") : "transparent",
+                border: "none",
+                borderRadius: 6,
+                cursor: "pointer",
+                color: viewMode === "grid" ? theme.crimson : theme.textSecondary,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center"
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="7" height="7"></rect>
+                <rect x="14" y="3" width="7" height="7"></rect>
+                <rect x="14" y="14" width="7" height="7"></rect>
+                <rect x="3" y="14" width="7" height="7"></rect>
+              </svg>
+            </button>
+            <button
+              onClick={() => toggleViewMode("list")}
+              title="List View"
+              style={{
+                padding: "6px",
+                background: viewMode === "list" ? (darkMode ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.05)") : "transparent",
+                border: "none",
+                borderRadius: 6,
+                cursor: "pointer",
+                color: viewMode === "list" ? theme.crimson : theme.textSecondary,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center"
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="8" y1="6" x2="21" y2="6"></line>
+                <line x1="8" y1="12" x2="21" y2="12"></line>
+                <line x1="8" y1="18" x2="21" y2="18"></line>
+                <line x1="3" y1="6" x2="3.01" y2="6"></line>
+                <line x1="3" y1="12" x2="3.01" y2="12"></line>
+                <line x1="3" y1="18" x2="3.01" y2="18"></line>
+              </svg>
+            </button>
+          </div>
+
           <button
             onClick={() => setShowCreateClass(true)}
             title="Create Class"
@@ -519,51 +601,88 @@ export default function CSVLibrary({
         </div>
       )}
 
-      {/* CSV Cards Grid */}
+      {/* CSV List/Grid */}
       <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
-          gap: 16,
-        }}
+        style={
+          viewMode === "grid"
+            ? {
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
+                gap: 16,
+              }
+            : {
+                display: "flex",
+                flexDirection: "column",
+                gap: 8,
+              }
+        }
       >
         {filteredUploads.map((upload) => (
           <div
             key={upload.id}
-            style={{
-              border: selectedUploads.has(upload.id)
-                ? `2px solid ${theme.crimson}`
-                : `1px solid ${theme.glassBorder}`,
-              borderRadius: 12,
-              padding: 18,
-              background: selectedUploads.has(upload.id)
-                ? darkMode
-                  ? "rgba(196, 30, 58, 0.12)"
-                  : "rgba(196, 30, 58, 0.08)"
-                : theme.cardBg,
-              backdropFilter: theme.glassBlur,
-              WebkitBackdropFilter: theme.glassBlur,
-              cursor: "pointer",
-              transition: "all 0.3s ease",
-              position: "relative",
-              boxShadow: selectedUploads.has(upload.id)
-                ? theme.glassShadowHover
-                : theme.glassShadow,
-            }}
+            style={
+              viewMode === "grid"
+                ? {
+                    border: selectedUploads.has(upload.id)
+                      ? `2px solid ${theme.crimson}`
+                      : `1px solid ${theme.glassBorder}`,
+                    borderRadius: 12,
+                    padding: 18,
+                    background: selectedUploads.has(upload.id)
+                      ? darkMode
+                        ? "rgba(196, 30, 58, 0.12)"
+                        : "rgba(196, 30, 58, 0.08)"
+                      : theme.cardBg,
+                    backdropFilter: theme.glassBlur,
+                    WebkitBackdropFilter: theme.glassBlur,
+                    cursor: "pointer",
+                    transition: "all 0.3s ease",
+                    position: "relative",
+                    boxShadow: selectedUploads.has(upload.id)
+                      ? theme.glassShadowHover
+                      : theme.glassShadow,
+                    zIndex: openClassDropdown === upload.id ? 10 : 1,
+                  }
+                : {
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    padding: "12px 16px",
+                    border: selectedUploads.has(upload.id)
+                      ? `2px solid ${theme.crimson}`
+                      : `1px solid ${theme.glassBorder}`,
+                    borderRadius: 8,
+                    background: selectedUploads.has(upload.id)
+                      ? darkMode
+                        ? "rgba(196, 30, 58, 0.12)"
+                        : "rgba(196, 30, 58, 0.08)"
+                      : theme.cardBg,
+                    backdropFilter: theme.glassBlur,
+                    WebkitBackdropFilter: theme.glassBlur,
+                    cursor: "pointer",
+                    transition: "all 0.2s ease",
+                    position: "relative",
+                    zIndex: openClassDropdown === upload.id ? 10 : 1,
+                  }
+            }
             onClick={() => toggleSelection(upload.id)}
             onMouseEnter={(e) => {
               if (!selectedUploads.has(upload.id)) {
                 e.currentTarget.style.boxShadow = theme.glassShadowHover;
-                e.currentTarget.style.transform = "translateY(-2px)";
+                e.currentTarget.style.transform = viewMode === "grid" ? "translateY(-2px)" : "none";
+                if (viewMode === "list") e.currentTarget.style.background = darkMode ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.02)";
               }
             }}
             onMouseLeave={(e) => {
               if (!selectedUploads.has(upload.id)) {
                 e.currentTarget.style.boxShadow = theme.glassShadow;
                 e.currentTarget.style.transform = "translateY(0)";
+                if (viewMode === "list") e.currentTarget.style.background = theme.cardBg;
               }
             }}
           >
+          {viewMode === "grid" ? (
+            <>
             {/* Action buttons (Assign to class & Rename) in Top Right */}
             <div
               style={{
@@ -575,45 +694,6 @@ export default function CSVLibrary({
               }}
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Rename button */}
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleStartRename(upload.id);
-                }}
-                title="Rename"
-                style={{
-                  padding: "6px",
-                  background: "rgba(196, 30, 58, 0.08)",
-                  border: `1px solid ${theme.glassBorder}`,
-                  borderRadius: 6,
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  transition: "all 0.2s ease",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = "rgba(196, 30, 58, 0.15)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = "rgba(196, 30, 58, 0.08)";
-                }}
-              >
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke={theme.crimson}
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-                </svg>
-              </button>
-
               <div style={{ position: "relative" }}>
                 <button
                   onClick={(e) => {
@@ -659,8 +739,8 @@ export default function CSVLibrary({
                     strokeLinecap="round"
                     strokeLinejoin="round"
                   >
-                    <path d="M22 10v6M2 10l10-5 10 5-10 5z" />
-                    <path d="M6 12v5c3 3 9 3 12 0v-5" />
+                    <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>
+                    <line x1="7" y1="7" x2="7.01" y2="7"></line>
                   </svg>
                 </button>
 
@@ -958,6 +1038,119 @@ export default function CSVLibrary({
                   </button>
                 )}
 
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigate(`/question-base/${upload.id}`);
+                  }}
+                  onMouseEnter={() => setHoveredButton(`edit-base-${upload.id}`)}
+                  onMouseLeave={() => setHoveredButton(null)}
+                  title="Edit"
+                  style={{
+                    padding: "8px",
+                    background: "transparent",
+                    color: theme.textSecondary,
+                    border: `1px solid ${theme.glassBorder}`,
+                    borderRadius: 6,
+                    cursor: "pointer",
+                    transition: "all 0.2s ease",
+                    display: "flex",
+                    alignItems: "center",
+                    opacity: hoveredButton === `edit-base-${upload.id}` ? 1 : 0.7,
+                  }}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                  </svg>
+                </button>
+
+                {/* Archive / Unarchive */}
+                {isArchiveView ? (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (onUnarchive) onUnarchive(upload.id);
+                    }}
+                    onMouseEnter={() => setHoveredButton(`unarchive-${upload.id}`)}
+                    onMouseLeave={() => setHoveredButton(null)}
+                    title="Unarchive"
+                    style={{
+                      padding: "8px",
+                      background: "transparent",
+                      color: theme.textSecondary,
+                      border: `1px solid ${theme.glassBorder}`,
+                      borderRadius: 6,
+                      cursor: "pointer",
+                      transition: "all 0.2s ease",
+                      display: "flex",
+                      alignItems: "center",
+                      opacity: hoveredButton === `unarchive-${upload.id}` ? 1 : 0.7,
+                    }}
+                  >
+                    <svg
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <polyline points="9 14 15 14"></polyline>
+                      <polyline points="4 20 4 14 20 14 20 20"></polyline>
+                      <polyline points="4 20 20 20"></polyline>
+                      <polyline points="12 4 12 14"></polyline>
+                      <polyline points="9 7 12 4 15 7"></polyline>
+                    </svg>
+                  </button>
+                ) : (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (
+                        onArchive &&
+                        confirm(
+                          `Archive "${upload.filename}"? It will be moved to the Archive page.`
+                        )
+                      ) {
+                        onArchive(upload.id);
+                      }
+                    }}
+                    onMouseEnter={() => setHoveredButton(`archive-${upload.id}`)}
+                    onMouseLeave={() => setHoveredButton(null)}
+                    title="Archive"
+                    style={{
+                      padding: "8px",
+                      background: "transparent",
+                      color: theme.textSecondary,
+                      border: `1px solid ${theme.glassBorder}`,
+                      borderRadius: 6,
+                      cursor: "pointer",
+                      transition: "all 0.2s ease",
+                      display: "flex",
+                      alignItems: "center",
+                      opacity: hoveredButton === `archive-${upload.id}` ? 1 : 0.7,
+                    }}
+                  >
+                    <svg
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <polyline points="21 8 21 21 3 21 3 8"></polyline>
+                      <rect x="1" y="3" width="22" height="5"></rect>
+                      <line x1="10" y1="12" x2="14" y2="12"></line>
+                    </svg>
+                  </button>
+                )}
+
                 {/* Delete - icon only */}
                 <button
                   onClick={(e) => {
@@ -996,14 +1189,346 @@ export default function CSVLibrary({
                     strokeLinecap="round"
                     strokeLinejoin="round"
                   >
-                    <polyline points="3 6 5 6 21 6" />
-                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                    <line x1="10" y1="11" x2="10" y2="17" />
-                    <line x1="14" y1="11" x2="14" y2="17" />
+                    <polyline points="3 6 5 6 21 6"></polyline>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                    <line x1="10" y1="11" x2="10" y2="17"></line>
+                    <line x1="14" y1="11" x2="14" y2="17"></line>
                   </svg>
                 </button>
               </div>
             </div>
+            </>
+          ) : (
+            /* List View Content */
+            <>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, flex: 1, minWidth: 0 }}>
+                  {/* Name */}
+                  {editingUploadId === upload.id ? (
+                    <input
+                      type="text"
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handleSaveRename(upload.id);
+                        if (e.key === "Escape") handleCancelRename();
+                      }}
+                      onBlur={() => handleSaveRename(upload.id)}
+                      onClick={(e) => e.stopPropagation()}
+                      style={{
+                        minWidth: 200,
+                        padding: "4px 8px",
+                        border: `1px solid ${theme.border}`,
+                        borderRadius: 4,
+                        backgroundColor: theme.cardBgSolid,
+                        color: theme.text,
+                        fontSize: 14,
+                        fontWeight: "bold",
+                      }}
+                      autoFocus
+                    />
+                  ) : (
+                    <span
+                      title={upload.filename}
+                      style={{
+                        fontWeight: "bold",
+                        fontSize: 14,
+                        color: theme.text,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {upload.filename}
+                    </span>
+                  )}
+
+                  {/* Metadata: Questions, Themes, Types */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 16, margin: "0 12px" }}>
+                    {/* Question Count */}
+                    <span style={{ fontSize: 12, color: theme.textSecondary, whiteSpace: "nowrap", fontWeight: 500 }}>
+                      {upload.question_count} Qs
+                    </span>
+
+                    {/* Themes (limit 2) */}
+                    {upload.themes && upload.themes.length > 0 && (
+                      <div style={{ display: "flex", gap: 4 }}>
+                        {upload.themes.slice(0, 2).map((t, i) => (
+                          <span key={i} style={{ 
+                            fontSize: 10, 
+                            padding: "2px 6px", 
+                            borderRadius: 4, 
+                            background: darkMode ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.05)",
+                            color: theme.textSecondary,
+                            whiteSpace: "nowrap"
+                          }}>
+                            {t}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Question Types */}
+                    {upload.question_type_counts && (
+                      <div style={{ display: "flex", gap: 6, fontSize: 11, color: theme.textSecondary }}>
+                        {Object.entries(upload.question_type_counts).map(([type, count]) => {
+                           const label = {
+                             mcq: "MC",
+                             multi: "MS",
+                             truefalse: "TF",
+                             short: "SA",
+                             cloze: "FB"
+                           }[type] || type.substring(0,2).toUpperCase();
+                           return (
+                             <span key={type} title={QUESTION_TYPE_LABELS[type]} style={{ whiteSpace: "nowrap" }}>
+                               {count} {label}
+                             </span>
+                           );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Tags */}
+                  <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginLeft: "auto" }}>
+                    {upload.class_tags && upload.class_tags.map((tag, index) => {
+                      const classColor = getClassColor(tag);
+                      const textColor = getContrastTextColor(classColor);
+                      return (
+                        <div
+                          key={index}
+                          style={{
+                            padding: "2px 6px",
+                            backgroundColor: classColor,
+                            color: textColor,
+                            borderRadius: 4,
+                            fontSize: 11,
+                            fontWeight: "bold",
+                            whiteSpace: "nowrap",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 4
+                          }}
+                        >
+                          {tag}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Actions Row */}
+                <div style={{ display: "flex", gap: 4, alignItems: "center", marginLeft: 12 }} onClick={(e) => e.stopPropagation()}>
+                  {/* Start Exam */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openStartModal([upload.id]);
+                    }}
+                    title="Start Exam"
+                    style={{
+                      padding: "6px",
+                      background: "transparent",
+                      color: theme.crimson,
+                      border: "none",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                    }}
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="12" y1="5" x2="12" y2="19" />
+                      <line x1="5" y1="12" x2="19" y2="12" />
+                    </svg>
+                  </button>
+
+                  {/* Assign Tag */}
+                  <div style={{ position: "relative" }}>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenClassDropdown(
+                          openClassDropdown === upload.id ? null : upload.id
+                        );
+                      }}
+                      title="Assign tag"
+                      style={{
+                        padding: "6px",
+                        background: openClassDropdown === upload.id ? "rgba(196, 30, 58, 0.15)" : "transparent",
+                        color: theme.textSecondary,
+                        border: "none",
+                        borderRadius: 4,
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                      }}
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>
+                        <line x1="7" y1="7" x2="7.01" y2="7"></line>
+                      </svg>
+                    </button>
+                    {openClassDropdown === upload.id && (
+                      <div
+                        data-dropdown={upload.id}
+                        style={{
+                          position: "absolute",
+                          top: "calc(100% + 4px)",
+                          right: 0,
+                          minWidth: 200,
+                          background: theme.cardBgSolid,
+                          border: `1px solid ${theme.glassBorder}`,
+                          borderRadius: 8,
+                          boxShadow: theme.glassShadowHover,
+                          padding: 8,
+                          zIndex: 100,
+                        }}
+                      >
+                        <ClassTagSelector
+                          uploadId={upload.id}
+                          currentTags={upload.class_tags || []}
+                          onUpdate={() => {
+                            onUpdate();
+                            setOpenClassDropdown(null);
+                          }}
+                          darkMode={darkMode}
+                          theme={theme}
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Edit Question Base (also allows renaming) */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigate(`/question-base/${upload.id}`);
+                    }}
+                    title="Edit"
+                    style={{
+                      padding: "6px",
+                      background: "transparent",
+                      color: theme.textSecondary,
+                      border: "none",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                    }}
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                    </svg>
+                  </button>
+
+                  {/* Archive / Unarchive */}
+                  {isArchiveView ? (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (onUnarchive) onUnarchive(upload.id);
+                      }}
+                      title="Unarchive"
+                      style={{
+                        padding: "6px",
+                        background: "transparent",
+                        color: theme.textSecondary,
+                        border: "none",
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                      }}
+                    >
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <polyline points="9 14 15 14"></polyline>
+                        <polyline points="4 20 4 14 20 14 20 20"></polyline>
+                        <polyline points="4 20 20 20"></polyline>
+                        <polyline points="12 4 12 14"></polyline>
+                        <polyline points="9 7 12 4 15 7"></polyline>
+                      </svg>
+                    </button>
+                  ) : (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (
+                          onArchive &&
+                          confirm(
+                            `Archive "${upload.filename}"? It will be moved to the Archive page.`
+                          )
+                        ) {
+                          onArchive(upload.id);
+                        }
+                      }}
+                      title="Archive"
+                      style={{
+                        padding: "6px",
+                        background: "transparent",
+                        color: theme.textSecondary,
+                        border: "none",
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                      }}
+                    >
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <polyline points="21 8 21 21 3 21 3 8"></polyline>
+                        <rect x="1" y="3" width="22" height="5"></rect>
+                        <line x1="10" y1="12" x2="14" y2="12"></line>
+                      </svg>
+                    </button>
+                  )}
+
+                  {/* Delete */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (
+                        confirm(
+                          `Are you sure you want to delete "${upload.filename}"? This will also delete all associated exams and attempts.`
+                        )
+                      ) {
+                        onDelete(upload.id);
+                      }
+                    }}
+                    title="Delete CSV"
+                    style={{
+                      padding: "6px",
+                      background: "transparent",
+                      color: theme.textSecondary,
+                      border: "none",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                    }}
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="3 6 5 6 21 6"></polyline>
+                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                      <line x1="10" y1="11" x2="10" y2="17"></line>
+                      <line x1="14" y1="11" x2="14" y2="17"></line>
+                    </svg>
+                  </button>
+                </div>
+            </>
+          )}
           </div>
         ))}
       </div>
@@ -1283,7 +1808,7 @@ export default function CSVLibrary({
               <button
                 onClick={async () => {
                   if (!newClassName.trim()) {
-                    alert("Please enter a class name");
+                    showToast("Please enter a class name", "warning");
                     return;
                   }
                   try {
@@ -1294,7 +1819,7 @@ export default function CSVLibrary({
                     const updated = await fetchClasses();
                     setAllClasses(updated);
                   } catch (e: any) {
-                    alert(e?.message || "Failed to create class");
+                    showToast(e?.message || "Failed to create class", "error");
                   }
                 }}
                 style={{

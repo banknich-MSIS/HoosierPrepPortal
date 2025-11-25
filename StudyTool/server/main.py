@@ -20,6 +20,7 @@ from .routes import ai_generation as ai_routes
 from .routes import jobs as jobs_routes
 from .routes import backup as backup_routes
 from .routes import analytics as analytics_routes
+from .routes import questions as questions_routes
 
 
 # Configure logging to file AND console
@@ -131,6 +132,7 @@ def create_app() -> FastAPI:
     app.include_router(jobs_routes.router, prefix="/api")
     app.include_router(backup_routes.router, prefix="/api")
     app.include_router(analytics_routes.router, prefix="/api")
+    app.include_router(questions_routes.router, prefix="/api")
 
     @app.on_event("startup")
     def _startup() -> None:

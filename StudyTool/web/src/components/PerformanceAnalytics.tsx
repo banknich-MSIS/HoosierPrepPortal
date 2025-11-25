@@ -31,11 +31,11 @@ interface PerformanceAnalyticsProps {
   theme: any;
 }
 
-export default function PerformanceAnalytics({
+const PerformanceAnalytics = React.memo(({
   attempts,
   darkMode,
   theme,
-}: PerformanceAnalyticsProps) {
+}: PerformanceAnalyticsProps) => {
   const [analytics, setAnalytics] = useState<DetailedAnalytics | null>(null);
   const [loading, setLoading] = useState(true);
   const [classFilter, setClassFilter] = useState<string>("all");
@@ -188,20 +188,21 @@ export default function PerformanceAnalytics({
 
   const filteredTimeline = filterTimelineData(analytics.timeline_data);
 
-  // Calculate rolling average
-  const calculateRollingAverage = (
-    data: TimelineDataPoint[],
-    windowSize: number = 3
+  // Calculate cumulative average
+  const calculateCumulativeAverage = (
+    data: TimelineDataPoint[]
   ) => {
+    let runningSum = 0;
     return data.map((point, idx) => {
-      const start = Math.max(0, idx - windowSize + 1);
-      const window = data.slice(start, idx + 1);
-      const avg = window.reduce((sum, p) => sum + p.score, 0) / window.length;
+      runningSum += point.score;
+      const avg = runningSum / (idx + 1);
       return {
+        index: idx, // Add unique index for X-axis to prevent merging same-day points
         date: new Date(point.date).toLocaleDateString("en-US", {
           month: "short",
           day: "numeric",
         }),
+        fullDate: point.date,
         score: point.score,
         rollingAvg: Math.round(avg * 10) / 10,
         difficulty: point.difficulty || "M",
@@ -210,7 +211,7 @@ export default function PerformanceAnalytics({
     });
   };
 
-  const timelineChartData = calculateRollingAverage(filteredTimeline);
+  const timelineChartData = calculateCumulativeAverage(filteredTimeline);
 
   // Helper function to format question type names
   const formatQuestionType = (type: string): string => {
@@ -609,9 +610,17 @@ export default function PerformanceAnalytics({
           <LineChart data={timelineChartData}>
             <CartesianGrid strokeDasharray="3 3" stroke={theme.glassBorder} />
             <XAxis
-              dataKey="date"
+              dataKey="index"
               stroke={theme.textSecondary}
               style={{ fontSize: 11 }}
+              tickFormatter={(val) => {
+                // Use the index to look up the formatted date
+                const item = timelineChartData[val];
+                return item ? item.date : "";
+              }}
+              type="number"
+              domain={['dataMin', 'dataMax']}
+              interval="preserveStartEnd"
             />
             <YAxis
               domain={[0, 100]}
@@ -624,6 +633,11 @@ export default function PerformanceAnalytics({
                 border: `1px solid ${theme.glassBorder}`,
                 borderRadius: 6,
                 fontSize: 12,
+                color: darkMode ? "#fff" : "#000",
+              }}
+              labelFormatter={(value) => {
+                const item = timelineChartData[value];
+                return item ? item.date : "";
               }}
               formatter={(value: any, name: string) => {
                 if (name === "score") return [`${value}%`, "Score"];
@@ -636,7 +650,9 @@ export default function PerformanceAnalytics({
               dataKey="score"
               stroke={theme.crimson}
               strokeWidth={2}
-              dot={{ fill: theme.crimson, r: 4 }}
+              dot={{ fill: theme.crimson, r: 3 }}
+              activeDot={{ r: 5 }}
+              isAnimationActive={false}
             />
             <Line
               type="monotone"
@@ -645,6 +661,8 @@ export default function PerformanceAnalytics({
               strokeWidth={2}
               strokeDasharray="5 5"
               dot={false}
+              activeDot={false}
+              isAnimationActive={false}
             />
           </LineChart>
         </ResponsiveContainer>
@@ -656,7 +674,7 @@ export default function PerformanceAnalytics({
             textAlign: "center",
           }}
         >
-          Solid line: actual scores | Dashed line: rolling average
+          Solid line: actual scores | Dashed line: cumulative average
         </div>
       </div>
 
@@ -705,6 +723,7 @@ export default function PerformanceAnalytics({
                     border: `1px solid ${theme.glassBorder}`,
                     borderRadius: 6,
                     fontSize: 12,
+                    color: darkMode ? "#fff" : "#000",
                   }}
                   formatter={(value: any, name: string, props: any) => [
                     `${value}% (${props.payload.correct}/${props.payload.total})`,
@@ -823,114 +842,8 @@ export default function PerformanceAnalytics({
         </div>
       )}
 
-      {/* Source Material Insights */}
-      {sourceData.length > 0 && (
-        <div
-          style={{
-            padding: 18,
-            background: "rgba(255, 255, 255, 0.03)",
-            backdropFilter: "blur(8px)",
-            WebkitBackdropFilter: "blur(8px)",
-            borderRadius: 10,
-            border: `1px solid ${theme.glassBorder}`,
-          }}
-        >
-          <div
-            style={{
-              fontSize: 16,
-              fontWeight: 700,
-              marginBottom: 16,
-              color: theme.text,
-            }}
-          >
-            Source Material Performance
-          </div>
-          <ResponsiveContainer
-            width="100%"
-            height={Math.max(150, sourceData.length * 35)}
-          >
-            <BarChart
-              data={sourceData}
-              layout="vertical"
-              margin={{ left: 10, right: 30 }}
-            >
-              <CartesianGrid strokeDasharray="3 3" stroke={theme.glassBorder} />
-              <XAxis
-                type="number"
-                domain={[0, 100]}
-                stroke={theme.textSecondary}
-                style={{ fontSize: 11 }}
-              />
-              <YAxis
-                type="category"
-                dataKey="name"
-                stroke={theme.textSecondary}
-                width={150}
-                style={{ fontSize: 11 }}
-              />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: darkMode ? "#2d1819" : "#fff",
-                  border: `1px solid ${theme.glassBorder}`,
-                  borderRadius: 6,
-                  fontSize: 12,
-                }}
-                formatter={(value: any, name: string, props: any) => [
-                  `${value}% accuracy (${props.payload.questionCount} questions, ${props.payload.appearances} exams)`,
-                  props.payload.fullName,
-                ]}
-              />
-              <Bar dataKey="accuracy" fill={theme.crimson}>
-                {sourceData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.fill} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-          <div
-            style={{
-              marginTop: 16,
-              padding: 12,
-              background: darkMode
-                ? "rgba(255, 193, 7, 0.08)"
-                : "rgba(255, 193, 7, 0.12)",
-              borderRadius: 6,
-              border: "1px solid rgba(255, 193, 7, 0.3)",
-            }}
-          >
-            <div
-              style={{
-                fontSize: 13,
-                fontWeight: 600,
-                color: theme.text,
-                marginBottom: 8,
-              }}
-            >
-              Study Coverage
-            </div>
-            <div style={{ display: "grid", gap: 6 }}>
-              {sourceData.map((source) => (
-                <div
-                  key={source.fullName}
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    fontSize: 12,
-                    color: theme.text,
-                  }}
-                >
-                  <span>{source.fullName}</span>
-                  <span style={{ color: theme.textSecondary }}>
-                    {source.appearances} exam
-                    {source.appearances !== 1 ? "s" : ""}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
+      {/* Source Material Insights Removed per request */}
+      
       {/* CSS Animation for Spinner */}
       <style>{`
         @keyframes spin {
@@ -940,4 +853,6 @@ export default function PerformanceAnalytics({
       `}</style>
     </div>
   );
-}
+});
+
+export default PerformanceAnalytics;

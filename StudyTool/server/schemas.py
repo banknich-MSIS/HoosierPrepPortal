@@ -27,6 +27,7 @@ class UploadSummary(BaseModel):
     file_type: str
     class_tags: List[str] = []
     question_type_counts: Optional[Dict[str, int]] = None
+    is_archived: bool = False
 
 
 class ConceptOut(BaseModel):

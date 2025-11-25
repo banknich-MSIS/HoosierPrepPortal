@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useOutletContext } from "react-router-dom";
+import { useToast } from "../contexts/ToastContext";
 import {
   fetchClasses,
   createClass,
@@ -29,6 +30,7 @@ export default function ClassesPage() {
     darkMode: boolean;
     theme: any;
   }>();
+  const { showToast } = useToast();
   const [classes, setClasses] = useState<ClassSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -36,6 +38,7 @@ export default function ClassesPage() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingClass, setEditingClass] = useState<ClassSummary | null>(null);
   const [formName, setFormName] = useState("");
+  const [formDescription, setFormDescription] = useState("");
   const [formColor, setFormColor] = useState("#007bff");
   const [hoveredButton, setHoveredButton] = useState<string | null>(null);
 
@@ -57,7 +60,17 @@ export default function ClassesPage() {
 
   const handleCreateClass = async () => {
     if (!formName.trim()) {
-      alert("Please enter a class name");
+      showToast("Please enter a class name", "warning");
+      return;
+    }
+
+    // Check for duplicates locally
+    if (
+      classes.some(
+        (c) => c.name.toLowerCase() === formName.trim().toLowerCase()
+      )
+    ) {
+      showToast("A tag with this name already exists.", "error");
       return;
     }
 
@@ -68,13 +81,28 @@ export default function ClassesPage() {
       setFormColor("#007bff");
       loadClasses();
     } catch (e: any) {
-      alert(`Failed to create class: ${e?.message || "Unknown error"}`);
+      showToast(
+        `Failed to create class: ${e?.message || "Unknown error"}`,
+        "error"
+      );
     }
   };
 
   const handleEditClass = async () => {
     if (!editingClass || !formName.trim()) {
-      alert("Please enter a class name");
+      showToast("Please enter a class name", "warning");
+      return;
+    }
+
+    // Check for duplicates (exclude current class)
+    if (
+      classes.some(
+        (c) =>
+          c.id !== editingClass.id &&
+          c.name.toLowerCase() === formName.trim().toLowerCase()
+      )
+    ) {
+      showToast("A tag with this name already exists.", "error");
       return;
     }
 
@@ -86,7 +114,10 @@ export default function ClassesPage() {
       setFormColor("#007bff");
       loadClasses();
     } catch (e: any) {
-      alert(`Failed to update class: ${e?.message || "Unknown error"}`);
+      showToast(
+        `Failed to update class: ${e?.message || "Unknown error"}`,
+        "error"
+      );
     }
   };
 
@@ -99,7 +130,10 @@ export default function ClassesPage() {
       await deleteClass(id);
       loadClasses();
     } catch (e: any) {
-      alert(`Failed to delete class: ${e?.message || "Unknown error"}`);
+      showToast(
+        `Failed to delete class: ${e?.message || "Unknown error"}`,
+        "error"
+      );
     }
   };
 
@@ -164,7 +198,7 @@ export default function ClassesPage() {
             letterSpacing: "-0.5px",
           }}
         >
-          Manage Classes
+          Manage Tags
         </h2>
         <div style={{ display: "flex", gap: 12 }}>
           <button
@@ -195,7 +229,7 @@ export default function ClassesPage() {
                 "0 2px 8px rgba(196, 30, 58, 0.25)";
             }}
           >
-            Create New Class
+            Create New Tag
           </button>
           <button
             onClick={() => navigate("/")}
@@ -402,7 +436,7 @@ export default function ClassesPage() {
             }}
           >
             <h3 style={{ margin: "0 0 20px 0", color: theme.text }}>
-              Create New Class
+              Create New Tag
             </h3>
             <div style={{ marginBottom: 16 }}>
               <label
@@ -414,7 +448,7 @@ export default function ClassesPage() {
                   color: theme.text,
                 }}
               >
-                Class Name *
+                Tag Name *
               </label>
               <input
                 type="text"
@@ -569,7 +603,7 @@ export default function ClassesPage() {
             }}
           >
             <h3 style={{ margin: "0 0 20px 0", color: theme.text }}>
-              Edit Class
+              Edit Tag
             </h3>
             <div style={{ marginBottom: 16 }}>
               <label
@@ -581,7 +615,7 @@ export default function ClassesPage() {
                   color: theme.text,
                 }}
               >
-                Class Name *
+                Tag Name *
               </label>
               <input
                 type="text"

@@ -1,7 +1,8 @@
-import { useMemo } from "react";
+import React, { useMemo } from "react";
 import type { QuestionDTO, QuestionType } from "../types";
 import { useExamStore } from "../store/examStore";
 import { parseSimpleMarkdown } from "../utils/markdown";
+import { CLOZE_REGEX } from "../utils/cloze";
 
 const QUESTION_TYPE_LABELS: Record<QuestionType, string> = {
   mcq: "Multiple Choice",
@@ -27,6 +28,105 @@ export default function QuestionCard({ question, darkMode, theme, disabled = fal
 
   // Handle both 'type' and 'qtype' fields from backend
   const questionType = question.type || (question as any).qtype || "unknown";
+
+  if (questionType === "cloze") {
+    const parts = question.stem.split(CLOZE_REGEX);
+    const userAnswers = Array.isArray(value) 
+      ? value 
+      : (typeof value === 'object' && value !== null)
+        ? Object.values(value) // fallback for legacy dict
+        : (value ? [value] : []); // fallback for legacy single string
+
+    // Check if there are any blanks (parts length > 1 usually means at least one blank)
+    const hasBlanks = parts.length > 1;
+
+    return (
+      <div
+        style={{
+          border: `1px solid ${theme.border}`,
+          borderRadius: 8,
+          padding: 16,
+          backgroundColor: theme.cardBg,
+        }}
+      >
+        <div
+          style={{
+            fontSize: "12px",
+            color: theme.textSecondary,
+            marginBottom: "8px",
+            fontStyle: "italic",
+          }}
+        >
+          Type: Fill in the Blank
+        </div>
+        <div
+          style={{
+            marginBottom: 12,
+            fontSize: "16px",
+            lineHeight: "2.5",
+            color: theme.text,
+          }}
+        >
+          {hasBlanks ? (
+            parts.map((part, i) => (
+              <React.Fragment key={i}>
+                <span dangerouslySetInnerHTML={{ __html: parseSimpleMarkdown(part) }} />
+                {i < parts.length - 1 && (
+                  <input
+                    style={{
+                      minWidth: "120px",
+                      maxWidth: "200px",
+                      margin: "0 8px",
+                      padding: "8px",
+                      border: `1px solid ${theme.border}`,
+                      borderRadius: "4px",
+                      fontSize: "15px",
+                      backgroundColor: theme.cardBg,
+                      color: theme.text,
+                      opacity: disabled ? 0.6 : 1,
+                      cursor: disabled ? "not-allowed" : "text",
+                      borderBottom: `2px solid ${theme.crimson || '#c41e3a'}`,
+                    }}
+                    value={userAnswers[i] || ""}
+                    onChange={(e) => {
+                      const newAnswers = [...userAnswers];
+                      newAnswers[i] = e.target.value;
+                      setAnswer(question.id, newAnswers);
+                    }}
+                    disabled={disabled}
+                    placeholder="Answer..."
+                  />
+                )}
+              </React.Fragment>
+            ))
+          ) : (
+            // Fallback for legacy/malformed cloze without tokens
+            <>
+              <div dangerouslySetInnerHTML={{ __html: parseSimpleMarkdown(question.stem) }} />
+              <input
+                style={{
+                  width: "100%",
+                  marginTop: 12,
+                  padding: "12px",
+                  border: `1px solid ${theme.border}`,
+                  borderRadius: "4px",
+                  fontSize: "15px",
+                  backgroundColor: theme.cardBg,
+                  color: theme.text,
+                  opacity: disabled ? 0.6 : 1,
+                  cursor: disabled ? "not-allowed" : "text",
+                }}
+                placeholder="Type your answer"
+                value={userAnswers[0] || ""}
+                onChange={(e) => setAnswer(question.id, [e.target.value])}
+                disabled={disabled}
+              />
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -174,7 +274,7 @@ export default function QuestionCard({ question, darkMode, theme, disabled = fal
           )}
         </div>
       )}
-      {(questionType === "short" || questionType === "cloze") && (
+      {questionType === "short" && (
         <div>
           <input
             style={{

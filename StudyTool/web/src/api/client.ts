@@ -102,9 +102,21 @@ export async function gradeExam(
 }
 
 // Dashboard API methods
-export async function fetchAllUploads(): Promise<UploadSummary[]> {
-  const { data } = await api.get<UploadSummary[]>("/uploads");
+export async function fetchAllUploads(
+  archived: boolean = false
+): Promise<UploadSummary[]> {
+  const { data } = await api.get<UploadSummary[]>("/uploads", {
+    params: { archived },
+  });
   return data;
+}
+
+export async function archiveUpload(uploadId: number): Promise<void> {
+  await api.put(`/uploads/${uploadId}/archive`);
+}
+
+export async function unarchiveUpload(uploadId: number): Promise<void> {
+  await api.put(`/uploads/${uploadId}/unarchive`);
 }
 
 export async function fetchRecentAttempts(
@@ -113,6 +125,16 @@ export async function fetchRecentAttempts(
   const { data } = await api.get<AttemptSummary[]>(
     `/attempts/recent?limit=${limit}`
   );
+  return data;
+}
+
+export async function fetchAllAttempts(): Promise<AttemptSummary[]> {
+  const { data } = await api.get<AttemptSummary[]>("/attempts");
+  return data;
+}
+
+export async function fetchInProgressAttempts(): Promise<AttemptSummary[]> {
+  const { data } = await api.get<AttemptSummary[]>("/attempts/in-progress");
   return data;
 }
 
@@ -156,10 +178,72 @@ export async function updateUploadName(
   });
 }
 
+export async function fetchUpload(uploadId: number): Promise<UploadSummary> {
+  const { data } = await api.get<UploadSummary>(`/uploads/${uploadId}`);
+  return data;
+}
+
 export async function previewExamAnswers(
   examId: number
 ): Promise<{ answers: Array<{ questionId: number; correctAnswer: any }> }> {
   const { data } = await api.get(`/exams/${examId}/preview`);
+  return data;
+}
+
+// Progress saving API methods
+export async function startAttempt(examId: number): Promise<{
+  attempt_id: number;
+  status: string;
+  started_at: string;
+  progress_state: any;
+}> {
+  const { data } = await api.post(`/exams/${examId}/start-attempt`);
+  return data;
+}
+
+export async function getInProgressAttempt(examId: number): Promise<{
+  exists: boolean;
+  attempt_id?: number;
+  status?: string;
+  started_at?: string;
+  progress_state?: any;
+  saved_answers?: Record<number, any>;
+}> {
+  const { data } = await api.get(`/exams/${examId}/in-progress-attempt`);
+  return data;
+}
+
+export async function saveProgress(
+  attemptId: number,
+  progressData: {
+    answers: Record<number, any>;
+    bookmarks: number[];
+    current_question_index: number;
+    timer_state?: { remaining_seconds: number } | null;
+    exam_type: "exam" | "practice";
+    completed_questions?: number[];
+  }
+): Promise<{
+  success: boolean;
+  attempt_id: number;
+  status: string;
+  last_saved_at?: string;
+}> {
+  const { data } = await api.post(
+    `/attempts/${attemptId}/save-progress`,
+    progressData
+  );
+  return data;
+}
+
+export async function getProgress(attemptId: number): Promise<{
+  attempt_id: number;
+  status: string;
+  started_at: string;
+  progress_state: any;
+  saved_answers: Record<number, any>;
+}> {
+  const { data } = await api.get(`/attempts/${attemptId}/progress`);
   return data;
 }
 
@@ -410,5 +494,40 @@ export async function generatePerformanceInsights(
       },
     }
   );
+  return data;
+}
+
+// Question Management Endpoints
+export async function fetchUploadQuestions(
+  uploadId: number
+): Promise<import("../types").QuestionDTO[]> {
+  const { data } = await api.get(`/uploads/${uploadId}/questions`);
+  return data;
+}
+
+export async function fetchQuestionsForEditor(
+  uploadId: number
+): Promise<any[]> {
+  const { data } = await api.get(`/questions-sets/${uploadId}/editor-data`);
+  return data;
+}
+
+export async function updateQuestion(
+  questionId: number,
+  updates: {
+    stem?: string;
+    options?: any;
+    correct_answer?: any;
+    explanation?: string;
+  }
+): Promise<{ id: number; success: boolean }> {
+  const { data } = await api.put(`/questions/${questionId}`, updates);
+  return data;
+}
+
+export async function deleteQuestion(
+  questionId: number
+): Promise<{ success: boolean; id: number }> {
+  const { data } = await api.delete(`/questions/${questionId}`);
   return data;
 }

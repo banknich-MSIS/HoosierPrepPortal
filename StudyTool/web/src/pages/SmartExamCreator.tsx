@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useOutletContext } from "react-router-dom";
+import { useToast } from "../contexts/ToastContext";
 import {
   fetchClasses,
   getExam,
@@ -31,6 +32,7 @@ export default function SmartExamCreator() {
     darkMode: boolean;
     theme: any;
   }>();
+  const { showToast } = useToast();
 
   const showGuidedLine = false;
 
@@ -898,7 +900,7 @@ export default function SmartExamCreator() {
                   <button
                     onClick={async () => {
                       if (!newClassName.trim()) {
-                        alert("Please enter a class name");
+                        showToast("Please enter a class name", "warning");
                         return;
                       }
                       try {
@@ -915,10 +917,11 @@ export default function SmartExamCreator() {
                         // Auto-select the new class
                         setSelectedClassId(newClass.id);
                       } catch (e: any) {
-                        alert(
+                        showToast(
                           `Failed to create class: ${
                             e?.message || "Unknown error"
-                          }`
+                          }`,
+                          "error"
                         );
                       }
                     }}

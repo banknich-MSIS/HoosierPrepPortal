@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Dict, List
 import asyncio
 
@@ -20,14 +20,20 @@ def create_exam(payload: ExamCreate, db: Session = Depends(get_db)) -> ExamOut:
     # If multiple upload IDs provided, query from all of them
     if payload.uploadIds and len(payload.uploadIds) > 1:
         # Query questions from multiple uploads
-        query = db.query(QuestionModel).filter(QuestionModel.upload_id.in_(payload.uploadIds))
+        query = db.query(QuestionModel).filter(
+            QuestionModel.upload_id.in_(payload.uploadIds),
+            QuestionModel.is_active == True
+        )
     else:
         # Single upload (either from uploadId or first of uploadIds)
         upload_id = payload.uploadId
         upload = db.get(Upload, upload_id)
         if upload is None:
             raise HTTPException(status_code=404, detail="Upload not found")
-        query = db.query(QuestionModel).filter(QuestionModel.upload_id == upload_id)
+        query = db.query(QuestionModel).filter(
+            QuestionModel.upload_id == upload_id,
+            QuestionModel.is_active == True
+        )
     
     if payload.questionTypes:
         query = query.filter(QuestionModel.qtype.in_(payload.questionTypes))
@@ -148,15 +154,105 @@ async def grade_exam(
 
     score_pct = (correct_count / max(1, len(exam.question_ids))) * 100.0
     
-    # Create attempt record with duration and exam type
-    attempt = Attempt(
-        exam_id=exam_id,
-        finished_at=datetime.utcnow(),
-        score_pct=score_pct,
-        duration_seconds=x_exam_duration,
-        exam_type=x_exam_type or "exam"
+    # Check if there's an existing in-progress attempt to update, or create new one
+    # Also check for recently completed attempts to prevent duplicates
+    existing_attempt = (
+        db.query(Attempt)
+        .filter(
+            Attempt.exam_id == exam_id,
+            Attempt.status == "in_progress"
+        )
+        .first()
     )
-    db.add(attempt)
+    
+    # If no in-progress attempt, check for a recently completed one (within last 5 seconds)
+    # This prevents duplicate submissions from rapid clicks
+    if not existing_attempt:
+        recent_completed = (
+            db.query(Attempt)
+            .filter(
+                Attempt.exam_id == exam_id,
+                Attempt.status == "completed",
+                Attempt.exam_type == (x_exam_type or "exam"),
+                Attempt.finished_at >= datetime.utcnow() - timedelta(seconds=5)
+            )
+            .order_by(Attempt.finished_at.desc())
+            .first()
+        )
+        if recent_completed:
+            # Return the existing completed attempt (idempotent behavior)
+            existing_answers = (
+                db.query(AttemptAnswer)
+                .filter(AttemptAnswer.attempt_id == recent_completed.id)
+                .all()
+            )
+            per_items_existing = []
+            for ans in existing_answers:
+                q = questions.get(ans.question_id)
+                correct_answer = (q.answer or {}).get("value") if q else None
+                per_items_existing.append(
+                    GradeItem(
+                        questionId=ans.question_id,
+                        correct=ans.correct or False,
+                        correctAnswer=correct_answer,
+                        userAnswer=ans.response.get("value") if ans.response else None,
+                    )
+                )
+            return GradeReport(
+                scorePct=round(recent_completed.score_pct or 0.0, 2),
+                perQuestion=per_items_existing,
+                attemptId=recent_completed.id
+            )
+    
+    if existing_attempt:
+        # Check if this attempt is already being processed (has finished_at set)
+        if existing_attempt.finished_at is not None:
+            # Attempt is already completed, return it (idempotent)
+            existing_answers = (
+                db.query(AttemptAnswer)
+                .filter(AttemptAnswer.attempt_id == existing_attempt.id)
+                .all()
+            )
+            per_items_existing = []
+            for ans in existing_answers:
+                q = questions.get(ans.question_id)
+                correct_answer = (q.answer or {}).get("value") if q else None
+                per_items_existing.append(
+                    GradeItem(
+                        questionId=ans.question_id,
+                        correct=ans.correct or False,
+                        correctAnswer=correct_answer,
+                        userAnswer=ans.response.get("value") if ans.response else None,
+                    )
+                )
+            return GradeReport(
+                scorePct=round(existing_attempt.score_pct or 0.0, 2),
+                perQuestion=per_items_existing,
+                attemptId=existing_attempt.id
+            )
+        
+        # Update existing attempt to completed
+        attempt = existing_attempt
+        attempt.finished_at = datetime.utcnow()
+        attempt.score_pct = score_pct
+        attempt.duration_seconds = x_exam_duration
+        attempt.exam_type = x_exam_type or "exam"
+        attempt.status = "completed"
+        attempt.progress_state = None  # Clear progress state on completion
+        # Delete existing answer records to replace with graded ones
+        db.query(AttemptAnswer).filter(AttemptAnswer.attempt_id == attempt.id).delete()
+    else:
+        # Create new attempt record with duration and exam type
+        attempt = Attempt(
+            exam_id=exam_id,
+            finished_at=datetime.utcnow(),
+            score_pct=score_pct,
+            duration_seconds=x_exam_duration,
+            exam_type=x_exam_type or "exam",
+            status="completed"
+        )
+        db.add(attempt)
+    
     db.flush()
     
     # Save individual answers (without explanations initially)
@@ -251,8 +347,45 @@ def _normalize_text(value: Any) -> str:
 
 
 def _check_correct(qtype: str, user: Any, answer: Any) -> bool:
-    if qtype in ("mcq", "truefalse", "short", "cloze"):
+    if qtype in ("mcq", "truefalse", "short"):
         return _normalize_text(user) == _normalize_text(answer)
+    
+    if qtype == "cloze":
+        # Normalize answer to list
+        correct_list = []
+        if isinstance(answer, list):
+            correct_list = answer
+        elif isinstance(answer, str):
+            correct_list = [answer]
+        else:
+            # Try to handle generic iterable/dict
+            correct_list = list(answer) if answer else []
+
+        # Normalize user answer to list
+        user_list = []
+        if isinstance(user, list):
+            user_list = user
+        elif isinstance(user, dict):
+            # Handle dict {0: "ans", 1: "ans"}
+            # Sort by index to ensure order
+            try:
+                indices = sorted([int(k) for k in user.keys()])
+                user_list = [user[str(i)] for i in indices] # keys might be strings in JSON
+                # If keys are ints in dict, the above lookup might fail if not cast
+                if not user_list and indices:
+                     user_list = [user[i] for i in indices]
+            except Exception:
+                user_list = list(user.values())
+        elif isinstance(user, str):
+            user_list = [user]
+        
+        # Fallback for mismatching lengths (e.g. if user provided single string for multi-blank)
+        if len(user_list) != len(correct_list):
+            return False
+            
+        # Compare all
+        return all(_normalize_text(u) == _normalize_text(c) for u, c in zip(user_list, correct_list))
+
     if qtype == "multi":
         try:
             user_set = { _normalize_text(v) for v in (user or []) }
@@ -309,6 +442,182 @@ def override_question_grade(
         "success": True,
         "new_status": answer_record.correct,
         "new_score_pct": round(new_score_pct, 2)
+    }
+
+
+# Progress saving endpoints
+@router.post("/exams/{exam_id}/start-attempt")
+def start_attempt(exam_id: int, db: Session = Depends(get_db)) -> Dict[str, Any]:
+    """Create a new in-progress attempt for an exam"""
+    exam = db.get(ExamModel, exam_id)
+    if exam is None:
+        raise HTTPException(status_code=404, detail="Exam not found")
+    
+    # Check if there's already an in-progress attempt for this exam
+    existing = (
+        db.query(Attempt)
+        .filter(
+            Attempt.exam_id == exam_id,
+            Attempt.status == "in_progress"
+        )
+        .first()
+    )
+    
+    if existing:
+        # Return existing attempt instead of creating a new one
+        return {
+            "attempt_id": existing.id,
+            "status": existing.status,
+            "started_at": existing.started_at.isoformat(),
+            "progress_state": existing.progress_state or {}
+        }
+    
+    # Create new in-progress attempt
+    attempt = Attempt(
+        exam_id=exam_id,
+        status="in_progress",
+        exam_type="exam"  # Default, can be overridden when saving progress
+    )
+    db.add(attempt)
+    db.commit()
+    db.refresh(attempt)
+    
+    return {
+        "attempt_id": attempt.id,
+        "status": attempt.status,
+        "started_at": attempt.started_at.isoformat(),
+        "progress_state": {}
+    }
+
+
+@router.get("/exams/{exam_id}/in-progress-attempt")
+def get_in_progress_attempt(exam_id: int, db: Session = Depends(get_db)) -> Dict[str, Any]:
+    """Get the in-progress attempt for an exam, if it exists"""
+    exam = db.get(ExamModel, exam_id)
+    if exam is None:
+        raise HTTPException(status_code=404, detail="Exam not found")
+    
+    attempt = (
+        db.query(Attempt)
+        .filter(
+            Attempt.exam_id == exam_id,
+            Attempt.status == "in_progress"
+        )
+        .first()
+    )
+    
+    if not attempt:
+        return {"exists": False}
+    
+    # Load saved answers
+    saved_answers = {}
+    for answer_record in attempt.answers:
+        saved_answers[answer_record.question_id] = (
+            answer_record.response.get("value") if answer_record.response else None
+        )
+    
+    return {
+        "exists": True,
+        "attempt_id": attempt.id,
+        "status": attempt.status,
+        "started_at": attempt.started_at.isoformat(),
+        "progress_state": attempt.progress_state or {},
+        "saved_answers": saved_answers
+    }
+
+
+@router.post("/attempts/{attempt_id}/save-progress")
+def save_progress(
+    attempt_id: int,
+    progress_data: Dict[str, Any],
+    db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """Save progress for an in-progress attempt"""
+    attempt = db.get(Attempt, attempt_id)
+    if attempt is None:
+        raise HTTPException(status_code=404, detail="Attempt not found")
+    
+    if attempt.status != "in_progress":
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot save progress for a completed attempt"
+        )
+    
+    # Extract progress data
+    answers = progress_data.get("answers", {})  # {questionId: answer}
+    bookmarks = progress_data.get("bookmarks", [])  # [questionId, ...]
+    current_question_index = progress_data.get("current_question_index", 0)
+    timer_state = progress_data.get("timer_state", None)  # {remaining_seconds: int} or null
+    exam_type = progress_data.get("exam_type", "exam")  # "exam" or "practice"
+    completed_questions = progress_data.get("completed_questions", []) # For practice mode
+
+    # Update attempt metadata
+    attempt.exam_type = exam_type
+    attempt.progress_state = {
+        "current_question_index": current_question_index,
+        "timer_state": timer_state,
+        "bookmarks": bookmarks,
+        "completed_questions": completed_questions,
+        "last_saved_at": datetime.utcnow().isoformat()
+    }
+    
+    # Save/update answers
+    for question_id, answer_value in answers.items():
+        # Find existing answer record or create new one
+        answer_record = (
+            db.query(AttemptAnswer)
+            .filter(
+                AttemptAnswer.attempt_id == attempt_id,
+                AttemptAnswer.question_id == question_id
+            )
+            .first()
+        )
+        
+        if answer_record:
+            # Update existing answer
+            answer_record.response = {"value": answer_value}
+        else:
+            # Create new answer record (not graded yet)
+            answer_record = AttemptAnswer(
+                attempt_id=attempt_id,
+                question_id=question_id,
+                response={"value": answer_value},
+                correct=None,  # Not graded yet
+                ai_explanation=None
+            )
+            db.add(answer_record)
+    
+    db.commit()
+    db.refresh(attempt)
+    
+    return {
+        "success": True,
+        "attempt_id": attempt.id,
+        "status": attempt.status,
+        "last_saved_at": attempt.progress_state.get("last_saved_at") if attempt.progress_state else None
+    }
+
+
+@router.get("/attempts/{attempt_id}/progress")
+def get_progress(attempt_id: int, db: Session = Depends(get_db)) -> Dict[str, Any]:
+    """Get saved progress for an attempt"""
+    attempt = db.get(Attempt, attempt_id)
+    if attempt is None:
+        raise HTTPException(status_code=404, detail="Attempt not found")
+    
+    # Load saved answers
+    saved_answers = {}
+    for answer_record in attempt.answers:
+        saved_answers[answer_record.question_id] = (
+            answer_record.response.get("value") if answer_record.response else None
+        )
+    
+    return {
+        "attempt_id": attempt.id,
+        "status": attempt.status,
+        "started_at": attempt.started_at.isoformat(),
+        "progress_state": attempt.progress_state or {},
+        "saved_answers": saved_answers
     }
 
 

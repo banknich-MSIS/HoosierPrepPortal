@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import TutorialModal from "./components/TutorialModal";
 import IURedLogo from "../../assets/IURedLogo.svg";
 import IUGreyLogo from "../../assets/IUGreyLogo.svg";
+import { ToastProvider } from "./contexts/ToastContext";
 import JobToaster from "./components/JobToaster";
 
 export default function App() {
@@ -116,12 +117,13 @@ export default function App() {
   const navItems = [
     { path: "/", label: "Dashboard" },
     { path: "/ai-exam-creator", label: "Exam Generator" },
+    { path: "/archive", label: "Archive" },
     // { path: "/upload", label: "AI Assistant" },  // Hidden for public release
     { path: "/api-keys", label: "API Keys" },
   ];
 
   return (
-    <>
+    <ToastProvider theme={theme}>
       <div
         style={{
           fontFamily: "system-ui, Arial, sans-serif",
@@ -544,6 +546,6 @@ export default function App() {
         background-color: ${theme.navHover || "rgba(196, 30, 58, 0.1)"};
       }
     `}</style>
-    </>
+    </ToastProvider>
   );
 }

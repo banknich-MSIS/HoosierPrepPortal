@@ -36,6 +36,7 @@ class Upload(Base):
     filename: Mapped[str] = mapped_column(String(512), nullable=False)
     file_type: Mapped[str] = mapped_column(String(16), nullable=False)  # csv | text
     csv_file_path: Mapped[Optional[str]] = mapped_column(String(1024), nullable=True)
+    is_archived: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, nullable=False
     )
@@ -75,6 +76,7 @@ class Question(Base):
     options: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)  # list[str]
     answer: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     concept_ids: Mapped[Optional[List[int]]] = mapped_column(JSON, nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     upload: Mapped[Upload] = relationship(back_populates="questions")
 
@@ -105,6 +107,8 @@ class Attempt(Base):
     score_pct: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     exam_type: Mapped[Optional[str]] = mapped_column(String(16), nullable=True, default="exam")  # "exam" or "practice"
     duration_seconds: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # Total duration in seconds
+    status: Mapped[Optional[str]] = mapped_column(String(16), nullable=True, default="completed")  # "in_progress" or "completed"
+    progress_state: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)  # JSON field for storing partial progress
 
     exam: Mapped[Exam] = relationship(back_populates="attempts")
     answers: Mapped[List["AttemptAnswer"]] = relationship(

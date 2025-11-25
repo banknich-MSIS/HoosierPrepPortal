@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate, useOutletContext } from "react-router-dom";
+import { useToast } from "../contexts/ToastContext";
 import {
   createExam,
   fetchAllUploads,
@@ -30,6 +31,7 @@ export default function SettingsPage() {
     darkMode: boolean;
     theme: any;
   }>();
+  const { showToast } = useToast();
   const uploadId: number | undefined =
     loc?.state?.uploadId || loc?.state?.uploadIds?.[0];
   const uploadIds: number[] =
@@ -166,7 +168,7 @@ export default function SettingsPage() {
 
   const handleCreateNewClass = async () => {
     if (!newClassName.trim()) {
-      alert("Please enter a class name");
+      showToast("Please enter a class name", "warning");
       return;
     }
 
@@ -187,7 +189,7 @@ export default function SettingsPage() {
       setNewClassName("");
       setNewClassDescription("");
     } catch (e: any) {
-      alert(`Failed to create class: ${e?.message || "Unknown error"}`);
+      showToast(`Failed to create class: ${e?.message || "Unknown error"}`, "error");
     }
   };
 

@@ -5,6 +5,7 @@ from typing import Any, Dict, List
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy import or_
 
 from ..db import get_db
 from ..models import Attempt, AttemptAnswer, Exam, Question, Upload
@@ -33,9 +34,12 @@ def debug_routes():
 
 
 @router.get("/uploads", response_model=List[UploadSummary])
-def get_all_uploads(db: Session = Depends(get_db)) -> List[UploadSummary]:
+def get_all_uploads(archived: bool = False, db: Session = Depends(get_db)) -> List[UploadSummary]:
     """Return all uploaded CSVs with question counts and metadata"""
-    uploads = db.query(Upload).order_by(Upload.created_at.desc()).all()
+    # Filter by archived status
+    query = db.query(Upload).filter(Upload.is_archived == archived)
+    
+    uploads = query.order_by(Upload.created_at.desc()).all()
     
     result = []
     for upload in uploads:
@@ -82,6 +86,76 @@ def get_all_uploads(db: Session = Depends(get_db)) -> List[UploadSummary]:
                 file_type=upload.file_type,
                 class_tags=class_tags,
                 question_type_counts=question_type_counts if question_type_counts else None,
+                is_archived=upload.is_archived,
+            )
+        )
+    
+    return result
+
+
+@router.get("/attempts", response_model=List[AttemptSummary])
+def get_all_attempts(db: Session = Depends(get_db)) -> List[AttemptSummary]:
+    """Return all completed exam attempts sorted by date"""
+    attempts = (
+        db.query(Attempt)
+        .filter(Attempt.finished_at.isnot(None))
+        .filter(
+            or_(Attempt.status == "completed", Attempt.status.is_(None))
+        )  # Only show completed attempts (or legacy attempts without status)
+        .order_by(Attempt.finished_at.desc())
+        .all()
+    )
+    
+    result = []
+    for attempt in attempts:
+        exam = db.get(Exam, attempt.exam_id)
+        if not exam:
+            continue
+            
+        upload = db.get(Upload, exam.upload_id)
+        if not upload:
+            continue
+        
+        # Count correct answers
+        correct_count = 0
+        if attempt.answers:
+            correct_count = sum(1 for answer in attempt.answers if answer.correct)
+        
+        # Get duration from attempt record (preferred) or calculate from timestamps
+        duration_seconds = attempt.duration_seconds
+        if duration_seconds is None and attempt.started_at and attempt.finished_at:
+            duration_seconds = int((attempt.finished_at - attempt.started_at).total_seconds())
+        
+        # Calculate average time per question
+        average_time_per_question = None
+        if duration_seconds and len(exam.question_ids) > 0:
+            average_time_per_question = round(duration_seconds / len(exam.question_ids), 1)
+        
+        # Extract difficulty from exam settings
+        difficulty = None
+        if exam.settings and isinstance(exam.settings, dict):
+            difficulty = exam.settings.get("difficulty", "Medium")
+        
+        # Get class tags from upload
+        class_tags = [cls.name for cls in upload.classes] if upload.classes else []
+        
+        # Get exam type
+        exam_type = attempt.exam_type or "exam"
+        
+        result.append(
+            AttemptSummary(
+                id=attempt.id,
+                exam_id=attempt.exam_id,
+                upload_filename=upload.filename,
+                score_pct=attempt.score_pct or 0.0,
+                finished_at=attempt.finished_at or attempt.started_at,
+                question_count=len(exam.question_ids),
+                correct_count=correct_count,
+                duration_seconds=duration_seconds,
+                difficulty=difficulty,
+                class_tags=class_tags,
+                exam_type=exam_type,
+                average_time_per_question=average_time_per_question,
             )
         )
     
@@ -94,6 +168,9 @@ def get_recent_attempts(limit: int = 10, db: Session = Depends(get_db)) -> List[
     attempts = (
         db.query(Attempt)
         .filter(Attempt.finished_at.isnot(None))
+        .filter(
+            or_(Attempt.status == "completed", Attempt.status.is_(None))
+        )  # Only show completed attempts (or legacy attempts without status)
         .order_by(Attempt.finished_at.desc())
         .limit(limit)
         .all()
@@ -153,6 +230,126 @@ def get_recent_attempts(limit: int = 10, db: Session = Depends(get_db)) -> List[
         )
     
     return result
+
+
+@router.get("/attempts/in-progress", response_model=List[AttemptSummary])
+def get_in_progress_attempts(db: Session = Depends(get_db)) -> List[AttemptSummary]:
+    """Return all in-progress attempts"""
+    attempts = (
+        db.query(Attempt)
+        .filter(Attempt.status == "in_progress")
+        .order_by(Attempt.started_at.desc())
+        .all()
+    )
+    
+    result = []
+    for attempt in attempts:
+        exam = db.get(Exam, attempt.exam_id)
+        if not exam:
+            continue
+            
+        upload = db.get(Upload, exam.upload_id)
+        if not upload:
+            continue
+        
+        # Calculate progress (answered questions)
+        answered_count = 0
+        if attempt.answers:
+            # Count answers that have a value
+            answered_count = sum(1 for answer in attempt.answers if answer.response and answer.response.get("value") is not None)
+        
+        # Extract difficulty from exam settings
+        difficulty = None
+        if exam.settings and isinstance(exam.settings, dict):
+            difficulty = exam.settings.get("difficulty", "Medium")
+        
+        # Get class tags from upload
+        class_tags = [cls.name for cls in upload.classes] if upload.classes else []
+        
+        # Get exam type
+        exam_type = attempt.exam_type or "exam"
+        
+        # Use last saved time from progress_state if available, else started_at
+        last_updated = attempt.started_at
+        if attempt.progress_state and isinstance(attempt.progress_state, dict):
+            last_saved = attempt.progress_state.get("last_saved_at")
+            if last_saved:
+                try:
+                    last_updated = datetime.fromisoformat(last_saved)
+                except ValueError:
+                    pass
+
+        result.append(
+            AttemptSummary(
+                id=attempt.id,
+                exam_id=attempt.exam_id,
+                upload_filename=upload.filename,
+                score_pct=0.0, # Not graded yet
+                finished_at=last_updated, # Use this field for "last updated" in the UI
+                question_count=len(exam.question_ids),
+                correct_count=answered_count, # Repurpose this for "answered count" in in-progress context
+                duration_seconds=None,
+                difficulty=difficulty,
+                class_tags=class_tags,
+                exam_type=exam_type,
+                average_time_per_question=None,
+            )
+        )
+    
+    return result
+
+
+@router.get("/uploads/{upload_id}", response_model=UploadSummary)
+def get_upload(upload_id: int, db: Session = Depends(get_db)) -> UploadSummary:
+    """Return details for a specific upload"""
+    upload = db.get(Upload, upload_id)
+    if not upload:
+        raise HTTPException(status_code=404, detail="Upload not found")
+    
+    # Extract themes from concepts
+    themes = []
+    if upload.concepts:
+        themes = [concept.name for concept in upload.concepts]
+    
+    # Parse metadata if available
+    metadata = {}
+    if hasattr(upload, 'metadata_json') and upload.metadata_json:
+        try:
+            import json
+            metadata = json.loads(upload.metadata_json)
+            if 'themes' in metadata:
+                themes = metadata['themes']
+        except (json.JSONDecodeError, KeyError):
+            pass
+    
+    # Get class tags
+    class_tags = [cls.name for cls in upload.classes] if upload.classes else []
+    
+    # Calculate question type counts
+    question_type_counts = {}
+    for question in upload.questions:
+        qtype = question.qtype
+        question_type_counts[qtype] = question_type_counts.get(qtype, 0) + 1
+    
+    # Exams taken = number of completed attempts across all exams from this upload
+    attempts_taken = 0
+    if upload.exams:
+        for ex in upload.exams:
+            if ex.attempts:
+                attempts_taken += sum(1 for at in ex.attempts if at.finished_at is not None)
+
+    return UploadSummary(
+        id=upload.id,
+        filename=upload.filename,
+        created_at=upload.created_at,
+        question_count=len(upload.questions),
+        themes=themes,
+        exam_count=attempts_taken,
+        file_type=upload.file_type,
+        class_tags=class_tags,
+        question_type_counts=question_type_counts if question_type_counts else None,
+        is_archived=upload.is_archived,
+    )
 
 
 @router.delete("/attempts/delete/{attempt_id}")
@@ -333,6 +530,32 @@ def update_upload_name(upload_id: int, new_name: str, db: Session = Depends(get_
     db.commit()
     
     return {"success": True, "filename": new_name}
+
+
+@router.put("/uploads/{upload_id}/archive")
+def archive_upload(upload_id: int, db: Session = Depends(get_db)) -> Dict[str, Any]:
+    """Archive an upload (hide from main library)"""
+    upload = db.get(Upload, upload_id)
+    if not upload:
+        raise HTTPException(status_code=404, detail="Upload not found")
+    
+    upload.is_archived = True
+    db.commit()
+    
+    return {"success": True}
+
+
+@router.put("/uploads/{upload_id}/unarchive")
+def unarchive_upload(upload_id: int, db: Session = Depends(get_db)) -> Dict[str, Any]:
+    """Unarchive an upload (restore to main library)"""
+    upload = db.get(Upload, upload_id)
+    if not upload:
+        raise HTTPException(status_code=404, detail="Upload not found")
+    
+    upload.is_archived = False
+    db.commit()
+    
+    return {"success": True}
 
 
 @router.get("/uploads/{upload_id}/download")

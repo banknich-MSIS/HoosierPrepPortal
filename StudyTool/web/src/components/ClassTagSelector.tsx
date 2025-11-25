@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useToast } from "../contexts/ToastContext";
 import {
   fetchClasses,
   assignUploadToClass,
@@ -25,6 +26,7 @@ export default function ClassTagSelector({
   theme,
 }: ClassTagSelectorProps) {
   const navigate = useNavigate();
+  const { showToast } = useToast();
   const [allClasses, setAllClasses] = useState<ClassSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [hoveredButton, setHoveredButton] = useState<string | null>(null);
@@ -32,53 +34,20 @@ export default function ClassTagSelector({
   const [newName, setNewName] = useState("");
   const [newColor, setNewColor] = useState("#c41e3a");
 
+  // Use same colors as ClassesPage
   const CLASS_COLORS = [
-    // Theme colors first
-    {
-      name: "Crimson",
-      value: "#c41e3a",
-      darkBg: "#3d1a1f",
-      darkText: "#e85568",
-    },
-    {
-      name: "Mustard",
-      value: "#c29b4a",
-      darkBg: "#3d3520",
-      darkText: "#d4ad5e",
-    },
-    // Grayscale palette
-    {
-      name: "Dark Gray",
-      value: "#4b5563",
-      darkBg: "#2d2d2d",
-      darkText: "#9ca3af",
-    },
-    {
-      name: "Medium Gray",
-      value: "#6b7280",
-      darkBg: "#353535",
-      darkText: "#b0b7c0",
-    },
-    {
-      name: "Light Gray",
-      value: "#9ca3af",
-      darkBg: "#404040",
-      darkText: "#d1d5db",
-    },
-    { name: "Slate", value: "#64748b", darkBg: "#2a323d", darkText: "#94a3b8" },
-    // Subtle accent colors
-    {
-      name: "Blue Gray",
-      value: "#475569",
-      darkBg: "#1e2933",
-      darkText: "#8b98ab",
-    },
-    {
-      name: "Cool Gray",
-      value: "#6c757d",
-      darkBg: "#2d3032",
-      darkText: "#b0bec5",
-    },
+    { name: "Blue", value: "#007bff", darkBg: "#1a3a52", darkText: "#64b5f6" },
+    { name: "Green", value: "#28a745", darkBg: "#1a3d1a", darkText: "#66bb6a" },
+    { name: "Red", value: "#dc3545", darkBg: "#3d1a1a", darkText: "#ef5350" },
+    { name: "Yellow", value: "#ffc107", darkBg: "#4d4520", darkText: "#ffb74d" },
+    { name: "Purple", value: "#6f42c1", darkBg: "#2a1a3d", darkText: "#ba68c8" },
+    { name: "Orange", value: "#fd7e14", darkBg: "#3d2a1a", darkText: "#ff9800" },
+    { name: "Teal", value: "#20c997", darkBg: "#1a3d35", darkText: "#4db6ac" },
+    { name: "Pink", value: "#e83e8c", darkBg: "#3d1a30", darkText: "#ec407a" },
+    { name: "Indigo", value: "#6610f2", darkBg: "#2a1a3d", darkText: "#7c4dff" },
+    { name: "Cyan", value: "#17a2b8", darkBg: "#1a353d", darkText: "#4fc3f7" },
+    { name: "Brown", value: "#795548", darkBg: "#2a2220", darkText: "#a1887f" },
+    { name: "Gray", value: "#6c757d", darkBg: "#2d2d2d", darkText: "#b0bec5" },
   ];
 
   useEffect(() => {
@@ -106,7 +75,7 @@ export default function ClassTagSelector({
       }
       onUpdate();
     } catch (e: any) {
-      alert(`Failed to update class: ${e?.message || "Unknown error"}`);
+      showToast(`Failed to update class: ${e?.message || "Unknown error"}`, "error");
     } finally {
       setLoading(false);
     }
@@ -116,6 +85,12 @@ export default function ClassTagSelector({
     if (!newName.trim()) return;
     setLoading(true);
     try {
+      // Check for duplicate name locally first
+      if (allClasses.some(c => c.name.toLowerCase() === newName.trim().toLowerCase())) {
+        showToast("A tag with this name already exists.", "error");
+        return;
+      }
+
       const newCls = await createClass(newName.trim(), undefined, newColor);
       // Assign the current upload to the new class
       await assignUploadToClass(uploadId, newCls.id);
@@ -125,7 +100,7 @@ export default function ClassTagSelector({
       setNewColor("#c41e3a");
       onUpdate();
     } catch (e: any) {
-      alert(`Failed to create class: ${e?.message || "Unknown error"}`);
+      showToast(`Failed to create tag: ${e?.message || "Unknown error"}`, "error");
     } finally {
       setLoading(false);
     }
@@ -149,7 +124,7 @@ export default function ClassTagSelector({
       await loadClasses();
       onUpdate();
     } catch (e: any) {
-      alert(`Failed to delete class: ${e?.message || "Unknown error"}`);
+      showToast(`Failed to delete class: ${e?.message || "Unknown error"}`, "error");
     } finally {
       setLoading(false);
     }
@@ -174,8 +149,26 @@ export default function ClassTagSelector({
             letterSpacing: "0.5px",
           }}
         >
-          Classes
+          Tags
         </span>
+        <button
+          onClick={() => setShowCreateModal(true)}
+          style={{
+            background: "transparent",
+            border: "none",
+            color: theme.crimson,
+            fontSize: 18,
+            fontWeight: "bold",
+            cursor: "pointer",
+            padding: "0 4px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+          title="Create new tag"
+        >
+          +
+        </button>
       </div>
 
       <div style={{ maxHeight: 280, overflowY: "auto" }}>
@@ -188,7 +181,7 @@ export default function ClassTagSelector({
               textAlign: "center",
             }}
           >
-            No classes available.
+            No tags available.
           </div>
         ) : (
           allClasses.map((cls) => {
@@ -260,8 +253,8 @@ export default function ClassTagSelector({
                   title="Delete class"
                 >
                   <svg
-                    width="14"
-                    height="14"
+                    width="18"
+                    height="18"
                     viewBox="0 0 24 24"
                     fill="none"
                     stroke="currentColor"
@@ -281,8 +274,8 @@ export default function ClassTagSelector({
         )}
       </div>
 
-      {/* Create Class Modal - Temporarily Hidden */}
-      {false && showCreateModal && (
+      {/* Create Tag Modal */}
+      {showCreateModal && (
         <div
           style={{
             position: "fixed",
@@ -320,7 +313,7 @@ export default function ClassTagSelector({
                 color: theme.crimson,
               }}
             >
-              Create New Class
+              Create New Tag
             </h3>
 
             <div style={{ marginBottom: 16 }}>
@@ -333,13 +326,13 @@ export default function ClassTagSelector({
                   marginBottom: 6,
                 }}
               >
-                Class Name *
+                Tag Name *
               </label>
               <input
                 type="text"
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
-                placeholder="e.g., Finance 101"
+                placeholder="e.g., Finance"
                 disabled={loading}
                 autoFocus
                 style={{
@@ -451,7 +444,7 @@ export default function ClassTagSelector({
                   transition: "all 0.2s ease",
                 }}
               >
-                {loading ? "Creating..." : "Create Class"}
+                {loading ? "Creating..." : "Create Tag"}
               </button>
             </div>
           </div>

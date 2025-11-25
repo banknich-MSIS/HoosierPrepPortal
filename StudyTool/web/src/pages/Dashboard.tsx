@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useOutletContext } from "react-router-dom";
+import ExamsInProgressWidget from "../components/ExamsInProgressWidget";
 import CSVLibrary from "../components/CSVLibrary";
 import ExamHistory from "../components/ExamHistory";
 import PerformanceAnalytics from "../components/PerformanceAnalytics";
@@ -9,9 +10,11 @@ import DashboardLayoutSettings, {
 import {
   fetchAllUploads,
   fetchRecentAttempts,
+  fetchInProgressAttempts,
   deleteUpload,
   downloadCSV,
   deleteAttempt,
+  archiveUpload,
 } from "../api/client";
 import type { UploadSummary, AttemptSummary } from "../types";
 
@@ -23,6 +26,7 @@ export default function Dashboard() {
   }>();
   const [uploads, setUploads] = useState<UploadSummary[]>([]);
   const [attempts, setAttempts] = useState<AttemptSummary[]>([]);
+  const [inProgressAttempts, setInProgressAttempts] = useState<AttemptSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -47,15 +51,39 @@ export default function Dashboard() {
           order: 0,
         },
         {
-          id: "history",
-          title: "Recent Exam History",
+          id: "in_progress",
+          title: "Exams in Progress",
           visible: true,
           order: 1,
         },
-        { id: "library", title: "CSV Library", visible: true, order: 2 },
+        {
+          id: "history",
+          title: "Recent Exam History",
+          visible: true,
+          order: 2,
+        },
+        { id: "library", title: "CSV Library", visible: true, order: 3 },
       ];
     }
   );
+
+  // Ensure in_progress section exists for existing users
+  useEffect(() => {
+    const hasInProgress = layoutSections.some((s) => s.id === "in_progress");
+    if (!hasInProgress) {
+      const newSections = [
+        {
+          id: "in_progress",
+          title: "Exams in Progress",
+          visible: true,
+          order: 1,
+        },
+        ...layoutSections.map((s) => ({ ...s, order: s.order + 1 })),
+      ];
+      setLayoutSections(newSections);
+      localStorage.setItem("dashboardLayout", JSON.stringify(newSections));
+    }
+  }, []);
   const [showRestorePrompt, setShowRestorePrompt] = useState(false);
 
   useEffect(() => {
@@ -89,12 +117,14 @@ export default function Dashboard() {
   const loadDashboardData = async () => {
     try {
       setLoading(true);
-      const [uploadsData, attemptsData] = await Promise.all([
+      const [uploadsData, attemptsData, inProgressData] = await Promise.all([
         fetchAllUploads(),
         fetchRecentAttempts(10),
+        fetchInProgressAttempts(),
       ]);
       setUploads(uploadsData);
       setAttempts(attemptsData);
+      setInProgressAttempts(inProgressData);
     } catch (e: any) {
       setError(e?.message || "Failed to load dashboard data");
     } finally {
@@ -147,6 +177,15 @@ export default function Dashboard() {
     }
   };
 
+  const handleArchiveUpload = async (uploadId: number) => {
+    try {
+      await archiveUpload(uploadId);
+      setUploads(uploads.filter((u) => u.id !== uploadId));
+    } catch (e: any) {
+      setError(e?.message || "Failed to archive upload");
+    }
+  };
+
   const handleReviewAttempt = (attemptId: number) => {
     navigate(`/history/${attemptId}`);
   };
@@ -159,6 +198,15 @@ export default function Dashboard() {
       window.dispatchEvent(new CustomEvent("exam-deleted"));
     } catch (e: any) {
       setError(e?.message || "Failed to delete attempt");
+    }
+  };
+
+  const handleDeleteInProgress = async (attemptId: number) => {
+    try {
+      await deleteAttempt(attemptId);
+      setInProgressAttempts(inProgressAttempts.filter((a) => a.id !== attemptId));
+    } catch (e: any) {
+      setError(e?.message || "Failed to delete in-progress attempt");
     }
   };
 
@@ -263,6 +311,44 @@ export default function Dashboard() {
               )}
             </section>
           )
+        );
+      case "in_progress":
+        return (
+          <section key="in_progress">
+            <h2
+              style={{
+                margin: "0 0 16px 0",
+                fontSize: 28,
+                fontWeight: 700,
+                color: theme.crimson,
+                letterSpacing: "-0.5px",
+              }}
+            >
+              Exams in Progress
+            </h2>
+            {!loaded ? (
+              <div
+                style={{
+                  padding: 48,
+                  background: theme.cardBg,
+                  borderRadius: 12,
+                  border: "1px solid " + theme.glassBorder,
+                  boxShadow: theme.glassShadow,
+                  color: theme.textSecondary,
+                  textAlign: "center",
+                }}
+              >
+                Loading in-progress exams...
+              </div>
+            ) : (
+              <ExamsInProgressWidget
+                attempts={inProgressAttempts}
+                onDelete={handleDeleteInProgress}
+                darkMode={darkMode}
+                theme={theme}
+              />
+            )}
+          </section>
         );
       case "history":
         return (
@@ -371,6 +457,7 @@ export default function Dashboard() {
                 onDelete={handleDeleteUpload}
                 onDownload={handleDownloadCSV}
                 onUpdate={loadDashboardData}
+                onArchive={handleArchiveUpload}
                 darkMode={darkMode}
                 theme={theme}
               />

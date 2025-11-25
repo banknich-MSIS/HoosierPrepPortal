@@ -17,6 +17,8 @@ import UtilitiesPage from "./pages/UtilitiesPage";
 import ApiKeyManagementPage from "./pages/ApiKeyManagementPage";
 import ClassesPage from "./pages/ClassesPage";
 import BackupRestorePage from "./pages/BackupRestorePage";
+import QuestionBaseEditorPage from "./pages/QuestionBaseEditorPage";
+import ArchivePage from "./pages/ArchivePage";
 
 const router = createBrowserRouter([
   {
@@ -25,6 +27,7 @@ const router = createBrowserRouter([
     children: [
       { index: true, element: <Dashboard /> },
       { path: "ai-exam-creator", element: <SmartExamCreator /> },
+      { path: "archive", element: <ArchivePage /> },
       // { path: "upload", element: <UploadPage /> },  // AI Assistant - hidden for release
       { path: "settings", element: <SettingsPage /> },
       { path: "exam/:examId", element: <ExamPage /> },
@@ -32,13 +35,14 @@ const router = createBrowserRouter([
       { path: "review/:examId", element: <ReviewPage /> },
       // History list removed from nav; keep attempt review via direct link
       // Optionally, we could add a redirect from /history to /
-      // { path: "history", element: <Dashboard /> },
+      { path: "history", element: <HistoryPage /> },
       { path: "history/:attemptId", element: <AttemptReviewPage /> },
       { path: "classes", element: <ClassesPage /> },
       { path: "backup-restore", element: <BackupRestorePage /> },
       { path: "support", element: <SupportPage /> },
       { path: "utilities", element: <UtilitiesPage /> },
       { path: "api-keys", element: <ApiKeyManagementPage /> },
+      { path: "question-base/:uploadId", element: <QuestionBaseEditorPage /> },
     ],
   },
 ]);

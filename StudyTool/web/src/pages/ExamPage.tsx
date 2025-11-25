@@ -1,23 +1,37 @@
-import { useEffect, useState } from "react";
-import { useNavigate, useParams, useOutletContext } from "react-router-dom";
+import { useEffect, useState, useRef } from "react";
+import { useNavigate, useParams, useOutletContext, useBlocker, useLocation } from "react-router-dom";
+import { useToast } from "../contexts/ToastContext";
 import { useExamStore } from "../store/examStore";
 import QuestionCard from "../components/QuestionCard";
 import QuestionNavigator from "../components/QuestionNavigator";
 import BookmarkButton from "../components/BookmarkButton";
-import { gradeExam } from "../api/client";
+import NavigationGuardModal from "../components/NavigationGuardModal";
+import ResumeAttemptModal from "../components/ResumeAttemptModal";
+import {
+  gradeExam,
+  startAttempt,
+  getInProgressAttempt,
+  saveProgress,
+} from "../api/client";
 
 export default function ExamPage() {
   const { examId } = useParams<{ examId: string }>();
   const nav = useNavigate();
+  const location = useLocation();
   const { darkMode, theme } = useOutletContext<{
     darkMode: boolean;
     theme: any;
   }>();
+  const { showToast } = useToast();
   const {
     questions,
     examId: storeExamId,
     answers,
+    bookmarks,
+    currentIndex,
     setExam,
+    setAnswer,
+    goTo,
     reset,
   } = useExamStore();
   const [showUnansweredAlert, setShowUnansweredAlert] = useState(false);
@@ -29,12 +43,113 @@ export default function ExamPage() {
   );
   const [examStartTime, setExamStartTime] = useState<number>(Date.now());
   const [hasSubmitted, setHasSubmitted] = useState(false);
+  const [savedAnswersJson, setSavedAnswersJson] = useState<string>("{}");
+  
+  // Progress saving state
+  const [currentAttemptId, setCurrentAttemptId] = useState<number | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [showResumeModal, setShowResumeModal] = useState(false);
+  const [showNavGuard, setShowNavGuard] = useState(false);
+  const [pendingNavigation, setPendingNavigation] = useState<string | null>(null);
+  const hasCheckedResume = useRef(false);
+
+  // Track unsaved changes
+  useEffect(() => {
+    const currentAnswersJson = JSON.stringify(answers);
+    setHasUnsavedChanges(
+      currentAnswersJson !== savedAnswersJson && !hasSubmitted && !isSubmitting
+    );
+  }, [answers, savedAnswersJson, hasSubmitted, isSubmitting]);
+
+  // Navigation blocker
+  const blocker = useBlocker(
+    ({ currentLocation, nextLocation }) =>
+      hasUnsavedChanges &&
+      !hasSubmitted &&
+      !isSubmitting &&
+      currentLocation.pathname !== nextLocation.pathname
+  );
+
+  useEffect(() => {
+    if (blocker.state === "blocked") {
+      setShowNavGuard(true);
+      setPendingNavigation(blocker.location?.pathname || null);
+    }
+  }, [blocker]);
+
+  // Handle navigation guard actions
+  const handleSaveAndLeave = async () => {
+    if (currentAttemptId) {
+      setIsSaving(true);
+      try {
+        await saveProgressData();
+        setHasUnsavedChanges(false);
+        setShowNavGuard(false);
+        if (pendingNavigation) {
+          blocker.proceed?.();
+          nav(pendingNavigation);
+        }
+      } catch (error) {
+        console.error("Failed to save before leaving:", error);
+        showToast("Failed to save progress. Please try again.", "error");
+      } finally {
+        setIsSaving(false);
+        setPendingNavigation(null);
+      }
+    } else {
+      // No attempt yet, just leave
+      setShowNavGuard(false);
+      if (pendingNavigation) {
+        blocker.proceed?.();
+        nav(pendingNavigation);
+      }
+    }
+  };
+
+  const handleLeaveWithoutSaving = () => {
+    reset(); // Clear unsaved state from store
+    setHasUnsavedChanges(false);
+    setShowNavGuard(false);
+    if (pendingNavigation) {
+      blocker.proceed?.();
+      nav(pendingNavigation);
+    }
+    setPendingNavigation(null);
+  };
+
+  const handleCancelNavigation = () => {
+    setShowNavGuard(false);
+    blocker.reset?.();
+    setPendingNavigation(null);
+  };
+
+  // Save progress function
+  const saveProgressData = async () => {
+    if (!storeExamId || !currentAttemptId) return;
+
+    try {
+      await saveProgress(currentAttemptId, {
+        answers,
+        bookmarks: Array.from(bookmarks),
+        current_question_index: currentIndex,
+        timer_state: null, // Timer not implemented yet
+        exam_type: "exam",
+      });
+      setSavedAnswersJson(JSON.stringify(answers));
+      setLastSavedAt(new Date());
+      setHasUnsavedChanges(false);
+    } catch (error) {
+      console.error("Failed to save progress:", error);
+      throw error;
+    }
+  };
 
   // Warn user before leaving if they have unsaved progress
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      // Only warn if user has answered questions and hasn't submitted
-      if (answeredQuestions.size > 0 && !hasSubmitted && !isSubmitting) {
+      if (hasUnsavedChanges && !hasSubmitted && !isSubmitting) {
         e.preventDefault();
         e.returnValue = ""; // Chrome requires returnValue to be set
         return "You have unsaved progress. Your answers will be lost if you leave now.";
@@ -43,7 +158,108 @@ export default function ExamPage() {
 
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, [answeredQuestions.size, hasSubmitted, isSubmitting]);
+  }, [hasUnsavedChanges, hasSubmitted, isSubmitting]);
+
+  // Helper to restore attempt
+  const restoreAttempt = async (attemptId: number) => {
+    try {
+      const { getProgress } = await import("../api/client");
+      const progress = await getProgress(attemptId);
+
+      // Restore answers
+      Object.entries(progress.saved_answers).forEach(([qId, answer]) => {
+        setAnswer(Number(qId), answer);
+      });
+
+      // Restore bookmarks
+      if (progress.progress_state?.bookmarks) {
+        const store = useExamStore.getState();
+        progress.progress_state.bookmarks.forEach((qId: number) => {
+          if (!store.bookmarks.has(qId)) {
+            store.toggleBookmark(qId);
+          }
+        });
+      }
+
+      // Restore current question index
+      if (progress.progress_state?.current_question_index !== undefined) {
+        goTo(progress.progress_state.current_question_index);
+      }
+
+      setSavedAnswersJson(JSON.stringify(progress.saved_answers || {}));
+      setCurrentAttemptId(attemptId);
+      setShowResumeModal(false);
+      setHasUnsavedChanges(false); // Already saved
+    } catch (error) {
+      console.error("Failed to resume attempt:", error);
+      showToast("Failed to resume attempt. Starting fresh.", "error");
+      handleStartNew();
+    }
+  };
+
+  // Check for in-progress attempt on load
+  useEffect(() => {
+    const checkResume = async () => {
+      if (!examId || hasCheckedResume.current) return;
+      hasCheckedResume.current = true;
+
+      try {
+        const inProgress = await getInProgressAttempt(Number(examId));
+        if (inProgress.exists && inProgress.attempt_id) {
+          // Check for auto-resume flag from dashboard
+          const shouldAutoResume = location.state?.autoResume;
+
+          if (shouldAutoResume) {
+             restoreAttempt(inProgress.attempt_id);
+             return;
+          }
+
+          const hasAnswers =
+            inProgress.saved_answers &&
+            Object.keys(inProgress.saved_answers).length > 0;
+          const hasBookmarks =
+            inProgress.progress_state?.bookmarks &&
+            inProgress.progress_state.bookmarks.length > 0;
+
+          if (hasAnswers || hasBookmarks) {
+            setShowResumeModal(true);
+            setCurrentAttemptId(inProgress.attempt_id);
+          } else {
+            // Reuse existing empty attempt silently
+            setCurrentAttemptId(inProgress.attempt_id);
+          }
+        }
+      } catch (error) {
+        console.error("Failed to check for in-progress attempt:", error);
+      }
+    };
+
+    if (questions.length > 0) {
+      checkResume();
+    }
+  }, [examId, questions.length, location.state]);
+
+  // Handle resume
+  const handleResume = async () => {
+    if (!examId || !currentAttemptId) return;
+    restoreAttempt(currentAttemptId);
+  };
+
+  const handleStartNew = async () => {
+    setShowResumeModal(false);
+    setCurrentAttemptId(null);
+    reset();
+    // Start new attempt
+    if (examId) {
+      try {
+        const newAttempt = await startAttempt(Number(examId));
+        setCurrentAttemptId(newAttempt.attempt_id);
+        setExamStartTime(Date.now());
+      } catch (error) {
+        console.error("Failed to start new attempt:", error);
+      }
+    }
+  };
 
   useEffect(() => {
     const loadExam = async () => {
@@ -52,6 +268,8 @@ export default function ExamPage() {
       // If switching to a different exam, clear any stale in-memory state first
       if (storeExamId && Number(examId) !== storeExamId) {
         reset();
+        hasCheckedResume.current = false;
+        setCurrentAttemptId(null);
       }
       // Load when empty or after reset
       if (questions.length === 0) {
@@ -64,6 +282,16 @@ export default function ExamPage() {
           );
           setExam(Number(examId), examData.questions);
           setExamStartTime(Date.now()); // Reset start time when exam loads
+
+          // Start attempt if not resuming
+          if (!showResumeModal) {
+            try {
+              const newAttempt = await startAttempt(Number(examId));
+              setCurrentAttemptId(newAttempt.attempt_id);
+            } catch (error) {
+              console.error("Failed to start attempt:", error);
+            }
+          }
         } catch (e) {
           console.error("Failed to load exam:", e);
         } finally {
@@ -73,14 +301,15 @@ export default function ExamPage() {
     };
 
     loadExam();
-  }, [examId, questions.length, storeExamId, setExam, reset]);
+  }, [examId, questions.length, storeExamId, setExam, reset, showResumeModal]);
 
   // Clear in-memory exam only on unmount (not on every re-render)
   useEffect(() => {
     return () => {
-      reset();
+      // Don't reset on unmount if we're just navigating
+      // reset();
     };
-  }, [reset]);
+  }, []);
 
   // Track which questions have been answered (for permanent locking)
   useEffect(() => {
@@ -99,6 +328,33 @@ export default function ExamPage() {
     });
     setAnsweredQuestions(answered);
   }, [answers]);
+
+  // Manual save progress handler
+  const handleSaveProgress = async () => {
+    if (!currentAttemptId) {
+      // Start attempt first
+      if (!examId) return;
+      try {
+        const newAttempt = await startAttempt(Number(examId));
+        setCurrentAttemptId(newAttempt.attempt_id);
+        // Save after creating attempt
+        await saveProgressData();
+      } catch (error) {
+        console.error("Failed to start attempt:", error);
+        showToast("Failed to save progress. Please try again.", "error");
+      }
+    } else {
+      setIsSaving(true);
+      try {
+        await saveProgressData();
+      } catch (error) {
+        console.error("Failed to save progress:", error);
+        showToast("Failed to save progress. Please try again.", "error");
+      } finally {
+        setIsSaving(false);
+      }
+    }
+  };
 
   if (loading) {
     return (
@@ -120,6 +376,7 @@ export default function ExamPage() {
 
     setIsSubmitting(true);
     setHasSubmitted(true); // Mark as submitted to disable warnings
+    setHasUnsavedChanges(false); // No longer unsaved
     try {
       const payload = questions.map((it) => ({
         questionId: it.id,
@@ -150,15 +407,16 @@ export default function ExamPage() {
         nav(`/history/${graded.attemptId}`);
       } else {
         console.error("No attemptId returned from grading");
-        alert("Error: Could not load exam results");
+        showToast("Error: Could not load exam results", "error");
         setIsSubmitting(false);
       }
     } catch (error) {
       console.error("Error submitting exam:", error);
-      alert(
+      showToast(
         `Failed to submit exam: ${
           error instanceof Error ? error.message : "Unknown error"
-        }`
+        }`,
+        "error"
       );
       setIsSubmitting(false);
     }
@@ -252,6 +510,32 @@ export default function ExamPage() {
             maxHeight: "calc(100vh - 80px)",
           }}
         >
+          <button
+            onClick={() => nav("/")}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              background: "transparent",
+              border: "none",
+              color: theme.textSecondary,
+              cursor: "pointer",
+              fontSize: 14,
+              fontWeight: 500,
+              marginBottom: 16,
+              padding: "4px 0",
+              opacity: 0.8,
+              transition: "opacity 0.2s",
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.opacity = "1")}
+            onMouseLeave={(e) => (e.currentTarget.style.opacity = "0.8")}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="15 18 9 12 15 6"></polyline>
+            </svg>
+            Back to Dashboard
+          </button>
+
           <h3
             style={{
               margin: "0 0 16px 0",
@@ -263,6 +547,51 @@ export default function ExamPage() {
           </h3>
           <QuestionNavigator darkMode={darkMode} theme={theme} />
 
+          {/* Save Progress Button */}
+          <button
+            onClick={handleSaveProgress}
+            disabled={isSaving || isSubmitting}
+            style={{
+              width: "100%",
+              padding: "10px 16px",
+              marginTop: "12px",
+              background: isSaving || isSubmitting ? theme.border : theme.btnSecondary,
+              color: "white",
+              border: "none",
+              borderRadius: 6,
+              fontSize: 14,
+              fontWeight: 700,
+              cursor: isSaving || isSubmitting ? "not-allowed" : "pointer",
+              transition: "all 0.2s",
+              opacity: isSaving || isSubmitting ? 0.6 : 1,
+              boxShadow: isSaving || isSubmitting ? "none" : `0 4px 14px ${theme.btnSecondary}50`,
+            }}
+            onMouseEnter={(e) => {
+              if (!isSaving && !isSubmitting) {
+                e.currentTarget.style.background = theme.btnSecondaryHover;
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!isSaving && !isSubmitting) {
+                e.currentTarget.style.background = theme.btnSecondary;
+              }
+            }}
+          >
+            {isSaving ? "Saving..." : "Save Progress"}
+          </button>
+          {lastSavedAt && (
+            <div
+              style={{
+                fontSize: 11,
+                color: theme.textSecondary,
+                marginTop: 4,
+                textAlign: "center",
+              }}
+            >
+              Saved {lastSavedAt.toLocaleTimeString()}
+            </div>
+          )}
+
           {/* Submit Button */}
           <button
             onClick={handleSubmitClick}
@@ -270,7 +599,7 @@ export default function ExamPage() {
             style={{
               width: "100%",
               padding: "12px 20px",
-              marginTop: "20px",
+              marginTop: "12px",
               background: isSubmitting ? theme.border : theme.crimson,
               color: "white",
               border: "none",
@@ -282,21 +611,19 @@ export default function ExamPage() {
               transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
               boxShadow: isSubmitting
                 ? "none"
-                : "0 2px 8px rgba(196, 30, 58, 0.25)",
+                : `0 4px 14px ${theme.crimson}50`,
               opacity: isSubmitting ? 0.6 : 1,
             }}
             onMouseEnter={(e) => {
               if (!isSubmitting) {
-                e.currentTarget.style.boxShadow =
-                  "0 4px 12px rgba(196, 30, 58, 0.35)";
-                e.currentTarget.style.transform = "translateY(-1px)";
+                e.currentTarget.style.background = theme.crimsonDark;
+                e.currentTarget.style.boxShadow = `0 6px 20px ${theme.crimson}60`;
               }
             }}
             onMouseLeave={(e) => {
               if (!isSubmitting) {
-                e.currentTarget.style.boxShadow =
-                  "0 2px 8px rgba(196, 30, 58, 0.25)";
-                e.currentTarget.style.transform = "translateY(0)";
+                e.currentTarget.style.background = theme.crimson;
+                e.currentTarget.style.boxShadow = `0 4px 14px ${theme.crimson}50`;
               }
             }}
           >
@@ -350,6 +677,25 @@ export default function ExamPage() {
             ))}
           </div>
         </main>
+
+        {/* Resume Attempt Modal */}
+        <ResumeAttemptModal
+          isOpen={showResumeModal}
+          onResume={handleResume}
+          onStartNew={handleStartNew}
+          darkMode={darkMode}
+          theme={theme}
+        />
+
+        {/* Navigation Guard Modal */}
+        <NavigationGuardModal
+          isOpen={showNavGuard}
+          onSaveAndLeave={handleSaveAndLeave}
+          onLeaveWithoutSaving={handleLeaveWithoutSaving}
+          onCancel={handleCancelNavigation}
+          darkMode={darkMode}
+          theme={theme}
+        />
 
         {/* Unanswered Questions Alert Modal */}
         {showUnansweredAlert && (
@@ -441,15 +787,15 @@ export default function ExamPage() {
                     fontWeight: 600,
                     letterSpacing: "-0.2px",
                     transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
-                    boxShadow: "0 2px 8px rgba(196, 30, 58, 0.25)",
+                    boxShadow: `0 4px 14px ${theme.crimson}50`,
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.boxShadow =
-                      "0 4px 12px rgba(196, 30, 58, 0.35)";
+                    e.currentTarget.style.background = theme.crimsonDark;
+                    e.currentTarget.style.boxShadow = `0 6px 20px ${theme.crimson}60`;
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.boxShadow =
-                      "0 2px 8px rgba(196, 30, 58, 0.25)";
+                    e.currentTarget.style.background = theme.crimson;
+                    e.currentTarget.style.boxShadow = `0 4px 14px ${theme.crimson}50`;
                   }}
                 >
                   Submit

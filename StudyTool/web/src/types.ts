@@ -37,6 +37,7 @@ export interface UploadSummary {
   file_type: string;
   class_tags?: string[];
   question_type_counts?: Record<string, number> | null;
+  is_archived: boolean;
 }
 
 export interface AttemptSummary {
