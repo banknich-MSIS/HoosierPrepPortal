@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useToast } from "../contexts/ToastContext";
 import type { UploadSummary, ClassSummary, QuestionType } from "../types";
 import ClassTagSelector from "./ClassTagSelector";
+import ColorPicker from "./ColorPicker";
 import {
   fetchClasses,
   updateUploadName,
@@ -244,9 +245,13 @@ export default function CSVLibrary({
     });
   };
 
-  // Get unique class tags from all uploads
+  // Get unique class tags from all uploads + all available classes
+  // This ensures even unused tags appear in the filter list
   const allClassTags = Array.from(
-    new Set(uploads.flatMap((u) => u.class_tags || []))
+    new Set([
+      ...uploads.flatMap((u) => u.class_tags || []),
+      ...allClasses.map((c) => c.name)
+    ])
   ).sort();
 
   // Filter uploads based on selected class (AND logic)
@@ -1725,82 +1730,110 @@ export default function CSVLibrary({
         >
           <div
             style={{
-              background: theme.modalBg,
+              background: theme.cardBgSolid,
               borderRadius: 12,
+              border: `1px solid ${theme.glassBorder}`,
+              boxShadow: "0 20px 60px rgba(0, 0, 0, 0.5)",
               padding: 24,
               width: "90%",
-              maxWidth: 480,
-              border: `1px solid ${theme.glassBorder}`,
+              maxWidth: 450,
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 style={{ margin: "0 0 12px 0", color: theme.text }}>
-              Create Class
+            <h3
+              style={{
+                margin: "0 0 20px 0",
+                fontSize: 20,
+                fontWeight: 700,
+                color: theme.crimson,
+              }}
+            >
+              Create New Tag
             </h3>
-            <div style={{ marginBottom: 12 }}>
+            <div style={{ marginBottom: 16 }}>
               <label
-                style={{ display: "block", marginBottom: 6, color: theme.text }}
+                style={{
+                  display: "block",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: theme.text,
+                  marginBottom: 6,
+                }}
               >
-                Name *
+                Tag Name *
               </label>
               <input
                 type="text"
                 value={newClassName}
                 onChange={(e) => setNewClassName(e.target.value)}
+                placeholder="e.g., Finance"
+                autoFocus
                 style={{
                   width: "100%",
-                  padding: "8px 12px",
-                  border: `1px solid ${theme.border}`,
-                  borderRadius: 6,
-                  background: theme.cardBg,
+                  padding: "10px 12px",
+                  fontSize: 14,
+                  background: darkMode ? "#1a1a1a" : "#fff",
                   color: theme.text,
+                  border: `1px solid ${theme.glassBorder}`,
+                  borderRadius: 6,
+                  outline: "none",
+                }}
+                onKeyDown={async (e) => {
+                  if (e.key === "Enter" && newClassName.trim()) {
+                    try {
+                      await createClass(newClassName, undefined, newClassColor);
+                      setShowCreateClass(false);
+                      setNewClassName("");
+                      setNewClassColor("#007bff");
+                      const updated = await fetchClasses();
+                      setAllClasses(updated);
+                    } catch (e: any) {
+                      showToast(
+                        `Failed to create class: ${
+                          e?.response?.data?.detail || e?.message || "Unknown error"
+                        }`,
+                        "error"
+                      );
+                    }
+                  }
                 }}
               />
             </div>
-            <div style={{ marginBottom: 16 }}>
+            <div style={{ marginBottom: 24 }}>
               <label
-                style={{ display: "block", marginBottom: 6, color: theme.text }}
+                style={{
+                  display: "block",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: theme.text,
+                  marginBottom: 8,
+                }}
               >
                 Color
               </label>
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(6, 1fr)",
-                  gap: 8,
-                }}
-              >
-                {CLASS_COLORS.map((c) => (
-                  <button
-                    key={c.value}
-                    onClick={() => setNewClassColor(c.value)}
-                    style={{
-                      width: "100%",
-                      aspectRatio: "1",
-                      borderRadius: 8,
-                      backgroundColor: c.value,
-                      border:
-                        newClassColor === c.value
-                          ? "3px solid white"
-                          : "1px solid #ccc",
-                      cursor: "pointer",
-                    }}
-                    title={c.name}
-                  />
-                ))}
-              </div>
+              <ColorPicker
+                color={newClassColor}
+                onChange={setNewClassColor}
+                initialColor={"#007bff"}
+                // presets={CLASS_COLORS}
+                darkMode={darkMode}
+              />
             </div>
             <div
-              style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}
+              style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}
             >
               <button
                 onClick={() => setShowCreateClass(false)}
                 style={{
-                  padding: "8px 12px",
-                  border: `1px solid ${theme.glassBorder}`,
+                  padding: "10px 20px",
                   background: "transparent",
+                  color: theme.textSecondary,
+                  border: `1px solid ${theme.glassBorder}`,
                   borderRadius: 6,
-                  color: theme.text,
+                  cursor: "pointer",
+                  fontSize: 14,
+                  fontWeight: 600,
+                  transition: "all 0.2s ease",
                 }}
               >
                 Cancel
@@ -1819,19 +1852,27 @@ export default function CSVLibrary({
                     const updated = await fetchClasses();
                     setAllClasses(updated);
                   } catch (e: any) {
-                    showToast(e?.message || "Failed to create class", "error");
+                    showToast(
+                      `Failed to create class: ${
+                        e?.response?.data?.detail || e?.message || "Unknown error"
+                      }`,
+                      "error"
+                    );
                   }
                 }}
                 style={{
-                  padding: "8px 12px",
+                  padding: "10px 20px",
                   background: theme.crimson,
                   color: "white",
                   border: "none",
                   borderRadius: 6,
                   cursor: "pointer",
+                  fontSize: 14,
+                  fontWeight: 600,
+                  transition: "all 0.2s ease",
                 }}
               >
-                Save
+                Create
               </button>
             </div>
           </div>

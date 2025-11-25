@@ -1,12 +1,20 @@
 import { useExamStore } from "../store/examStore";
+import type { QuestionDTO } from "../types";
 
 interface Props {
   darkMode: boolean;
   theme: any;
+  questions?: QuestionDTO[];
 }
 
-export default function QuestionNavigator({ darkMode, theme }: Props) {
-  const { questions, bookmarks, answers } = useExamStore();
+export default function QuestionNavigator({
+  darkMode,
+  theme,
+  questions: propQuestions,
+}: Props) {
+  const { questions: storeQuestions, bookmarks, answers } = useExamStore();
+  // Use passed questions if available, otherwise fallback to store
+  const questions = propQuestions || storeQuestions;
 
   const scrollToQuestion = (index: number) => {
     const element = document.getElementById(`question-${index}`);

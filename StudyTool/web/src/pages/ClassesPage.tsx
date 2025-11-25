@@ -83,7 +83,9 @@ export default function ClassesPage() {
       loadClasses();
     } catch (e: any) {
       showToast(
-        `Failed to create class: ${e?.message || "Unknown error"}`,
+        `Failed to create class: ${
+          e?.response?.data?.detail || e?.message || "Unknown error"
+        }`,
         "error"
       );
     }
@@ -116,7 +118,9 @@ export default function ClassesPage() {
       loadClasses();
     } catch (e: any) {
       showToast(
-        `Failed to update class: ${e?.message || "Unknown error"}`,
+        `Failed to update class: ${
+          e?.response?.data?.detail || e?.message || "Unknown error"
+        }`,
         "error"
       );
     }
@@ -132,7 +136,9 @@ export default function ClassesPage() {
       loadClasses();
     } catch (e: any) {
       showToast(
-        `Failed to delete class: ${e?.message || "Unknown error"}`,
+        `Failed to delete class: ${
+          e?.response?.data?.detail || e?.message || "Unknown error"
+        }`,
         "error"
       );
     }
@@ -429,7 +435,7 @@ export default function ClassesPage() {
         >
           <div
             style={{
-              backgroundColor: theme.modalBg,
+              backgroundColor: theme.cardBgSolid,
               padding: "24px",
               borderRadius: "8px",
               maxWidth: "500px",
@@ -563,7 +569,7 @@ export default function ClassesPage() {
         >
           <div
             style={{
-              backgroundColor: theme.modalBg,
+              backgroundColor: theme.cardBgSolid,
               padding: "24px",
               borderRadius: "8px",
               maxWidth: "500px",

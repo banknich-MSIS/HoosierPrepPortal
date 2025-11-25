@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { useNavigate, useParams, useOutletContext, useBlocker, useLocation } from "react-router-dom";
 import { useToast } from "../contexts/ToastContext";
 import { useExamStore } from "../store/examStore";
@@ -13,6 +13,7 @@ import {
   getInProgressAttempt,
   saveProgress,
 } from "../api/client";
+import { shuffleWithSeed } from "../utils/shuffle";
 
 export default function ExamPage() {
   const { examId } = useParams<{ examId: string }>();
@@ -47,6 +48,15 @@ export default function ExamPage() {
   
   // Progress saving state
   const [currentAttemptId, setCurrentAttemptId] = useState<number | null>(null);
+  
+  // ADD THIS: Shuffle questions based on attempt ID
+  const shuffledQuestions = useMemo(() => {
+    if (currentAttemptId && questions.length > 0) {
+      return shuffleWithSeed([...questions], currentAttemptId);
+    }
+    return questions;
+  }, [questions, currentAttemptId]);
+
   const [isSaving, setIsSaving] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -545,7 +555,11 @@ export default function ExamPage() {
           >
             Questions
           </h3>
-          <QuestionNavigator darkMode={darkMode} theme={theme} />
+          <QuestionNavigator
+            darkMode={darkMode}
+            theme={theme}
+            questions={shuffledQuestions}
+          />
 
           {/* Save Progress Button */}
           <button
@@ -642,7 +656,7 @@ export default function ExamPage() {
               maxWidth: "800px",
             }}
           >
-            {questions.map((question, index) => (
+            {shuffledQuestions.map((question, index) => (
               <div
                 key={question.id}
                 id={`question-${index}`}
@@ -672,6 +686,7 @@ export default function ExamPage() {
                   darkMode={darkMode}
                   theme={theme}
                   disabled={false}
+                  attemptId={currentAttemptId}
                 />
               </div>
             ))}

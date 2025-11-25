@@ -109,6 +109,56 @@ export default function UtilitiesPage() {
             Manage Backups
           </button>
         </div>
+
+        {/* API Key Management */}
+        <div
+          style={{
+            backgroundColor: theme.cardBg,
+            border: `1px solid ${theme.border}`,
+            borderRadius: 8,
+            padding: 20,
+          }}
+        >
+          <h3 style={{ margin: "0 0 12px 0", fontSize: 18, color: theme.text }}>
+            API Key Management
+          </h3>
+          <p
+            style={{
+              margin: "0 0 16px 0",
+              color: theme.textSecondary,
+              fontSize: 14,
+              lineHeight: 1.5,
+            }}
+          >
+            Manage your Gemini API key for AI-powered exam generation features.
+          </p>
+          <button
+            onClick={() => navigate("/api-keys")}
+            style={{
+              padding: "8px 16px",
+              backgroundColor: theme.crimson,
+              color: "white",
+              border: "none",
+              borderRadius: 4,
+              cursor: "pointer",
+              fontSize: 14,
+              width: "100%",
+              fontWeight: 600,
+              transition: "0.2s",
+              boxShadow: "0 2px 8px rgba(196, 30, 58, 0.25)",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.boxShadow =
+                "0 4px 12px rgba(196, 30, 58, 0.35)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.boxShadow =
+                "0 2px 8px rgba(196, 30, 58, 0.25)";
+            }}
+          >
+            Manage API Keys
+          </button>
+        </div>
       </div>
     </div>
   );

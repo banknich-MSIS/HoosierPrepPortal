@@ -8,6 +8,7 @@ import {
   createClass,
   deleteClass,
 } from "../api/client";
+import ColorPicker from "./ColorPicker";
 import type { ClassSummary } from "../types";
 
 interface ClassTagSelectorProps {
@@ -100,7 +101,12 @@ export default function ClassTagSelector({
       setNewColor("#c41e3a");
       onUpdate();
     } catch (e: any) {
-      showToast(`Failed to create tag: ${e?.message || "Unknown error"}`, "error");
+      showToast(
+        `Failed to create tag: ${
+          e?.response?.data?.detail || e?.message || "Unknown error"
+        }`,
+        "error"
+      );
     } finally {
       setLoading(false);
     }
@@ -295,7 +301,7 @@ export default function ClassTagSelector({
         >
           <div
             style={{
-              background: darkMode ? "#2d1819" : "#ffffff",
+              background: theme.cardBgSolid,
               borderRadius: 12,
               border: `1px solid ${theme.glassBorder}`,
               boxShadow: "0 20px 60px rgba(0, 0, 0, 0.5)",
@@ -365,40 +371,13 @@ export default function ClassTagSelector({
               >
                 Color
               </label>
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(6, 1fr)",
-                  gap: 8,
-                }}
-              >
-                {CLASS_COLORS.map((colorOption) => (
-                  <button
-                    key={colorOption.value}
-                    onClick={() => setNewColor(colorOption.value)}
-                    disabled={loading}
-                    style={{
-                      width: "100%",
-                      height: 36,
-                      borderRadius: 6,
-                      border:
-                        newColor === colorOption.value
-                          ? `3px solid ${theme.crimson}`
-                          : `1px solid ${theme.glassBorder}`,
-                      backgroundColor: darkMode
-                        ? colorOption.darkBg
-                        : colorOption.value,
-                      cursor: loading ? "not-allowed" : "pointer",
-                      transition: "all 0.2s ease",
-                      transform:
-                        newColor === colorOption.value
-                          ? "scale(1.1)"
-                          : "scale(1)",
-                    }}
-                    title={colorOption.name}
-                  />
-                ))}
-              </div>
+              <ColorPicker
+                color={newColor}
+                onChange={setNewColor}
+                initialColor={"#c41e3a"}
+                // presets={CLASS_COLORS}
+                darkMode={darkMode}
+              />
             </div>
 
             <div

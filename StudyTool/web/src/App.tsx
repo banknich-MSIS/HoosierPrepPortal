@@ -119,7 +119,6 @@ export default function App() {
     { path: "/ai-exam-creator", label: "Exam Generator" },
     { path: "/archive", label: "Archive" },
     // { path: "/upload", label: "AI Assistant" },  // Hidden for public release
-    { path: "/api-keys", label: "API Keys" },
   ];
 
   return (
@@ -314,34 +313,6 @@ export default function App() {
                 </button>
               </div>
 
-              {/* Help Button - Glass Style */}
-              <button
-                onClick={() => setShowTutorial(true)}
-                style={{
-                  padding: "8px 16px",
-                  background: theme.btnInfo,
-                  color: "white",
-                  border: "none",
-                  borderRadius: 8,
-                  cursor: "pointer",
-                  fontSize: 14,
-                  fontWeight: 500,
-                  transition: "all 0.2s ease",
-                  boxShadow: "0 2px 8px rgba(23, 162, 184, 0.3)",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = theme.btnInfoHover;
-                  e.currentTarget.style.boxShadow =
-                    "0 4px 12px rgba(23, 162, 184, 0.4)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = theme.btnInfo;
-                  e.currentTarget.style.boxShadow =
-                    "0 2px 8px rgba(23, 162, 184, 0.3)";
-                }}
-              >
-                Help
-              </button>
             </div>
           </div>
         </nav>

@@ -189,7 +189,12 @@ export default function SettingsPage() {
       setNewClassName("");
       setNewClassDescription("");
     } catch (e: any) {
-      showToast(`Failed to create class: ${e?.message || "Unknown error"}`, "error");
+      showToast(
+        `Failed to create class: ${
+          e?.response?.data?.detail || e?.message || "Unknown error"
+        }`,
+        "error"
+      );
     }
   };
 

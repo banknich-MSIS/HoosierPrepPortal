@@ -778,9 +778,7 @@ export default function SmartExamCreator() {
             >
               <div
                 style={{
-                  backgroundColor: theme.modalBg,
-                  backdropFilter: theme.glassBlur,
-                  WebkitBackdropFilter: theme.glassBlur,
+                  backgroundColor: theme.cardBgSolid,
                   borderRadius: 12,
                   padding: 24,
                   maxWidth: 500,
@@ -919,7 +917,7 @@ export default function SmartExamCreator() {
                       } catch (e: any) {
                         showToast(
                           `Failed to create class: ${
-                            e?.message || "Unknown error"
+                            e?.response?.data?.detail || e?.message || "Unknown error"
                           }`,
                           "error"
                         );

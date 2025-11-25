@@ -86,6 +86,9 @@ def create_backup(db: Session = Depends(get_db)) -> Dict[str, Any]:
                     "started_at": a.started_at.isoformat() if a.started_at else None,
                     "finished_at": a.finished_at.isoformat() if a.finished_at else None,
                     "score_pct": a.score_pct,
+                    "duration_seconds": a.duration_seconds,
+                    "exam_type": a.exam_type,
+                    "status": a.status,
                 }
                 for a in attempts
             ],
@@ -216,6 +219,9 @@ async def restore_backup(
                 started_at=datetime.fromisoformat(a["started_at"]) if a.get("started_at") else datetime.utcnow(),
                 finished_at=datetime.fromisoformat(a["finished_at"]) if a.get("finished_at") else None,
                 score_pct=a.get("score_pct"),
+                duration_seconds=a.get("duration_seconds"),
+                exam_type=a.get("exam_type", "exam"),
+                status=a.get("status", "completed"),
             )
             db.add(attempt)
         

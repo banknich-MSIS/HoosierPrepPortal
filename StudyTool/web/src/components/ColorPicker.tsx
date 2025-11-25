@@ -169,6 +169,10 @@ export default function ColorPicker({
               min="0"
               max="360"
               value={hsv.h}
+              onMouseDown={() => setIsDragging(true)}
+              onMouseUp={() => setIsDragging(false)}
+              onTouchStart={() => setIsDragging(true)}
+              onTouchEnd={() => setIsDragging(false)}
               onChange={(e) => {
                 const newHsv = { ...hsv, h: Number(e.target.value) };
                 setHsv(newHsv);
