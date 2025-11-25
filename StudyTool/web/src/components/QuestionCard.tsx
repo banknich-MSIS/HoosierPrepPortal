@@ -3,6 +3,7 @@ import type { QuestionDTO, QuestionType } from "../types";
 import { useExamStore } from "../store/examStore";
 import { parseSimpleMarkdown } from "../utils/markdown";
 import { CLOZE_REGEX } from "../utils/cloze";
+import { shuffleWithSeed } from "../utils/shuffle";
 
 const QUESTION_TYPE_LABELS: Record<QuestionType, string> = {
   mcq: "Multiple Choice",
@@ -17,25 +18,42 @@ interface Props {
   darkMode: boolean;
   theme: any;
   disabled?: boolean;
+  attemptId?: number | null;
 }
 
-export default function QuestionCard({ question, darkMode, theme, disabled = false }: Props) {
+export default function QuestionCard({
+  question,
+  darkMode,
+  theme,
+  disabled = false,
+  attemptId,
+}: Props) {
   const setAnswer = useExamStore((s) => s.setAnswer);
   const answers = useExamStore((s) => s.answers);
   const value = answers[question.id];
 
-  const options = useMemo(() => question.options ?? [], [question.options]);
-
   // Handle both 'type' and 'qtype' fields from backend
   const questionType = question.type || (question as any).qtype || "unknown";
 
+  const options = useMemo(() => {
+    const raw = question.options ?? [];
+    // Only shuffle MCQ/Multi if attemptId is present
+    if (attemptId && (questionType === "mcq" || questionType === "multi")) {
+      // Use a combined seed of attemptId + question.id to be unique per question but stable per attempt
+      return shuffleWithSeed(raw, attemptId + question.id * 17);
+    }
+    return raw;
+  }, [question.options, attemptId, questionType, question.id]);
+
   if (questionType === "cloze") {
     const parts = question.stem.split(CLOZE_REGEX);
-    const userAnswers = Array.isArray(value) 
-      ? value 
-      : (typeof value === 'object' && value !== null)
-        ? Object.values(value) // fallback for legacy dict
-        : (value ? [value] : []); // fallback for legacy single string
+    const userAnswers = Array.isArray(value)
+      ? value
+      : typeof value === "object" && value !== null
+      ? Object.values(value) // fallback for legacy dict
+      : value
+      ? [value]
+      : []; // fallback for legacy single string
 
     // Check if there are any blanks (parts length > 1 usually means at least one blank)
     const hasBlanks = parts.length > 1;
@@ -70,7 +88,11 @@ export default function QuestionCard({ question, darkMode, theme, disabled = fal
           {hasBlanks ? (
             parts.map((part, i) => (
               <React.Fragment key={i}>
-                <span dangerouslySetInnerHTML={{ __html: parseSimpleMarkdown(part) }} />
+                <span
+                  dangerouslySetInnerHTML={{
+                    __html: parseSimpleMarkdown(part),
+                  }}
+                />
                 {i < parts.length - 1 && (
                   <input
                     style={{
@@ -85,7 +107,7 @@ export default function QuestionCard({ question, darkMode, theme, disabled = fal
                       color: theme.text,
                       opacity: disabled ? 0.6 : 1,
                       cursor: disabled ? "not-allowed" : "text",
-                      borderBottom: `2px solid ${theme.crimson || '#c41e3a'}`,
+                      borderBottom: `2px solid ${theme.crimson || "#c41e3a"}`,
                     }}
                     value={userAnswers[i] || ""}
                     onChange={(e) => {
@@ -102,7 +124,11 @@ export default function QuestionCard({ question, darkMode, theme, disabled = fal
           ) : (
             // Fallback for legacy/malformed cloze without tokens
             <>
-              <div dangerouslySetInnerHTML={{ __html: parseSimpleMarkdown(question.stem) }} />
+              <div
+                dangerouslySetInnerHTML={{
+                  __html: parseSimpleMarkdown(question.stem),
+                }}
+              />
               <input
                 style={{
                   width: "100%",
@@ -198,7 +224,10 @@ export default function QuestionCard({ question, darkMode, theme, disabled = fal
                   checked={value === opt}
                   onChange={() => setAnswer(question.id, opt)}
                   disabled={disabled}
-                  style={{ transform: "scale(1.2)", cursor: disabled ? "not-allowed" : "pointer" }}
+                  style={{
+                    transform: "scale(1.2)",
+                    cursor: disabled ? "not-allowed" : "pointer",
+                  }}
                 />
                 <span
                   style={{
@@ -258,7 +287,10 @@ export default function QuestionCard({ question, darkMode, theme, disabled = fal
                       setAnswer(question.id, Array.from(next));
                     }}
                     disabled={disabled}
-                    style={{ transform: "scale(1.2)", cursor: disabled ? "not-allowed" : "pointer" }}
+                    style={{
+                      transform: "scale(1.2)",
+                      cursor: disabled ? "not-allowed" : "pointer",
+                    }}
                   />
                   <span
                     style={{
@@ -324,7 +356,10 @@ export default function QuestionCard({ question, darkMode, theme, disabled = fal
                 checked={String(value).toLowerCase() === opt}
                 onChange={() => setAnswer(question.id, opt)}
                 disabled={disabled}
-                style={{ transform: "scale(1.2)", cursor: disabled ? "not-allowed" : "pointer" }}
+                style={{
+                  transform: "scale(1.2)",
+                  cursor: disabled ? "not-allowed" : "pointer",
+                }}
               />
               <span
                 style={{

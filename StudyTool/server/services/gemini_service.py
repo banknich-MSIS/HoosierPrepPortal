@@ -5,6 +5,8 @@ Handles API configuration, prompt building, and response parsing.
 import json
 import re
 import time
+import random
+from difflib import SequenceMatcher
 from typing import Dict, List, Optional, Any, Union
 from pydantic import BaseModel
 import google.generativeai as genai
@@ -53,7 +55,7 @@ Study Material:
 {content}
 
 Requirements:
-- Generate exactly {question_count} questions
+- Generate exactly {question_count} questions. Do not return fewer or more.
 - Difficulty level: {difficulty}
 - Question types to include: {question_types}
 {focus_concepts_section}
@@ -82,6 +84,12 @@ IMPORTANT RULES:
 9. Vary difficulty within the {difficulty} level
 10. DO NOT include citation markers, references, or metadata in questions
 11. Questions should be clean text without [cite:XX] or similar annotations
+12. When multiple Study Materials are provided (e.g., marked by '=== Content from [filename] ==='), you MUST distribute questions reasonably evenly across ALL of them. Do NOT over-focus on the first documents.
+13. Do NOT repeat the same concept or fact as a separate question with only minor wording changes. Each question must test a clearly distinct detail, scenario, or angle.
+14. For MCQ questions:
+    - Make the incorrect options plausible and conceptually related.
+    - Ensure that all options are roughly similar length and level of detail.
+    - Do NOT make the correct option obviously longer, more detailed, or more specific than the distractors.
 
 CRITICAL: Return ONLY valid JSON in this exact format (no markdown code blocks, just pure JSON):
 {{
@@ -120,7 +128,10 @@ QUALITY CHECKLIST:
 ✓ Answers are definitively correct
 ✓ Concepts accurately tagged
 ✓ No citation markers or annotations
-✓ Even distribution across question types
+✓ Even distribution across question types AND source materials
+✓ No obvious duplicates or near-duplicates
+✓ Exactly {question_count} questions generated
+✓ MCQ distractors are similar in length/detail to correct answer
 ✓ Appropriate difficulty level throughout
 """
 
@@ -162,7 +173,7 @@ def build_exam_prompt(content: str, config: ExamConfig) -> str:
     question_types_str = ", ".join(config.question_types)
     
     prompt = EXAM_GENERATION_PROMPT.format(
-        content=content[:10000],  # Slightly lower cap to reduce truncation risk
+        content=content[:500000],  # Increased cap
         question_count=config.question_count,
         difficulty=config.difficulty,
         question_types=question_types_str,
@@ -410,33 +421,37 @@ async def generate_exam_from_content(
         
         # Parse response
         exam = parse_gemini_response(response_text)
+        exam.questions = dedupe_questions(exam.questions or []) # Dedupe initial batch
 
-        # If fewer questions than requested or we detected truncation, attempt top-up
         requested = max(1, int(config.question_count))
         have = len(exam.questions or [])
-        if truncated_by_tokens or have < requested:
-            missing = max(0, requested - have)
+        
+        # Loop to top-up missing questions
+        retries = 0
+        while have < requested and retries < 3: # Limit retries
+            missing = requested - have
             if missing > 0:
                 try:
-                    # Avoid duplicates by passing existing stems
                     existing_stems = [q.question for q in exam.questions if q and q.question]
                     extras = await generate_additional_questions(
                         content=content,
                         base_config=config,
-                        missing_count=min(missing, 10),  # request in small batches
+                        missing_count=missing, # Request all missing
                         api_key=api_key,
                         existing_stems=existing_stems,
                     )
-                    merged = dedupe_questions((exam.questions or []) + (extras or []))
-                    # If still short, synthesize safe variants locally
-                    if len(merged) < requested:
-                        variants = synthesize_variants(merged, requested - len(merged))
-                        merged = dedupe_questions(merged + variants)
-                    # Truncate to requested count
-                    exam.questions = merged[:requested]
+                    merged = dedupe_questions((exam.questions or []) + (extras or [])) # Dedupe after merge
+                    exam.questions = merged
+                    have = len(exam.questions)
                 except Exception as _e:
-                    # If top-up fails, keep the original parsed questions
                     print(f"DEBUG: Top-up failed: {_e}")
+            retries += 1
+
+        # Truncate to requested count if too many (e.g., after top-up)
+        exam.questions = exam.questions[:requested]
+
+        # Shuffle questions to mix types and order
+        random.shuffle(exam.questions)
 
         # Attach the chosen model name on the fly for upstream usage (stored in metadata by route)
         # We return a tuple via an attribute to avoid breaking existing types elsewhere
@@ -498,14 +513,22 @@ async def generate_additional_questions(
 
 
 def dedupe_questions(questions: List[QuestionData]) -> List[QuestionData]:
-    """Remove duplicate questions by normalized stem text."""
-    seen = set()
+    """Remove duplicate questions by normalized stem text, using similarity."""
     result: List[QuestionData] = []
+    seen_stems: List[str] = [] # Store normalized stems for comparison
+    
     for q in questions:
-        key = (q.question or "").strip().lower()
-        if key and key not in seen:
-            seen.add(key)
-            result.append(q)
+        q_stem = (q.question or "").strip()
+        is_dupe = False
+        if q_stem:
+            for existing_stem in seen_stems:
+                similarity = SequenceMatcher(None, q_stem.lower(), existing_stem.lower()).ratio()
+                if similarity > 0.85: # Threshold for "near duplicate"
+                    is_dupe = True
+                    break
+            if not is_dupe:
+                seen_stems.append(q_stem.lower())
+                result.append(q)
     return result
 
 

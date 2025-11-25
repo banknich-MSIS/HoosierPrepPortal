@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import {
   useNavigate,
   useParams,
@@ -18,6 +18,7 @@ import {
   getInProgressAttempt,
   saveProgress,
 } from "../api/client";
+import { shuffleWithSeed } from "../utils/shuffle";
 
 export default function PracticeModePage() {
   const { examId } = useParams<{ examId: string }>();
@@ -29,7 +30,7 @@ export default function PracticeModePage() {
   }>();
   const { showToast } = useToast();
   const {
-    questions,
+    questions: canonicalQuestions,
     examId: storeExamId,
     answers,
     setExam,
@@ -55,6 +56,14 @@ export default function PracticeModePage() {
 
   // Progress saving state
   const [currentAttemptId, setCurrentAttemptId] = useState<number | null>(null);
+
+  // Shuffle questions based on attempt ID to ensure random but stable order per attempt
+  const questions = useMemo(() => {
+    if (currentAttemptId && canonicalQuestions.length > 0) {
+      return shuffleWithSeed([...canonicalQuestions], currentAttemptId);
+    }
+    return canonicalQuestions;
+  }, [canonicalQuestions, currentAttemptId]);
   const [isSaving, setIsSaving] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -939,22 +948,6 @@ export default function PracticeModePage() {
         )}
 
         {/* Submission status indicator */}
-        {isSubmitting && (
-          <div
-            style={{
-              marginTop: 8,
-              padding: "8px 12px",
-              background: theme.btnInfo,
-              color: "white",
-              borderRadius: 6,
-              fontSize: 12,
-              textAlign: "center",
-              fontWeight: 500,
-            }}
-          >
-            Grading your practice attempt...
-          </div>
-        )}
       </aside>
 
       {/* Main Content */}
@@ -1012,6 +1005,7 @@ export default function PracticeModePage() {
             darkMode={darkMode}
             theme={theme}
             disabled={completedQuestions.has(currentQuestion.id)}
+            attemptId={currentAttemptId}
           />
         </div>
 

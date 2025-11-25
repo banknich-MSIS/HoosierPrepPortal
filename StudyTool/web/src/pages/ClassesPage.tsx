@@ -7,6 +7,7 @@ import {
   updateClass,
   deleteClass,
 } from "../api/client";
+import ColorPicker from "../components/ColorPicker";
 import type { ClassSummary } from "../types";
 
 const CLASS_COLORS = [
@@ -479,46 +480,13 @@ export default function ClassesPage() {
               >
                 Color
               </label>
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(6, 1fr)",
-                  gap: 8,
-                }}
-              >
-                {CLASS_COLORS.map((colorOption) => (
-                  <button
-                    key={colorOption.value}
-                    onClick={() => setFormColor(colorOption.value)}
-                    style={{
-                      width: "100%",
-                      aspectRatio: "1",
-                      borderRadius: 8,
-                      backgroundColor: colorOption.value,
-                      border:
-                        formColor === colorOption.value
-                          ? "3px solid white"
-                          : "1px solid #ccc",
-                      cursor: "pointer",
-                      boxShadow:
-                        formColor === colorOption.value
-                          ? "0 0 8px rgba(0,0,0,0.3)"
-                          : "none",
-                    }}
-                    title={colorOption.name}
-                  />
-                ))}
-              </div>
-              <div
-                style={{
-                  marginTop: 8,
-                  fontSize: 12,
-                  color: theme.textSecondary,
-                }}
-              >
-                Selected:{" "}
-                {CLASS_COLORS.find((c) => c.value === formColor)?.name}
-              </div>
+              <ColorPicker
+                color={formColor}
+                onChange={setFormColor}
+                initialColor={editingClass?.color || "#007bff"}
+                presets={CLASS_COLORS}
+                darkMode={darkMode}
+              />
             </div>
             <div
               style={{
@@ -646,46 +614,13 @@ export default function ClassesPage() {
               >
                 Color
               </label>
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(6, 1fr)",
-                  gap: 8,
-                }}
-              >
-                {CLASS_COLORS.map((colorOption) => (
-                  <button
-                    key={colorOption.value}
-                    onClick={() => setFormColor(colorOption.value)}
-                    style={{
-                      width: "100%",
-                      aspectRatio: "1",
-                      borderRadius: 8,
-                      backgroundColor: colorOption.value,
-                      border:
-                        formColor === colorOption.value
-                          ? "3px solid white"
-                          : "1px solid #ccc",
-                      cursor: "pointer",
-                      boxShadow:
-                        formColor === colorOption.value
-                          ? "0 0 8px rgba(0,0,0,0.3)"
-                          : "none",
-                    }}
-                    title={colorOption.name}
-                  />
-                ))}
-              </div>
-              <div
-                style={{
-                  marginTop: 8,
-                  fontSize: 12,
-                  color: theme.textSecondary,
-                }}
-              >
-                Selected:{" "}
-                {CLASS_COLORS.find((c) => c.value === formColor)?.name}
-              </div>
+              <ColorPicker
+                color={formColor}
+                onChange={setFormColor}
+                initialColor={editingClass?.color || "#007bff"}
+                presets={CLASS_COLORS}
+                darkMode={darkMode}
+              />
             </div>
             <div
               style={{

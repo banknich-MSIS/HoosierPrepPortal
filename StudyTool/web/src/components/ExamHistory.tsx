@@ -59,7 +59,7 @@ export default function ExamHistory({
     duration: 90,
     difficulty: 90,
     examType: 80,
-    avgTime: 90,
+    avgTime: 120,
   });
   const [resizing, setResizing] = useState<string | null>(null);
   const [startX, setStartX] = useState(0);
@@ -1009,6 +1009,8 @@ export default function ExamHistory({
                 position: "relative",
                 paddingRight: 12,
                 paddingLeft: 8,
+                minWidth: 120,
+                whiteSpace: "nowrap",
               }}
             >
               Avg Time/Q

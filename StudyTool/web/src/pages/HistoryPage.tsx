@@ -392,6 +392,8 @@ export default function HistoryPage() {
                       userSelect: "none",
                       textAlign: "right",
                       color: theme.text || "#333",
+                      minWidth: 120,
+                      whiteSpace: "nowrap",
                     }}
                     onClick={() => handleSort("average_time")}
                   >
