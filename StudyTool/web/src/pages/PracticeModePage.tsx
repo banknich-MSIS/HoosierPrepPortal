@@ -151,6 +151,9 @@ export default function PracticeModePage() {
     if (!storeExamId || !currentAttemptId) return;
 
     try {
+      // Store the shuffled question order
+      const questionOrder = questions.map(q => q.id);
+      
       await saveProgress(currentAttemptId, {
         answers,
         bookmarks: Array.from(useExamStore.getState().bookmarks),
@@ -158,6 +161,8 @@ export default function PracticeModePage() {
         current_question_index: currentQuestionIndex,
         timer_state: null,
         exam_type: "practice",
+        question_order: questionOrder, // Store the shuffled order
+        question_results: questionResults, // Store correct/incorrect status for each question
       });
       setSavedAnswersJson(JSON.stringify(answers));
       setLastSavedAt(new Date());
@@ -193,19 +198,6 @@ export default function PracticeModePage() {
         useExamStore.getState().setAnswer(Number(qId), answer);
       });
 
-      // Restore current question index
-      if (progress.progress_state?.current_question_index !== undefined) {
-        const savedIndex = progress.progress_state.current_question_index;
-        setCurrentQuestionIndex(savedIndex);
-        // Note: questions might not be fully loaded here if calling from checkResume,
-        // but questions array is dependency of checkResume so it should be fine.
-        if (questions[savedIndex]) {
-          const savedQuestionId = questions[savedIndex].id;
-          // Need to update completedQuestions for practice mode
-          // (we'll do this below with savedQIds)
-        }
-      }
-
       // Restore completed questions
       let newCompleted = new Set<number>();
       if (progress.progress_state?.completed_questions) {
@@ -217,19 +209,39 @@ export default function PracticeModePage() {
       }
       setCompletedQuestions(newCompleted);
 
+      // Restore question results (correct/incorrect status)
+      let restoredResults: Record<number, boolean> = {};
+      if (progress.progress_state?.question_results) {
+        restoredResults = progress.progress_state.question_results;
+        setQuestionResults(restoredResults);
+      } else {
+        // For old saves without question_results, we'll re-compute after correct answers load
+        setQuestionResults({});
+      }
+
+      // Restore current question index and answer display state
+      if (progress.progress_state?.current_question_index !== undefined) {
+        const savedIndex = progress.progress_state.current_question_index;
+        setCurrentQuestionIndex(savedIndex);
+        // Note: questions might not be fully loaded here if calling from checkResume,
+        // but questions array is dependency of checkResume so it should be fine.
+        if (questions[savedIndex]) {
+          const savedQuestionId = questions[savedIndex].id;
+          // Only show answer if question was completed AND has a result
+          // This prevents showing "Incorrect" for unanswered questions
+          if (newCompleted.has(savedQuestionId) && savedQuestionId in restoredResults) {
+            setShowAnswer(true);
+            setIsCorrect(restoredResults[savedQuestionId]);
+          } else {
+            // Don't show answer if no result yet (will be set when recomputed or when user checks)
+            setShowAnswer(false);
+            setIsCorrect(null);
+          }
+        }
+      }
+
       // Update saved state tracker
       setSavedAnswersJson(JSON.stringify(progress.saved_answers || {}));
-
-      // Restore results for completed questions (we need to fetch/check them if not stored)
-      // Since we don't store "isCorrect" in progress (just answers), we might need to re-check or just leave as is.
-      // Re-checking might be expensive or require correct answers.
-      // For now, let's assume if it's in completedQuestions, the user will see their answer.
-      // If we want to show green/red, we need to know if it was correct.
-      // The current implementation of checkResume -> handleResume didn't re-grade.
-      // Wait, original handleResume DID restore `completedQuestions`.
-      // And `useEffect` for `fetchAnswers` runs on load.
-      // So once correctAnswers are loaded, we can re-compute results?
-      // Actually, let's just restore the state we have.
 
       setCurrentAttemptId(attemptId);
       setShowResumeModal(false);
@@ -401,6 +413,8 @@ export default function PracticeModePage() {
   }, [completedQuestions, questions.length, hasFinished, isSubmitting]);
 
   // Fetch correct answers for practice mode
+  // This runs when storeExamId changes OR when currentAttemptId changes (resuming)
+  // This ensures we always have fresh correct answers, even if questions were edited
   useEffect(() => {
     const fetchAnswers = async () => {
       if (!storeExamId) return;
@@ -416,7 +430,91 @@ export default function PracticeModePage() {
       }
     };
     fetchAnswers();
-  }, [storeExamId]);
+  }, [storeExamId, currentAttemptId]);
+
+  // Re-compute questionResults from saved answers when correct answers load or change
+  // This handles:
+  // 1. Old saves that don't have question_results stored
+  // 2. Cases where correct answers were updated (e.g., question edited) and we need to re-grade
+  useEffect(() => {
+    // Need to recompute if:
+    // 1. We have correct answers loaded
+    // 2. We have user answers (from restoreAttempt or current session)
+    // 3. We have completed questions
+    if (
+      Object.keys(correctAnswers).length === 0 ||
+      Object.keys(answers).length === 0 ||
+      completedQuestions.size === 0 ||
+      questions.length === 0
+    ) {
+      return;
+    }
+
+    // Re-compute results for all completed questions
+    // This will update results even if they already exist (handles answer changes)
+    const recomputedResults: Record<number, boolean> = {};
+    
+    completedQuestions.forEach((questionId) => {
+      const question = questions.find((q) => q.id === questionId);
+      if (!question) return;
+
+      const userAnswer = answers[questionId];
+      const correctAnswer = correctAnswers[questionId];
+
+      if (userAnswer === undefined || correctAnswer === undefined) return;
+
+      // Use the same grading logic as checkAnswer
+      let correct = false;
+      const qtype = question.type;
+
+      if (qtype === "mcq" || qtype === "short" || qtype === "cloze") {
+        correct =
+          String(userAnswer).toLowerCase().trim() ===
+          String(correctAnswer).toLowerCase().trim();
+      } else if (qtype === "truefalse") {
+        correct =
+          String(userAnswer).toLowerCase() ===
+          String(correctAnswer).toLowerCase();
+      } else if (qtype === "multi") {
+        const userSet = new Set(
+          Array.isArray(userAnswer)
+            ? userAnswer.map((v) => String(v).toLowerCase().trim())
+            : []
+        );
+        const correctSet = new Set(
+          Array.isArray(correctAnswer)
+            ? correctAnswer.map((v) => String(v).toLowerCase().trim())
+            : []
+        );
+        correct =
+          userSet.size === correctSet.size &&
+          [...userSet].every((v) => correctSet.has(v));
+      }
+
+      recomputedResults[questionId] = correct;
+    });
+
+    // Only update if we computed any results
+    if (Object.keys(recomputedResults).length > 0) {
+      // Check if results actually changed to avoid unnecessary re-renders
+      const hasChanges = Object.keys(recomputedResults).some(
+        (qId) => recomputedResults[Number(qId)] !== questionResults[Number(qId)]
+      );
+      
+      if (hasChanges || Object.keys(questionResults).length === 0) {
+        setQuestionResults(recomputedResults);
+        
+        // Also update isCorrect for current question if it was recomputed
+        const currentQuestion = questions[currentQuestionIndex];
+        if (currentQuestion && currentQuestion.id in recomputedResults) {
+          setIsCorrect(recomputedResults[currentQuestion.id]);
+          if (completedQuestions.has(currentQuestion.id)) {
+            setShowAnswer(true);
+          }
+        }
+      }
+    }
+  }, [correctAnswers, answers, completedQuestions, questions, currentQuestionIndex]);
 
   if (loading) {
     return (
@@ -502,10 +600,10 @@ export default function PracticeModePage() {
       const nextIndex = currentQuestionIndex + 1;
       const nextQuestionId = questions[nextIndex].id;
       setCurrentQuestionIndex(nextIndex);
-      // Check if next question was already answered
-      if (completedQuestions.has(nextQuestionId)) {
+      // Only show answer if question was completed AND has a result
+      if (completedQuestions.has(nextQuestionId) && nextQuestionId in questionResults) {
         setShowAnswer(true);
-        setIsCorrect(questionResults[nextQuestionId] ?? null);
+        setIsCorrect(questionResults[nextQuestionId]);
       } else {
         setShowAnswer(false);
         setIsCorrect(null);
@@ -524,10 +622,10 @@ export default function PracticeModePage() {
       const prevIndex = currentQuestionIndex - 1;
       const prevQuestionId = questions[prevIndex].id;
       setCurrentQuestionIndex(prevIndex);
-      // Check if previous question was already answered
-      if (completedQuestions.has(prevQuestionId)) {
+      // Only show answer if question was completed AND has a result
+      if (completedQuestions.has(prevQuestionId) && prevQuestionId in questionResults) {
         setShowAnswer(true);
-        setIsCorrect(questionResults[prevQuestionId] ?? null);
+        setIsCorrect(questionResults[prevQuestionId]);
       } else {
         setShowAnswer(false);
         setIsCorrect(null);
@@ -541,10 +639,10 @@ export default function PracticeModePage() {
 
     const targetQuestionId = questions[index].id;
     setCurrentQuestionIndex(index);
-    // Check if target question was already answered
-    if (completedQuestions.has(targetQuestionId)) {
+    // Only show answer if question was completed AND has a result
+    if (completedQuestions.has(targetQuestionId) && targetQuestionId in questionResults) {
       setShowAnswer(true);
-      setIsCorrect(questionResults[targetQuestionId] ?? null);
+      setIsCorrect(questionResults[targetQuestionId]);
     } else {
       setShowAnswer(false);
       setIsCorrect(null);

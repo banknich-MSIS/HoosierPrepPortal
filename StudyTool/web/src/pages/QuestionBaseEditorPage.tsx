@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { useParams, useNavigate, useOutletContext } from "react-router-dom";
+import { useParams, useNavigate, useOutletContext, useLocation } from "react-router-dom";
 import { fetchQuestionsForEditor, updateQuestion, deleteQuestion, fetchUpload, updateUploadName } from "../api/client";
 import { useToast } from "../contexts/ToastContext";
 import { formatClozeForEditing, parseClozeFromEditing, CLOZE_REGEX } from "../utils/cloze";
@@ -18,6 +18,7 @@ interface EditorQuestion {
 export default function QuestionBaseEditorPage() {
   const { uploadId } = useParams<{ uploadId: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const { darkMode, theme } = useOutletContext<{
     darkMode: boolean;
     theme: any;
@@ -44,6 +45,16 @@ export default function QuestionBaseEditorPage() {
     if (uploadId) {
       loadData(parseInt(uploadId));
     }
+  }, [uploadId]);
+
+  // Dispatch custom event when navigating away to trigger parent refresh
+  useEffect(() => {
+    return () => {
+      // Cleanup: dispatch event when component unmounts (navigating away)
+      window.dispatchEvent(new CustomEvent('questionEditorClosed', { 
+        detail: { uploadId: uploadId ? parseInt(uploadId) : null } 
+      }));
+    };
   }, [uploadId]);
 
   const loadData = async (id: number) => {
@@ -121,7 +132,7 @@ export default function QuestionBaseEditorPage() {
   };
 
   const saveQuestion = async () => {
-    if (editingId === null) return;
+    if (editingId === null || !uploadId) return;
 
     try {
       // Construct options object (assuming standard "list" format for now)
@@ -145,22 +156,35 @@ export default function QuestionBaseEditorPage() {
         explanation: editExplanation
       });
 
+      // Reload the question from backend to ensure we have the actual saved state
+      const updatedQuestions = await fetchQuestionsForEditor(parseInt(uploadId));
+      const updatedQuestion = updatedQuestions.find(q => q.id === editingId);
+      
+      if (updatedQuestion) {
+        // Update local state with the reloaded question data
+        setQuestions(prev => prev.map(q => {
+          if (q.id === editingId) {
+            return updatedQuestion;
+          }
+          return q;
+        }));
+      } else {
+        // Fallback: update with what we sent if reload fails
+        setQuestions(prev => prev.map(q => {
+          if (q.id === editingId) {
+            return {
+              ...q,
+              stem: finalStem,
+              options: editOptions,
+              correct_answer: finalCorrectAnswer,
+              explanation: editExplanation
+            };
+          }
+          return q;
+        }));
+      }
+
       showToast("Question updated successfully", "success");
-      
-      // Update local state
-      setQuestions(prev => prev.map(q => {
-        if (q.id === editingId) {
-          return {
-            ...q,
-            stem: finalStem,
-            options: editOptions,
-            correct_answer: finalCorrectAnswer,
-            explanation: editExplanation
-          };
-        }
-        return q;
-      }));
-      
       cancelEditing();
     } catch (e: any) {
       showToast("Failed to update question", "error");
@@ -187,125 +211,265 @@ export default function QuestionBaseEditorPage() {
     setEditOptions(newOptions);
   };
 
+  const scrollToQuestion = (index: number) => {
+    const element = document.getElementById(`question-${index}`);
+    if (element) {
+      element.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  };
+
+  const getQuestionTypeTagStyle = (type: string) => {
+    const baseStyle = {
+      padding: "4px 10px",
+      borderRadius: 4,
+      fontSize: "12px",
+      fontWeight: "bold",
+      display: "inline-block",
+    };
+
+    switch (type) {
+      case "mcq":
+        return {
+          ...baseStyle,
+          backgroundColor: darkMode ? "rgba(0, 123, 255, 0.2)" : "rgba(0, 123, 255, 0.1)",
+          border: `1px solid ${darkMode ? "rgba(0, 123, 255, 0.5)" : "#007bff"}`,
+          color: darkMode ? "#66b3ff" : "#0056b3",
+        };
+      case "multi":
+        return {
+          ...baseStyle,
+          backgroundColor: darkMode ? "rgba(108, 117, 125, 0.2)" : "rgba(108, 117, 125, 0.1)",
+          border: `1px solid ${darkMode ? "rgba(108, 117, 125, 0.5)" : "#6c757d"}`,
+          color: darkMode ? "#adb5bd" : "#495057",
+        };
+      case "short":
+        return {
+          ...baseStyle,
+          backgroundColor: darkMode ? "rgba(40, 167, 69, 0.2)" : "rgba(40, 167, 69, 0.1)",
+          border: `1px solid ${darkMode ? "rgba(40, 167, 69, 0.5)" : "#28a745"}`,
+          color: darkMode ? "#66bb6a" : "#155724",
+        };
+      case "truefalse":
+        return {
+          ...baseStyle,
+          backgroundColor: darkMode ? "rgba(255, 193, 7, 0.2)" : "rgba(255, 193, 7, 0.1)",
+          border: `1px solid ${darkMode ? "rgba(255, 193, 7, 0.5)" : "#ffc107"}`,
+          color: darkMode ? "#ffd54f" : "#856404",
+        };
+      case "cloze":
+        return {
+          ...baseStyle,
+          backgroundColor: darkMode ? "rgba(196, 30, 58, 0.2)" : "rgba(196, 30, 58, 0.1)",
+          border: `1px solid ${darkMode ? "rgba(196, 30, 58, 0.5)" : "#c41e3a"}`,
+          color: darkMode ? "#ff6b8a" : "#8b1538",
+        };
+      default:
+        return {
+          ...baseStyle,
+          backgroundColor: darkMode ? "rgba(108, 117, 125, 0.2)" : "rgba(108, 117, 125, 0.1)",
+          border: `1px solid ${theme.border}`,
+          color: theme.textSecondary,
+        };
+    }
+  };
+
+  const getQuestionTypeLabel = (type: string) => {
+    const labels: Record<string, string> = {
+      mcq: "Multiple Choice",
+      multi: "Multiple Select",
+      short: "Short Answer",
+      truefalse: "True/False",
+      cloze: "Fill in the Blank",
+    };
+    return labels[type] || type;
+  };
+
   if (loading) {
     return <div style={{ padding: 24, color: theme.text }}>Loading questions...</div>;
   }
 
   return (
-    <div style={{ maxWidth: 1000, margin: "0 auto", paddingBottom: 40 }}>
-      <div style={{ 
-        display: "flex", 
-        alignItems: "center", 
-        justifyContent: "space-between", 
-        marginBottom: 24 
-      }}>
-        <button 
+    <div style={{ 
+      display: "grid", 
+      gridTemplateColumns: "280px 1fr", 
+      gap: 16, 
+      minHeight: "calc(100vh - 80px)",
+      backgroundColor: theme.bg,
+    }}>
+      {/* Sidebar with Question Navigator */}
+      <aside
+        style={{
+          padding: "16px",
+          backgroundColor: theme.navBg,
+          overflow: "auto",
+          position: "sticky",
+          top: 80,
+          height: "fit-content",
+          maxHeight: "calc(100vh - 80px)",
+        }}
+      >
+        <button
           onClick={() => navigate("/")}
           style={{
-            background: "transparent",
-            border: `1px solid ${theme.glassBorder}`,
-            color: theme.text,
-            padding: "8px 16px",
-            borderRadius: 6,
-            cursor: "pointer",
             display: "flex",
             alignItems: "center",
-            gap: 8
+            gap: 8,
+            background: "transparent",
+            border: "none",
+            color: theme.textSecondary,
+            cursor: "pointer",
+            fontSize: 14,
+            fontWeight: 500,
+            marginBottom: 16,
+            padding: "4px 0",
+            opacity: 0.8,
+            transition: "opacity 0.2s",
           }}
+          onMouseEnter={(e) => (e.currentTarget.style.opacity = "1")}
+          onMouseLeave={(e) => (e.currentTarget.style.opacity = "0.8")}
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="15 18 9 12 15 6"></polyline>
           </svg>
           Back to Library
         </button>
-        
-        {/* Editable Title */}
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          {isEditingTitle ? (
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <input
-                type="text"
-                value={editedTitle}
-                onChange={(e) => setEditedTitle(e.target.value)}
-                style={{
-                  fontSize: 24,
-                  padding: "4px 8px",
-                  borderRadius: 6,
-                  border: `1px solid ${theme.border}`,
-                  background: theme.cardBgSolid,
-                  color: theme.text,
-                  fontWeight: "bold"
-                }}
-                autoFocus
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") handleSaveTitle();
-                  if (e.key === "Escape") {
+
+        <h3
+          style={{
+            margin: "0 0 16px 0",
+            fontSize: "18px",
+            color: theme.text,
+          }}
+        >
+          Questions
+        </h3>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(40px, 1fr))",
+            gap: 8,
+          }}
+        >
+          {questions.map((q, idx) => (
+            <button
+              key={q.id}
+              onClick={() => scrollToQuestion(idx)}
+              style={{
+                padding: 8,
+                borderRadius: 6,
+                border: `1px solid ${theme.border}`,
+                background: editingId === q.id
+                  ? theme.crimson
+                  : theme.cardBg,
+                cursor: "pointer",
+                color: editingId === q.id ? "white" : theme.text,
+                fontWeight: editingId === q.id ? "bold" : "normal",
+              }}
+              title={`Question ${idx + 1} - ${getQuestionTypeLabel(q.type)}`}
+            >
+              {idx + 1}
+            </button>
+          ))}
+        </div>
+      </aside>
+
+      {/* Main Content */}
+      <main style={{ overflow: "auto", padding: "16px" }}>
+        {/* Header */}
+        <div style={{ 
+          display: "flex", 
+          alignItems: "center", 
+          justifyContent: "space-between", 
+          marginBottom: 24 
+        }}>
+          {/* Editable Title */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            {isEditingTitle ? (
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <input
+                  type="text"
+                  value={editedTitle}
+                  onChange={(e) => setEditedTitle(e.target.value)}
+                  style={{
+                    fontSize: 24,
+                    padding: "4px 8px",
+                    borderRadius: 6,
+                    border: `1px solid ${theme.border}`,
+                    background: theme.cardBgSolid,
+                    color: theme.text,
+                    fontWeight: "bold"
+                  }}
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleSaveTitle();
+                    if (e.key === "Escape") {
+                      setIsEditingTitle(false);
+                      setEditedTitle(uploadTitle);
+                    }
+                  }}
+                />
+                <button
+                  onClick={handleSaveTitle}
+                  style={{
+                    background: theme.crimson,
+                    color: "white",
+                    border: "none",
+                    borderRadius: 6,
+                    padding: "6px 12px",
+                    cursor: "pointer",
+                    fontWeight: 600
+                  }}
+                >
+                  Save
+                </button>
+                <button
+                  onClick={() => {
                     setIsEditingTitle(false);
                     setEditedTitle(uploadTitle);
-                  }
-                }}
-              />
-              <button
-                onClick={handleSaveTitle}
-                style={{
-                  background: theme.crimson,
-                  color: "white",
-                  border: "none",
-                  borderRadius: 6,
-                  padding: "6px 12px",
-                  cursor: "pointer",
-                  fontWeight: 600
-                }}
-              >
-                Save
-              </button>
-              <button
-                onClick={() => {
-                  setIsEditingTitle(false);
-                  setEditedTitle(uploadTitle);
-                }}
-                style={{
-                  background: "transparent",
-                  color: theme.textSecondary,
-                  border: `1px solid ${theme.glassBorder}`,
-                  borderRadius: 6,
-                  padding: "6px 12px",
-                  cursor: "pointer"
-                }}
-              >
-                Cancel
-              </button>
-            </div>
-          ) : (
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <h2 style={{ margin: 0, color: theme.text, fontSize: 24 }}>{uploadTitle || "Question Base Editor"}</h2>
-              <button
-                onClick={() => setIsEditingTitle(true)}
-                title="Edit Name"
-                style={{
-                  background: "transparent",
-                  border: "none",
-                  cursor: "pointer",
-                  color: theme.textSecondary,
-                  padding: 4,
-                  display: "flex",
-                  alignItems: "center"
-                }}
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-                </svg>
-              </button>
-            </div>
-          )}
+                  }}
+                  style={{
+                    background: "transparent",
+                    color: theme.textSecondary,
+                    border: `1px solid ${theme.glassBorder}`,
+                    borderRadius: 6,
+                    padding: "6px 12px",
+                    cursor: "pointer"
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <h2 style={{ margin: 0, color: theme.text, fontSize: 24 }}>{uploadTitle || "Question Base Editor"}</h2>
+                <button
+                  onClick={() => setIsEditingTitle(true)}
+                  title="Edit Name"
+                  style={{
+                    background: "transparent",
+                    border: "none",
+                    cursor: "pointer",
+                    color: theme.textSecondary,
+                    padding: 4,
+                    display: "flex",
+                    alignItems: "center"
+                  }}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                  </svg>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
 
-      <div style={{ display: "grid", gap: 16 }}>
+        <div style={{ display: "grid", gap: 16 }}>
         {questions.map((q, index) => (
           <div 
             key={q.id}
+            id={`question-${index}`}
             style={{
               background: theme.cardBg,
               borderRadius: 12,
@@ -317,11 +481,17 @@ export default function QuestionBaseEditorPage() {
             <div style={{ 
               display: "flex", 
               justifyContent: "space-between", 
+              alignItems: "center",
               marginBottom: 12,
               borderBottom: `1px solid ${theme.border}`,
               paddingBottom: 12
             }}>
-              <span style={{ fontWeight: "bold", color: theme.textSecondary }}>Question {index + 1} ({q.type})</span>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <span style={{ fontWeight: "bold", color: theme.text, fontSize: "16px" }}>Question {index + 1}</span>
+                <span style={getQuestionTypeTagStyle(q.type)}>
+                  {getQuestionTypeLabel(q.type)}
+                </span>
+              </div>
               <div style={{ display: "flex", gap: 8 }}>
                 {editingId !== q.id && (
                   <>
@@ -377,15 +547,13 @@ export default function QuestionBaseEditorPage() {
                         {/* Visual Editor Container */}
                         <div 
                           style={{ 
-                            display: "flex", 
-                            flexWrap: "wrap", 
-                            alignItems: "baseline",
-                            gap: 4,
+                            display: "block",
                             padding: 12,
                             border: `1px solid ${theme.border}`,
                             borderRadius: 6,
                             background: theme.cardBgSolid,
-                            minHeight: 80
+                            minHeight: 80,
+                            lineHeight: "1.8"
                           }}
                         >
                           {clozeSegments.map((segment, idx) => (
@@ -394,17 +562,17 @@ export default function QuestionBaseEditorPage() {
                                 <span
                                   contentEditable
                                   suppressContentEditableWarning
-                                  onBlur={(e) => updateClozeSegment(idx, e.currentTarget.textContent || "")}
+                                  onBlur={(e) => {
+                                    updateClozeSegment(idx, e.currentTarget.textContent || "");
+                                    e.currentTarget.style.borderBottom = "1px dashed transparent";
+                                  }}
                                   style={{ 
                                     color: theme.text, 
-                                    minWidth: 10, 
-                                    display: "inline-block",
-                                    whiteSpace: "pre-wrap",
+                                    display: "inline",
                                     outline: "none",
                                     borderBottom: "1px dashed transparent",
                                   }}
                                   onFocus={(e) => e.currentTarget.style.borderBottom = `1px dashed ${theme.border}`}
-                                  // onBlur style reset handled by CSS or implicit
                                 >
                                   {segment.value}
                                 </span>
@@ -416,12 +584,15 @@ export default function QuestionBaseEditorPage() {
                                   style={{
                                     padding: "4px 8px",
                                     borderRadius: 4,
-                                    border: `1px solid ${theme.crimson}`,
-                                    background: darkMode ? "rgba(196, 30, 58, 0.1)" : "#fff5f5",
+                                    border: `2px solid #28a745`,
+                                    background: darkMode ? "#1a3d1a" : "#d4edda",
                                     color: theme.text,
                                     width: Math.max(60, segment.value.length * 8 + 20) + "px",
                                     textAlign: "center",
-                                    fontWeight: "bold"
+                                    fontWeight: "bold",
+                                    display: "inline-block",
+                                    verticalAlign: "baseline",
+                                    margin: "0 2px"
                                   }}
                                 />
                               )}
@@ -625,22 +796,35 @@ export default function QuestionBaseEditorPage() {
                 </div>
                 
                 {(q.type === "mcq" || q.type === "multi") && q.options && Array.isArray(q.options) && (
-                  <div style={{ display: "grid", gap: 6, marginBottom: 12 }}>
+                  <div style={{ display: "grid", gap: 8, marginBottom: 12 }}>
                     {q.options.map((opt: string, i: number) => {
                       const isCorrect = q.type === "mcq" ? q.correct_answer === opt : (Array.isArray(q.correct_answer) && q.correct_answer.includes(opt));
                       return (
                         <div 
                           key={i}
                           style={{
-                            padding: "8px 12px",
-                            borderRadius: 6,
-                            border: `1px solid ${isCorrect ? "#28a745" : theme.border}`,
-                            background: isCorrect ? (darkMode ? "rgba(40, 167, 69, 0.2)" : "rgba(40, 167, 69, 0.1)") : "transparent",
+                            padding: "12px",
+                            borderRadius: 4,
+                            border: `2px solid ${isCorrect ? "#28a745" : theme.border}`,
+                            background: isCorrect 
+                              ? (darkMode ? "#1a3d1a" : "#d4edda")
+                              : (darkMode ? "#4d4d4d" : "#e9ecef"),
                             color: theme.text,
-                            fontSize: 14
+                            fontSize: 15
                           }}
                         >
-                          {opt} {isCorrect && "✓"}
+                          <span>{opt}</span>
+                          {isCorrect && (
+                            <span
+                              style={{
+                                marginLeft: 8,
+                                fontWeight: "bold",
+                                color: darkMode ? "#66bb6a" : "#28a745",
+                              }}
+                            >
+                              Correct Answer
+                            </span>
+                          )}
                         </div>
                       );
                     })}
@@ -648,15 +832,84 @@ export default function QuestionBaseEditorPage() {
                 )}
 
                 {q.type === "truefalse" && (
-                   <div style={{ marginBottom: 12, color: theme.text, fontWeight: "bold" }}>
-                      Correct Answer: {String(q.correct_answer)}
-                   </div>
+                  <div style={{ marginBottom: 12 }}>
+                    <div
+                      style={{
+                        fontWeight: "bold",
+                        marginBottom: 4,
+                        fontSize: "14px",
+                        color: theme.text,
+                      }}
+                    >
+                      Correct Answer:
+                    </div>
+                    <div style={{ display: "grid", gap: 8 }}>
+                      {["True", "False"].map((option) => {
+                        const isCorrectAnswer = String(q.correct_answer).toLowerCase() === option.toLowerCase();
+                        return (
+                          <div
+                            key={option}
+                            style={{
+                              padding: "12px",
+                              border: `2px solid ${isCorrectAnswer ? "#28a745" : theme.border}`,
+                              borderRadius: 4,
+                              backgroundColor: isCorrectAnswer
+                                ? (darkMode ? "#1a3d1a" : "#d4edda")
+                                : (darkMode ? "#4d4d4d" : "#e9ecef"),
+                            }}
+                          >
+                            <span
+                              style={{
+                                fontSize: "15px",
+                                color: theme.text,
+                                textTransform: "capitalize",
+                              }}
+                            >
+                              {option}
+                            </span>
+                            {isCorrectAnswer && (
+                              <span
+                                style={{
+                                  marginLeft: 8,
+                                  fontWeight: "bold",
+                                  color: darkMode ? "#66bb6a" : "#28a745",
+                                }}
+                              >
+                                Correct Answer
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
                 )}
 
                 {q.type === "short" && (
-                   <div style={{ marginBottom: 12, color: theme.text, fontWeight: "bold" }}>
-                      Correct Answer: {String(q.correct_answer)}
-                   </div>
+                  <div style={{ marginBottom: 12 }}>
+                    <div
+                      style={{
+                        fontWeight: "bold",
+                        marginBottom: 4,
+                        fontSize: "14px",
+                        color: theme.text,
+                      }}
+                    >
+                      Correct Answer:
+                    </div>
+                    <div
+                      style={{
+                        padding: "12px",
+                        border: `2px solid #28a745`,
+                        borderRadius: 4,
+                        backgroundColor: darkMode ? "#1a3d1a" : "#d4edda",
+                        minHeight: 40,
+                        color: theme.text,
+                      }}
+                    >
+                      {String(q.correct_answer)}
+                    </div>
+                  </div>
                 )}
 
                 {q.explanation && (
@@ -680,7 +933,8 @@ export default function QuestionBaseEditorPage() {
             No questions found in this set.
           </div>
         )}
-      </div>
+        </div>
+      </main>
     </div>
   );
 }

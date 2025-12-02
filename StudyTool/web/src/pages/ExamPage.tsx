@@ -140,12 +140,16 @@ export default function ExamPage() {
     if (!storeExamId || !currentAttemptId) return;
 
     try {
+      // Store the shuffled question order
+      const questionOrder = shuffledQuestions.map(q => q.id);
+      
       await saveProgress(currentAttemptId, {
         answers,
         bookmarks: Array.from(bookmarks),
         current_question_index: currentIndex,
         timer_state: null, // Timer not implemented yet
         exam_type: "exam",
+        question_order: questionOrder, // Store the shuffled order
       });
       setSavedAnswersJson(JSON.stringify(answers));
       setLastSavedAt(new Date());
@@ -388,7 +392,8 @@ export default function ExamPage() {
     setHasSubmitted(true); // Mark as submitted to disable warnings
     setHasUnsavedChanges(false); // No longer unsaved
     try {
-      const payload = questions.map((it) => ({
+      // Use shuffledQuestions to preserve the order the user took the exam in
+      const payload = shuffledQuestions.map((it) => ({
         questionId: it.id,
         response: answers[it.id] !== undefined ? answers[it.id] : null,
       }));
@@ -433,8 +438,8 @@ export default function ExamPage() {
   };
 
   const handleSubmitClick = () => {
-    // Check for unanswered questions
-    const unansweredQuestions = questions.filter((q) => {
+    // Check for unanswered questions (use shuffledQuestions to match display order)
+    const unansweredQuestions = shuffledQuestions.filter((q) => {
       const answer = answers[q.id];
       return (
         answer === undefined ||
@@ -448,7 +453,7 @@ export default function ExamPage() {
       setUnansweredCount(unansweredQuestions.length);
       setShowUnansweredAlert(true);
       // Scroll to first unanswered question
-      const firstUnansweredIndex = questions.findIndex(
+      const firstUnansweredIndex = shuffledQuestions.findIndex(
         (q) => q.id === unansweredQuestions[0].id
       );
       if (firstUnansweredIndex !== -1) {

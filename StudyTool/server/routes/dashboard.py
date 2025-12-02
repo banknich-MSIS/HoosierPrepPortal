@@ -62,9 +62,12 @@ def get_all_uploads(archived: bool = False, db: Session = Depends(get_db)) -> Li
         # Get class tags
         class_tags = [cls.name for cls in upload.classes] if upload.classes else []
         
-        # Calculate question type counts
+        # Filter to only active questions
+        active_questions = [q for q in upload.questions if q.is_active]
+        
+        # Calculate question type counts (only for active questions)
         question_type_counts = {}
-        for question in upload.questions:
+        for question in active_questions:
             qtype = question.qtype
             question_type_counts[qtype] = question_type_counts.get(qtype, 0) + 1
         
@@ -80,7 +83,7 @@ def get_all_uploads(archived: bool = False, db: Session = Depends(get_db)) -> Li
                 id=upload.id,
                 filename=upload.filename,
                 created_at=upload.created_at,
-                question_count=len(upload.questions),
+                question_count=len(active_questions),
                 themes=themes,
                 exam_count=attempts_taken,
                 file_type=upload.file_type,
@@ -380,16 +383,29 @@ def get_attempt_detail(attempt_id: int, db: Session = Depends(get_db)) -> Attemp
     if not exam:
         raise HTTPException(status_code=404, detail="Exam not found")
     
-    # Get all questions for this exam (maintain order from exam.question_ids)
+    # Get all questions for this exam
     questions_query = (
         db.query(Question)
         .filter(Question.id.in_(exam.question_ids))
         .all()
     )
     
-    # Create a lookup and maintain order
+    # Create a lookup
     question_lookup = {q.id: q for q in questions_query}
-    questions = [question_lookup[qid] for qid in exam.question_ids if qid in question_lookup]
+    
+    # Use stored question order from progress_state if available (preserves shuffled order)
+    # Otherwise fall back to exam.question_ids (original order)
+    question_order = exam.question_ids
+    if attempt.progress_state and isinstance(attempt.progress_state, dict):
+        stored_order = attempt.progress_state.get("question_order")
+        if stored_order and isinstance(stored_order, list):
+            # Validate that stored order contains valid question IDs
+            valid_order = [qid for qid in stored_order if qid in question_lookup]
+            if len(valid_order) == len(question_lookup):
+                question_order = valid_order
+    
+    # Maintain order from question_order
+    questions = [question_lookup[qid] for qid in question_order if qid in question_lookup]
     
     # Get all answers for this attempt
     answers = (

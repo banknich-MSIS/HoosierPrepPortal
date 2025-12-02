@@ -90,6 +90,10 @@ IMPORTANT RULES:
     - Make the incorrect options plausible and conceptually related.
     - Ensure that all options are roughly similar length and level of detail.
     - Do NOT make the correct option obviously longer, more detailed, or more specific than the distractors.
+15. For true/false questions:
+    - Ensure a roughly balanced mix of True and False answers (aim for 40-60% distribution).
+    - Do NOT make all answers True or all answers False.
+    - Vary the answers based on the actual content - some statements should be true, some should be false.
 
 CRITICAL: Return ONLY valid JSON in this exact format (no markdown code blocks, just pure JSON):
 {{
@@ -118,7 +122,7 @@ ANSWER FIELD FORMATTING:
 - mcq: Single answer matching one option exactly (e.g., "Option text")
 - multi: Array with all correct options (e.g., ["Option A", "Option C"])
 - short: Simple text (e.g., "mitochondria")
-- truefalse: "True" or "False"
+- truefalse: "True" or "False" (MUST vary between True and False - do not make all answers the same)
 - cloze: Array with answers for each blank in order (e.g., ["answer1", "answer2"])
 
 QUALITY CHECKLIST:
@@ -271,6 +275,9 @@ def parse_gemini_response(response_text: str) -> GeneratedExam:
             if q.type == 'mcq' and (not q.options or len(q.options) < 2):
                 raise ValueError(f"MCQ question missing valid options: {q.question}")
         
+        # Validate and correct true/false answer variety
+        exam = validate_truefalse_variety(exam)
+        
         return exam
         
     except json.JSONDecodeError as e:
@@ -281,6 +288,92 @@ def parse_gemini_response(response_text: str) -> GeneratedExam:
         )
     except Exception as e:
         raise ValueError(f"Failed to validate exam structure: {str(e)}")
+
+
+def validate_truefalse_variety(exam: GeneratedExam) -> GeneratedExam:
+    """
+    Validate that true/false questions have a balanced mix of True and False answers.
+    If all answers are the same, randomly flip approximately half to create variety.
+    Only applies when there are 2+ true/false questions.
+    """
+    # Filter true/false questions
+    truefalse_questions = [q for q in exam.questions if q.type == "truefalse"]
+    
+    # Only validate if there are 2+ true/false questions
+    if len(truefalse_questions) < 2:
+        return exam
+    
+    # Check if all answers are the same
+    answers = []
+    for q in truefalse_questions:
+        # Normalize answer to handle case variations
+        answer_str = str(q.answer).strip()
+        if answer_str.lower() in ("true", "t", "1", "yes"):
+            answers.append(True)
+        elif answer_str.lower() in ("false", "f", "0", "no"):
+            answers.append(False)
+        else:
+            # If answer format is unexpected, skip validation for this question
+            continue
+    
+    if len(answers) < 2:
+        return exam
+    
+    # Check if all answers are the same
+    all_same = all(a == answers[0] for a in answers)
+    
+    if all_same:
+        # Randomly flip approximately half of the answers
+        indices_to_flip = random.sample(
+            range(len(truefalse_questions)),
+            k=max(1, len(truefalse_questions) // 2)
+        )
+        
+        # Create new question list with corrected answers
+        new_questions = []
+        truefalse_idx = 0
+        
+        for q in exam.questions:
+            if q.type == "truefalse":
+                if truefalse_idx in indices_to_flip:
+                    # Flip the answer
+                    current_answer = str(q.answer).strip().lower()
+                    if current_answer in ("true", "t", "1", "yes"):
+                        new_answer = "False"
+                    else:
+                        new_answer = "True"
+                    
+                    # Create new QuestionData with flipped answer
+                    new_q = QuestionData(
+                        question=q.question,
+                        answer=new_answer,
+                        type=q.type,
+                        options=q.options,
+                        concepts=q.concepts,
+                        explanation=q.explanation,
+                    )
+                    new_questions.append(new_q)
+                else:
+                    # Keep original answer but normalize format
+                    current_answer = str(q.answer).strip()
+                    normalized = "True" if current_answer.lower() in ("true", "t", "1", "yes") else "False"
+                    new_q = QuestionData(
+                        question=q.question,
+                        answer=normalized,
+                        type=q.type,
+                        options=q.options,
+                        concepts=q.concepts,
+                        explanation=q.explanation,
+                    )
+                    new_questions.append(new_q)
+                truefalse_idx += 1
+            else:
+                new_questions.append(q)
+        
+        # Create new exam with corrected questions
+        exam.questions = new_questions
+    
+    return exam
 
 
 async def resolve_model_for_key(api_key: str) -> str:
@@ -442,6 +535,8 @@ async def generate_exam_from_content(
                     )
                     merged = dedupe_questions((exam.questions or []) + (extras or [])) # Dedupe after merge
                     exam.questions = merged
+                    # Re-validate true/false variety after merging batches
+                    exam = validate_truefalse_variety(exam)
                     have = len(exam.questions)
                 except Exception as _e:
                     print(f"DEBUG: Top-up failed: {_e}")
@@ -452,6 +547,9 @@ async def generate_exam_from_content(
 
         # Shuffle questions to mix types and order
         random.shuffle(exam.questions)
+        
+        # Final validation of true/false variety after all processing
+        exam = validate_truefalse_variety(exam)
 
         # Attach the chosen model name on the fly for upstream usage (stored in metadata by route)
         # We return a tuple via an attribute to avoid breaking existing types elsewhere

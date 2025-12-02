@@ -22,6 +22,18 @@ export default function ArchivePage() {
     loadArchivedUploads();
   }, []);
 
+  // Listen for question editor close event to refresh data
+  useEffect(() => {
+    const handleQuestionEditorClosed = () => {
+      loadArchivedUploads();
+    };
+
+    window.addEventListener('questionEditorClosed', handleQuestionEditorClosed);
+    return () => {
+      window.removeEventListener('questionEditorClosed', handleQuestionEditorClosed);
+    };
+  }, []);
+
   const loadArchivedUploads = async () => {
     try {
       setLoading(true);

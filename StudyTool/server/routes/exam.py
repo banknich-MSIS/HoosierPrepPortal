@@ -126,15 +126,20 @@ async def grade_exam(
     questions = {q.id: q for q in db.query(QuestionModel).filter(QuestionModel.id.in_(exam.question_ids)).all()}
     answers_by_qid: Dict[int, Any] = {a.questionId: a.response for a in answers}
 
+    # Extract question order from submitted answers to preserve shuffled order
+    question_order = [a.questionId for a in answers]
+
     per_items: List[GradeItem] = []
     incorrect_items: List[tuple] = []  # Track incorrect answers for explanation generation
     correct_count = 0
     
-    for qid in exam.question_ids:
+    # Iterate over submitted answers order (preserves shuffled order from frontend)
+    for answer_item in answers:
+        qid = answer_item.questionId
         q = questions.get(qid)
         if q is None:
             continue
-        user_resp = answers_by_qid.get(qid)
+        user_resp = answer_item.response
         correct_answer = (q.answer or {}).get("value")
         is_correct = _check_correct(q.qtype, user_resp, correct_answer)
         per_items.append(
@@ -238,18 +243,22 @@ async def grade_exam(
         attempt.duration_seconds = x_exam_duration
         attempt.exam_type = x_exam_type or "exam"
         attempt.status = "completed"
-        attempt.progress_state = None  # Clear progress state on completion
+        # Store question order in progress_state before clearing other progress data
+        # This preserves the shuffled order for the review page
+        attempt.progress_state = {"question_order": question_order}
         # Delete existing answer records to replace with graded ones
         db.query(AttemptAnswer).filter(AttemptAnswer.attempt_id == attempt.id).delete()
     else:
         # Create new attempt record with duration and exam type
+        # Store question order in progress_state to preserve shuffled order for review
         attempt = Attempt(
             exam_id=exam_id,
             finished_at=datetime.utcnow(),
             score_pct=score_pct,
             duration_seconds=x_exam_duration,
             exam_type=x_exam_type or "exam",
-            status="completed"
+            status="completed",
+            progress_state={"question_order": question_order}
         )
         db.add(attempt)
     

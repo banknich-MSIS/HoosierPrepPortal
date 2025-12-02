@@ -90,6 +90,18 @@ export default function Dashboard() {
     loadDashboardData();
   }, []);
 
+  // Listen for question editor close event to refresh data
+  useEffect(() => {
+    const handleQuestionEditorClosed = () => {
+      loadDashboardData();
+    };
+
+    window.addEventListener('questionEditorClosed', handleQuestionEditorClosed);
+    return () => {
+      window.removeEventListener('questionEditorClosed', handleQuestionEditorClosed);
+    };
+  }, []);
+
   // Show restore prompt on first dashboard load when no data exists
   useEffect(() => {
     if (!loaded) return;

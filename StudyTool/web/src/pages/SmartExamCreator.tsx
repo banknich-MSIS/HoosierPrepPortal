@@ -615,7 +615,7 @@ export default function SmartExamCreator() {
             </div>
           </div>
 
-          {/* Focus Concepts */}
+          {/* Additional Details */}
           <div>
             <label
               style={{
@@ -625,13 +625,13 @@ export default function SmartExamCreator() {
                 fontWeight: 500,
               }}
             >
-              Focus Concepts (optional)
+              Additional Details (optional)
             </label>
             <input
               type="text"
               value={focusConcepts}
               onChange={(e) => setFocusConcepts(e.target.value)}
-              placeholder="e.g., enterprise architecture, statistics, business systems"
+              placeholder="e.g., mostly multiple choice with some true/false, focus on x concept"
               style={{
                 width: "100%",
                 padding: 12,
@@ -649,8 +649,7 @@ export default function SmartExamCreator() {
                 color: theme.textSecondary,
               }}
             >
-              Specify topics to emphasize or exam preferences (e.g., "mostly
-              multiple choice with some true/false")
+              Specify topics to emphasize or exam preferences
             </p>
           </div>
 
