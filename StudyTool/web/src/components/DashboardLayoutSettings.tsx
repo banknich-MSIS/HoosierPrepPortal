@@ -99,12 +99,31 @@ export default function DashboardLayoutSettings({
   };
 
   const handleReset = () => {
-    const resetSections = localSections.map((section, index) => ({
-      ...section,
-      visible: true,
-      order: index,
-    }));
+    // Default order: Performance Analytics, Recent Exam History, CSV Library
+    const defaultOrder = ["analytics", "history", "library"];
+
+    const resetSections = localSections
+      .map((section) => {
+        const defaultIndex = defaultOrder.indexOf(section.id);
+        return {
+          ...section,
+          visible: true,
+          order: defaultIndex !== -1 ? defaultIndex : section.order,
+        };
+      })
+      .sort((a, b) => a.order - b.order);
+
     setLocalSections(resetSections);
+  };
+
+  // Check if sections are already in default order
+  const isDefaultOrder = () => {
+    const defaultOrder = ["analytics", "history", "library"];
+    const sortedSections = [...localSections].sort((a, b) => a.order - b.order);
+
+    return sortedSections.every((section, index) => {
+      return section.id === defaultOrder[index] && section.visible === true;
+    });
   };
 
   return (
@@ -290,19 +309,24 @@ export default function DashboardLayoutSettings({
         >
           <button
             onClick={handleReset}
-            onMouseEnter={() => setHoveredButton("reset")}
+            onMouseEnter={() => !isDefaultOrder() && setHoveredButton("reset")}
             onMouseLeave={() => setHoveredButton(null)}
+            disabled={isDefaultOrder()}
             style={{
               padding: "10px 20px",
               background: "transparent",
-              color: theme.textSecondary,
+              color: isDefaultOrder() ? theme.glassBorder : theme.textSecondary,
               border: `1px solid ${theme.glassBorder}`,
               borderRadius: 8,
-              cursor: "pointer",
+              cursor: isDefaultOrder() ? "not-allowed" : "pointer",
               fontSize: 14,
               fontWeight: 600,
               transition: "all 0.2s ease",
-              opacity: hoveredButton === "reset" ? 0.8 : 1,
+              opacity: isDefaultOrder()
+                ? 0.4
+                : hoveredButton === "reset"
+                ? 0.8
+                : 1,
             }}
           >
             Reset to Default

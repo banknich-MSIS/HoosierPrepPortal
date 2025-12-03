@@ -63,6 +63,7 @@ def create_exam(payload: ExamCreate, db: Session = Depends(get_db)) -> ExamOut:
             "type": q.qtype,
             "options": (q.options or {}).get("list"),
             "concepts": q.concept_ids or [],
+            "explanation": q.explanation,
         })
         for q in questions
     ]
@@ -84,6 +85,7 @@ def get_exam(exam_id: int, db: Session = Depends(get_db)) -> ExamOut:
             "type": q.qtype,
             "options": (q.options or {}).get("list"),
             "concepts": q.concept_ids or [],
+            "explanation": q.explanation,
         })
         for q in questions
     ]
@@ -131,7 +133,9 @@ async def grade_exam(
 
     per_items: List[GradeItem] = []
     incorrect_items: List[tuple] = []  # Track incorrect answers for explanation generation
+    pending_validations: List[Dict] = []  # Track answers needing AI validation
     correct_count = 0
+    pending_count = 0
     
     # Iterate over submitted answers order (preserves shuffled order from frontend)
     for answer_item in answers:
@@ -141,21 +145,40 @@ async def grade_exam(
             continue
         user_resp = answer_item.response
         correct_answer = (q.answer or {}).get("value")
-        is_correct = _check_correct(q.qtype, user_resp, correct_answer)
+        
+        # Use confidence-based checking
+        result, confidence = _check_correct_with_confidence(q.qtype, user_resp, correct_answer)
+        
+        if result is None:
+            # Pending AI validation (only short/cloze can reach here)
+            status = "pending"
+            pending_count += 1
+            pending_validations.append({
+                "question_id": qid,
+                "question_stem": q.stem,
+                "question_type": q.qtype,
+                "user_answer": user_resp,
+                "correct_answer": correct_answer,
+            })
+        else:
+            # Definitive result
+            status = "graded"
+            if result:
+                correct_count += 1
+            else:
+                # Track incorrect answers for explanation generation
+                options = (q.options or {}).get("list") if q.options else None
+                incorrect_items.append((qid, q.stem, q.qtype, correct_answer, user_resp, options))
+        
         per_items.append(
             GradeItem(
                 questionId=qid,
-                correct=is_correct,
+                correct=result,
                 correctAnswer=correct_answer,
                 userAnswer=user_resp,
+                status=status,
             )
         )
-        if is_correct:
-            correct_count += 1
-        else:
-            # Track incorrect answers for explanation generation
-            options = (q.options or {}).get("items") if q.options else None
-            incorrect_items.append((qid, q.stem, q.qtype, correct_answer, user_resp, options))
 
     score_pct = (correct_count / max(1, len(exam.question_ids))) * 100.0
     
@@ -279,6 +302,16 @@ async def grade_exam(
     
     db.commit()
     
+    # Start background AI validation if there are pending items
+    if pending_validations and x_gemini_api_key:
+        import threading
+        thread = threading.Thread(
+            target=_validate_pending_answers_sync,
+            args=(attempt.id, pending_validations, x_gemini_api_key)
+        )
+        thread.daemon = True
+        thread.start()
+    
     # Generate AI explanations for incorrect answers asynchronously (don't block response)
     if x_gemini_api_key and incorrect_items:
         # Launch background task to generate explanations
@@ -292,8 +325,75 @@ async def grade_exam(
     return GradeReport(
         scorePct=round(score_pct, 2), 
         perQuestion=per_items,
-        attemptId=attempt.id
+        attemptId=attempt.id,
+        pendingCount=pending_count,
+        estimatedWaitSeconds=pending_count * 3,
     )
+
+
+def _validate_pending_answers_sync(attempt_id: int, pending_items: List[Dict], api_key: str):
+    """Synchronous wrapper for async validation."""
+    import asyncio
+    asyncio.run(_validate_pending_answers(attempt_id, pending_items, api_key))
+
+
+async def _validate_pending_answers(attempt_id: int, pending_items: List[Dict], api_key: str):
+    """Validate pending answers in background using AI."""
+    from ..services.gemini_service import validate_answer_with_ai
+    from ..db import SessionLocal
+    
+    db = SessionLocal()
+    
+    try:
+        for item in pending_items:
+            try:
+                # Call AI to validate
+                is_correct = await validate_answer_with_ai(
+                    question_stem=item["question_stem"],
+                    question_type=item["question_type"],
+                    user_answer=item["user_answer"],
+                    correct_answer=item["correct_answer"],
+                    api_key=api_key
+                )
+                
+                # Update database immediately
+                answer = db.query(AttemptAnswer).filter(
+                    AttemptAnswer.attempt_id == attempt_id,
+                    AttemptAnswer.question_id == item["question_id"]
+                ).first()
+                
+                if answer:
+                    answer.correct = is_correct
+                    db.commit()
+                    
+            except Exception as e:
+                # Mark as incorrect on error
+                try:
+                    print(f"[AI Validation] Failed for Q{item['question_id']}: {str(e)[:100]}")
+                except:
+                    pass  # Ignore print errors
+                answer = db.query(AttemptAnswer).filter(
+                    AttemptAnswer.attempt_id == attempt_id,
+                    AttemptAnswer.question_id == item["question_id"]
+                ).first()
+                if answer:
+                    answer.correct = False
+                    db.commit()
+        
+        # Recalculate final score
+        answers = db.query(AttemptAnswer).filter(
+            AttemptAnswer.attempt_id == attempt_id
+        ).all()
+        correct = sum(1 for a in answers if a.correct is True)
+        score_pct = (correct / len(answers) * 100) if answers else 0
+        
+        attempt = db.get(Attempt, attempt_id)
+        if attempt:
+            attempt.score_pct = score_pct
+            db.commit()
+            
+    finally:
+        db.close()
 
 
 async def _generate_explanations_background(
@@ -352,7 +452,71 @@ async def _generate_explanations_background(
 
 
 def _normalize_text(value: Any) -> str:
-    return "" if value is None else str(value).strip().lower()
+    if value is None:
+        return ""
+    text = str(value).strip().lower()
+    
+    # Convert common number words to digits for semantic matching
+    number_words = {
+        'zero': '0', 'one': '1', 'two': '2', 'three': '3', 'four': '4',
+        'five': '5', 'six': '6', 'seven': '7', 'eight': '8', 'nine': '9',
+        'ten': '10', 'eleven': '11', 'twelve': '12', 'thirteen': '13',
+        'fourteen': '14', 'fifteen': '15', 'sixteen': '16', 'seventeen': '17',
+        'eighteen': '18', 'nineteen': '19', 'twenty': '20',
+        'thirty': '30', 'forty': '40', 'fifty': '50', 'sixty': '60',
+        'seventy': '70', 'eighty': '80', 'ninety': '90',
+    }
+    
+    # Replace number words with digits (word boundary aware)
+    import re
+    for word, digit in number_words.items():
+        text = re.sub(rf'\b{word}\b', digit, text)
+    
+    return text
+
+
+def _check_correct_with_confidence(qtype: str, user: Any, answer: Any) -> tuple[bool | None, float]:
+    """
+    Grade answer and return (result, confidence).
+    
+    ONLY uses AI validation for short/cloze types.
+    MCQ/multi/truefalse always return definitive result.
+    
+    Returns:
+        (True, 1.0) = Definitely correct
+        (False, 0.0) = Definitely wrong
+        (None, 0.3-0.9) = Uncertain, needs AI (short/cloze only)
+    """
+    # MCQ, Multi, TrueFalse: NEVER use AI, always definitive
+    if qtype in ("mcq", "multi", "truefalse"):
+        is_correct = _check_correct(qtype, user, answer)
+        return (is_correct, 1.0)
+    
+    # Short answer and Cloze: Use fuzzy matching + AI for uncertain cases
+    if qtype in ("short", "cloze"):
+        user_norm = _normalize_text(str(user)) if user else ""
+        answer_norm = _normalize_text(str(answer)) if answer else ""
+        
+        # Exact match
+        if user_norm == answer_norm:
+            return (True, 1.0)
+        
+        # Calculate similarity
+        from difflib import SequenceMatcher
+        similarity = SequenceMatcher(None, user_norm, answer_norm).ratio()
+        
+        if similarity < 0.2:
+            # Too different, definitely wrong
+            return (False, 0.0)
+        elif similarity > 0.95:
+            # Very close (minor typo), accept as correct
+            return (True, 0.95)
+        else:
+            # Uncertain (20-95% similar) - needs AI validation
+            return (None, similarity)
+    
+    # Fallback
+    return (_check_correct(qtype, user, answer), 1.0)
 
 
 def _check_correct(qtype: str, user: Any, answer: Any) -> bool:
@@ -403,6 +567,47 @@ def _check_correct(qtype: str, user: Any, answer: Any) -> bool:
         except Exception:
             return False
     return False
+
+
+@router.get("/attempts/{attempt_id}/validation-status")
+async def get_validation_status(
+    attempt_id: int,
+    db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """Poll for AI validation status updates."""
+    attempt = db.get(Attempt, attempt_id)
+    if not attempt:
+        raise HTTPException(status_code=404, detail="Attempt not found")
+    
+    answers = db.query(AttemptAnswer).filter(
+        AttemptAnswer.attempt_id == attempt_id
+    ).all()
+    
+    pending_count = sum(1 for a in answers if a.correct is None)
+    
+    # Build list of all graded questions
+    validated = []
+    for ans in answers:
+        if ans.correct is not None:
+            q = db.get(QuestionModel, ans.question_id)
+            validated.append({
+                "questionId": ans.question_id,
+                "correct": ans.correct,
+                "correctAnswer": (q.answer or {}).get("value") if q else None,
+                "userAnswer": ans.response.get("value") if ans.response else None,
+            })
+    
+    # Recalculate score
+    total = len(answers)
+    correct = sum(1 for a in answers if a.correct is True)
+    score_pct = (correct / total * 100) if total > 0 else 0
+    
+    return {
+        "pendingCount": pending_count,
+        "allComplete": pending_count == 0,
+        "currentScore": round(score_pct, 2),
+        "validatedQuestions": validated,
+    }
 
 
 @router.post("/attempts/{attempt_id}/questions/{question_id}/override")

@@ -205,7 +205,7 @@ export default function JobToaster({ theme }: { theme: any }) {
       style={{
         position: "fixed",
         bottom: 96,
-        left: 24,
+        right: 24,
         zIndex: 9998,
         display: "flex",
         flexDirection: "column",

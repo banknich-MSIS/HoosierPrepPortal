@@ -44,6 +44,7 @@ class QuestionDTO(BaseModel):
     type: QuestionType
     options: Optional[List[str]] = Field(default=None)
     concepts: List[int] = Field(default_factory=list)
+    explanation: Optional[str] = None
 
     model_config = dict(
         from_attributes=True, 
@@ -54,7 +55,8 @@ class QuestionDTO(BaseModel):
                 "stem": "What is 2+2?",
                 "type": "mcq",
                 "options": ["2", "3", "4", "5"],
-                "concepts": [1, 2]
+                "concepts": [1, 2],
+                "explanation": "Addition of 2 and 2 equals 4."
             }
         }
     )
@@ -64,7 +66,7 @@ class QuestionReview(BaseModel):
     question: QuestionDTO
     user_answer: Any
     correct_answer: Any
-    is_correct: bool
+    is_correct: bool | None  # None = pending AI validation
     ai_explanation: str | None = None
 
 
@@ -88,15 +90,18 @@ class UserAnswer(BaseModel):
 
 class GradeItem(BaseModel):
     questionId: int
-    correct: bool
+    correct: bool | None  # None = pending AI validation
     correctAnswer: Any | None = None
     userAnswer: Any | None = None
+    status: str = "graded"  # "graded" | "pending"
 
 
 class GradeReport(BaseModel):
     scorePct: float
     perQuestion: List[GradeItem]
     attemptId: Optional[int] = None  # New field for attempt tracking
+    pendingCount: int = 0  # Number of answers pending AI validation
+    estimatedWaitSeconds: int = 0  # Estimated wait time for AI validation
 
 
 class AttemptSummary(BaseModel):

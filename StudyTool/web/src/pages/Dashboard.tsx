@@ -26,7 +26,9 @@ export default function Dashboard() {
   }>();
   const [uploads, setUploads] = useState<UploadSummary[]>([]);
   const [attempts, setAttempts] = useState<AttemptSummary[]>([]);
-  const [inProgressAttempts, setInProgressAttempts] = useState<AttemptSummary[]>([]);
+  const [inProgressAttempts, setInProgressAttempts] = useState<
+    AttemptSummary[]
+  >([]);
   const [loading, setLoading] = useState(true);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -38,7 +40,9 @@ export default function Dashboard() {
       const saved = localStorage.getItem("dashboardLayout");
       if (saved) {
         try {
-          return JSON.parse(saved);
+          const parsed = JSON.parse(saved);
+          // Remove in_progress from saved layout (it's now automatic)
+          return parsed.filter((s: DashboardSection) => s.id !== "in_progress");
         } catch {
           // Fall through to default
         }
@@ -51,37 +55,23 @@ export default function Dashboard() {
           order: 0,
         },
         {
-          id: "in_progress",
-          title: "Exams in Progress",
-          visible: true,
-          order: 1,
-        },
-        {
           id: "history",
           title: "Recent Exam History",
           visible: true,
-          order: 2,
+          order: 1,
         },
-        { id: "library", title: "CSV Library", visible: true, order: 3 },
+        { id: "library", title: "CSV Library", visible: true, order: 2 },
       ];
     }
   );
 
-  // Ensure in_progress section exists for existing users
+  // Clean up any in_progress section from localStorage (it's now automatic)
   useEffect(() => {
     const hasInProgress = layoutSections.some((s) => s.id === "in_progress");
-    if (!hasInProgress) {
-      const newSections = [
-        {
-          id: "in_progress",
-          title: "Exams in Progress",
-          visible: true,
-          order: 1,
-        },
-        ...layoutSections.map((s) => ({ ...s, order: s.order + 1 })),
-      ];
-      setLayoutSections(newSections);
-      localStorage.setItem("dashboardLayout", JSON.stringify(newSections));
+    if (hasInProgress) {
+      const cleaned = layoutSections.filter((s) => s.id !== "in_progress");
+      setLayoutSections(cleaned);
+      localStorage.setItem("dashboardLayout", JSON.stringify(cleaned));
     }
   }, []);
   const [showRestorePrompt, setShowRestorePrompt] = useState(false);
@@ -96,16 +86,20 @@ export default function Dashboard() {
       loadDashboardData();
     };
 
-    window.addEventListener('questionEditorClosed', handleQuestionEditorClosed);
+    window.addEventListener("questionEditorClosed", handleQuestionEditorClosed);
     return () => {
-      window.removeEventListener('questionEditorClosed', handleQuestionEditorClosed);
+      window.removeEventListener(
+        "questionEditorClosed",
+        handleQuestionEditorClosed
+      );
     };
   }, []);
 
   // Show restore prompt on first dashboard load when no data exists
   useEffect(() => {
     if (!loaded) return;
-    const alreadyShown = localStorage.getItem("restore_prompt_shown") === "true";
+    const alreadyShown =
+      localStorage.getItem("restore_prompt_shown") === "true";
     if (!alreadyShown && uploads.length === 0 && attempts.length === 0) {
       setShowRestorePrompt(true);
     }
@@ -216,7 +210,9 @@ export default function Dashboard() {
   const handleDeleteInProgress = async (attemptId: number) => {
     try {
       await deleteAttempt(attemptId);
-      setInProgressAttempts(inProgressAttempts.filter((a) => a.id !== attemptId));
+      setInProgressAttempts(
+        inProgressAttempts.filter((a) => a.id !== attemptId)
+      );
     } catch (e: any) {
       setError(e?.message || "Failed to delete in-progress attempt");
     }
@@ -323,44 +319,6 @@ export default function Dashboard() {
               )}
             </section>
           )
-        );
-      case "in_progress":
-        return (
-          <section key="in_progress">
-            <h2
-              style={{
-                margin: "0 0 16px 0",
-                fontSize: 28,
-                fontWeight: 700,
-                color: theme.crimson,
-                letterSpacing: "-0.5px",
-              }}
-            >
-              Exams in Progress
-            </h2>
-            {!loaded ? (
-              <div
-                style={{
-                  padding: 48,
-                  background: theme.cardBg,
-                  borderRadius: 12,
-                  border: "1px solid " + theme.glassBorder,
-                  boxShadow: theme.glassShadow,
-                  color: theme.textSecondary,
-                  textAlign: "center",
-                }}
-              >
-                Loading in-progress exams...
-              </div>
-            ) : (
-              <ExamsInProgressWidget
-                attempts={inProgressAttempts}
-                onDelete={handleDeleteInProgress}
-                darkMode={darkMode}
-                theme={theme}
-              />
-            )}
-          </section>
         );
       case "history":
         return (
@@ -532,10 +490,14 @@ export default function Dashboard() {
     );
   }
 
-  // Get visible sections in order
+  // Get visible sections in order (excluding in_progress - it's automatic now)
   const visibleSections = layoutSections
-    .filter((section) => section.visible)
+    .filter((section) => section.visible && section.id !== "in_progress")
     .sort((a, b) => a.order - b.order);
+
+  // Check if we should show exams in progress (automatically appears when there are paused exams)
+  const hasInProgressExams =
+    inProgressAttempts && inProgressAttempts.length > 0;
 
   return (
     <>
@@ -591,7 +553,30 @@ export default function Dashboard() {
           </button>
         </div>
 
-        {/* Render sections dynamically */}
+        {/* Automatically show Exams in Progress at top when there are paused exams */}
+        {hasInProgressExams && (
+          <section key="in_progress">
+            <h2
+              style={{
+                margin: "0 0 16px 0",
+                fontSize: 28,
+                fontWeight: 700,
+                color: theme.crimson,
+                letterSpacing: "-0.5px",
+              }}
+            >
+              Exams in Progress
+            </h2>
+            <ExamsInProgressWidget
+              attempts={inProgressAttempts}
+              onDelete={handleDeleteInProgress}
+              darkMode={darkMode}
+              theme={theme}
+            />
+          </section>
+        )}
+
+        {/* Render other sections dynamically based on user settings */}
         {visibleSections.map((section) => renderSection(section.id))}
       </div>
 
@@ -651,9 +636,12 @@ export default function Dashboard() {
               Restore your previous data?
             </h3>
             <p style={{ margin: "0 0 16px 0", color: theme.textSecondary }}>
-              If you want to restore a backup, you can do so in Utilities at the bottom of the app.
+              If you want to restore a backup, you can do so in Utilities at the
+              bottom of the app.
             </p>
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+            <div
+              style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}
+            >
               <button
                 onClick={() => {
                   localStorage.setItem("restore_prompt_shown", "true");

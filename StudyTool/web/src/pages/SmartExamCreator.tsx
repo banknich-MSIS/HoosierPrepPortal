@@ -51,6 +51,7 @@ export default function SmartExamCreator() {
   const [generationMode, setGenerationMode] = useState<
     "strict" | "mixed" | "creative"
   >("strict");
+  const [includeExplanations, setIncludeExplanations] = useState(false);
   const [selectedClassId, setSelectedClassId] = useState<number | null>(null);
   const [classes, setClasses] = useState<ClassSummary[]>([]);
   const [showCreateClassModal, setShowCreateClassModal] = useState(false);
@@ -151,6 +152,7 @@ export default function SmartExamCreator() {
         examName: examName,
         examMode,
         generationMode,
+        includeExplanations,
         selectedClassId: selectedClassId || undefined,
         apiKey,
       });
@@ -613,6 +615,70 @@ export default function SmartExamCreator() {
                 </span>
               </label>
             </div>
+          </div>
+
+          {/* Include Explanations */}
+          <div style={{ marginTop: 16 }}>
+            <label
+              style={{
+                display: "flex",
+                alignItems: "flex-start",
+                gap: 10,
+                cursor: "pointer",
+                padding: 12,
+                borderRadius: 8,
+                border: `1px solid ${theme.glassBorder}`,
+                background: includeExplanations
+                  ? "rgba(196, 30, 58, 0.05)"
+                  : "transparent",
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={includeExplanations}
+                onChange={(e) => setIncludeExplanations(e.target.checked)}
+                style={{
+                  width: 18,
+                  height: 18,
+                  cursor: "pointer",
+                  accentColor: darkMode ? theme.amber : theme.crimson,
+                  marginTop: 2,
+                }}
+              />
+              <div style={{ flex: 1 }}>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    marginBottom: 4,
+                  }}
+                >
+                  <span style={{ fontSize: 14, fontWeight: 500, color: theme.text }}>
+                    Include answer explanations
+                  </span>
+                  <span
+                    style={{
+                      fontSize: 11,
+                      color: theme.textSecondary,
+                      fontStyle: "italic",
+                    }}
+                  >
+                    (increases generation time ~20-30%)
+                  </span>
+                </div>
+                <div
+                  style={{
+                    fontSize: 12,
+                    color: theme.textSecondary,
+                    lineHeight: 1.4,
+                  }}
+                >
+                  Generates 1-2 sentence explanations for each question. Useful for self-study
+                  and understanding why answers are correct.
+                </div>
+              </div>
+            </label>
           </div>
 
           {/* Additional Details */}

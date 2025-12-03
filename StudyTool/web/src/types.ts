@@ -6,6 +6,7 @@ export interface QuestionDTO {
   type: QuestionType;
   options?: string[] | null;
   concepts: number[];
+  explanation?: string | null;
 }
 
 export interface ExamOut {
@@ -73,15 +74,18 @@ export interface AttemptDetail {
 
 export interface GradeItem {
   questionId: number;
-  correct: boolean;
+  correct: boolean | null;  // null = pending AI validation
   correctAnswer?: unknown;
   userAnswer?: unknown;
+  status?: string;  // "graded" | "pending"
 }
 
 export interface GradeReport {
   scorePct: number;
   perQuestion: GradeItem[];
   attemptId?: number;
+  pendingCount?: number;
+  estimatedWaitSeconds?: number;
 }
 
 export interface Class {

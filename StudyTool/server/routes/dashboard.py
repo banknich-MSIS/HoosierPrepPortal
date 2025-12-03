@@ -434,6 +434,7 @@ def get_attempt_detail(attempt_id: int, db: Session = Depends(get_db)) -> Attemp
             "type": question.qtype,
             "options": options_data if options_data else None,
             "concepts": question.concept_ids if question.concept_ids else [],
+            "explanation": question.explanation,
         })
         
         question_reviews.append(

@@ -652,7 +652,6 @@ const PerformanceAnalytics = React.memo(({
               strokeWidth={2}
               dot={{ fill: theme.crimson, r: 3 }}
               activeDot={{ r: 5 }}
-              isAnimationActive={false}
             />
             <Line
               type="monotone"
@@ -662,7 +661,6 @@ const PerformanceAnalytics = React.memo(({
               strokeDasharray="5 5"
               dot={false}
               activeDot={false}
-              isAnimationActive={false}
             />
           </LineChart>
         </ResponsiveContainer>

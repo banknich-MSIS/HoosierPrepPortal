@@ -378,6 +378,7 @@ export async function startExamGenerationJob(params: {
   examName: string;
   examMode?: string;
   generationMode?: "strict" | "mixed" | "creative";
+  includeExplanations?: boolean;
   selectedClassId?: number;
   apiKey: string;
 }): Promise<{ jobId: string }> {
@@ -394,6 +395,9 @@ export async function startExamGenerationJob(params: {
   }
   if (params.generationMode) {
     formData.append("generation_mode", params.generationMode);
+  }
+  if (params.includeExplanations !== undefined) {
+    formData.append("include_explanations", params.includeExplanations.toString());
   }
   if (params.selectedClassId) {
     formData.append("class_id", params.selectedClassId.toString());

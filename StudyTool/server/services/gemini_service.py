@@ -60,6 +60,8 @@ Requirements:
 - Question types to include: {question_types}
 {focus_concepts_section}
 
+{distribution_guidance}
+
 QUESTION TYPE DEFINITIONS:
 - mcq: Multiple choice with exactly ONE correct answer (provide 4 options)
 - multi: Multiple choice where user selects ALL correct answers (can be 1 or more, provide 4+ options)
@@ -94,6 +96,13 @@ IMPORTANT RULES:
     - Ensure a roughly balanced mix of True and False answers (aim for 40-60% distribution).
     - Do NOT make all answers True or all answers False.
     - Vary the answers based on the actual content - some statements should be true, some should be false.
+16. EXPLANATION REQUIREMENTS (when requested):
+    - Keep explanations concise: 1-2 sentences maximum, under 150 characters
+    - Explain WHY the answer is correct, not just restate it
+    - Use clear, simple language appropriate for students
+    - Focus on the key concept or reasoning
+    - Example Good: "Lisbon became Portugal's capital in 1255 due to its strategic coastal location."
+    - Example Bad: "The answer is Lisbon because that's what the question asked for."
 
 CRITICAL: Return ONLY valid JSON in this exact format (no markdown code blocks, just pure JSON):
 {{
@@ -148,7 +157,7 @@ def configure_gemini(api_key: str) -> None:
         raise ValueError(f"Failed to configure Gemini API: {str(e)}")
 
 
-def build_exam_prompt(content: str, config: ExamConfig) -> str:
+def build_exam_prompt(content: str, config: ExamConfig, include_explanations: bool = False) -> str:
     """Build the prompt for Gemini based on content and configuration."""
     
     # Build focus concepts section if provided
@@ -173,6 +182,55 @@ def build_exam_prompt(content: str, config: ExamConfig) -> str:
             "- MIXED MODE: About half of questions should be grounded strictly in the Study Material, and the rest may include closely-related adjacent concepts to broaden coverage."
         )
     
+    # Add explanation requirement to prompt
+    if include_explanations:
+        explanation_requirement = """
+EXPLANATION REQUIREMENT:
+- Every question MUST include a concise explanation (1-2 sentences, max 150 chars)
+- Explain WHY the answer is correct, providing educational context
+"""
+    else:
+        explanation_requirement = """
+- Set "explanation" field to null or empty string (explanations not requested)
+"""
+    
+    # Count documents and calculate distribution targets
+    doc_count = content.count("=== Content from ")
+    distribution_guidance = ""
+    
+    if doc_count > 1:
+        # Calculate target questions per document
+        target_per_doc = config.question_count / doc_count
+        # Format as integer if even, otherwise show as "approximately X"
+        if config.question_count % doc_count == 0:
+            target_str = f"{int(target_per_doc)} questions"
+        else:
+            target_str = f"approximately {int(target_per_doc)}-{int(target_per_doc) + 1} questions"
+        
+        distribution_guidance = f"""
+DOCUMENT DISTRIBUTION REQUIREMENTS (CRITICAL):
+- Total documents provided: {doc_count}
+- Target per document: {target_str}
+- You MUST distribute questions EVENLY across ALL {doc_count} documents
+- Do NOT generate more than {int(target_per_doc * 1.5)} questions from any single document
+- Do NOT ignore any document - every document must contribute questions
+- Avoid over-sampling from the first 1-2 documents
+
+CONTENT SAMPLING REQUIREMENTS (CRITICAL):
+- For EACH document, you must sample content from different sections:
+  * Beginning sections (approximately first 30% of the document)
+  * Middle sections (approximately middle 40% of the document)
+  * End sections (approximately last 30% of the document)
+- Do NOT generate all questions from only the opening paragraphs or first pages
+- Ensure you read through the ENTIRE content of each document before selecting topics
+- Questions should reflect concepts from throughout each document, not just the introduction
+
+DISTRIBUTION VERIFICATION:
+- Before finalizing, mentally count how many questions came from each document
+- If one document has significantly more questions than others, redistribute
+- Aim for balanced representation across all source materials
+"""
+    
     # Format question types for display
     question_types_str = ", ".join(config.question_types)
     
@@ -181,7 +239,8 @@ def build_exam_prompt(content: str, config: ExamConfig) -> str:
         question_count=config.question_count,
         difficulty=config.difficulty,
         question_types=question_types_str,
-        focus_concepts_section=f"{focus_concepts_section}\n{source_strategy}"
+        focus_concepts_section=f"{focus_concepts_section}\n{source_strategy}",
+        distribution_guidance=f"{distribution_guidance}\n{explanation_requirement}"
     )
     
     return prompt
@@ -197,6 +256,9 @@ def build_additional_prompt(
 
     Keeps the same structure and constraints but emphasizes generating the remaining
     number of questions and avoiding overlap with provided stems.
+    
+    IMPORTANT: This uses the same distribution logic as build_exam_prompt to ensure
+    even the top-up questions are distributed evenly across documents.
     """
     cfg = ExamConfig(
         question_count=missing_count,
@@ -205,6 +267,7 @@ def build_additional_prompt(
         focus_concepts=base_config.focus_concepts,
         generation_mode=base_config.generation_mode,
     )
+    # Use the same prompt builder which includes distribution logic
     base = build_exam_prompt(content, cfg)
     avoid_section = ""
     if existing_stems:
@@ -215,7 +278,7 @@ def build_additional_prompt(
             "\n\nAVOID DUPLICATES:\nDo NOT repeat any of these existing question stems.\n- "
             + joined
         )
-    return base + avoid_section + "\n\nGenerate additional questions only."
+    return base + avoid_section + "\n\nGenerate additional questions only. Maintain the same even distribution across documents as specified above."
 
 
 def extract_json_from_response(response_text: str) -> str:
@@ -435,7 +498,8 @@ async def resolve_model_for_key(api_key: str) -> str:
 async def generate_exam_from_content(
     content: str,
     config: ExamConfig,
-    api_key: str
+    api_key: str,
+    include_explanations: bool = False
 ) -> GeneratedExam:
     """
     Main function to generate exam from content using Gemini API.
@@ -444,6 +508,7 @@ async def generate_exam_from_content(
         content: Extracted text from study materials
         config: Exam configuration (question count, difficulty, types)
         api_key: User's Gemini API key
+        include_explanations: Whether to generate explanations for each question
     
     Returns:
         GeneratedExam object with metadata and questions
@@ -453,7 +518,7 @@ async def generate_exam_from_content(
         configure_gemini(api_key)
         
         # Build prompt
-        prompt = build_exam_prompt(content, config)
+        prompt = build_exam_prompt(content, config, include_explanations)
         
         # Resolve and initialize Gemini model
         model_name = await resolve_model_for_key(api_key)
@@ -957,6 +1022,57 @@ Keep it under 100 words."""
         print(f"[Explanation] Failed to generate: {str(e)}")
         # Return empty string on failure - don't block the grading process
         return ""
+
+
+async def validate_answer_with_ai(
+    question_stem: str,
+    question_type: str,
+    user_answer: Any,
+    correct_answer: Any,
+    api_key: str
+) -> bool:
+    """
+    Use AI to determine if user's answer is semantically correct.
+    Only called for short/cloze questions with uncertain matches.
+    Returns True if answer is acceptable, False otherwise.
+    """
+    configure_gemini(api_key)
+    
+    prompt = f"""You are grading a {question_type} question.
+
+Question: {question_stem}
+Expected Answer: {correct_answer}
+Student Answer: {user_answer}
+
+Is the student's answer correct? Consider:
+- Semantic equivalence (e.g., "27" = "twenty-seven")
+- Minor spelling/capitalization differences
+- Extra words that don't change meaning
+- Synonyms or alternate phrasings
+
+Respond with ONLY "CORRECT" or "INCORRECT" and nothing else."""
+
+    try:
+        model_name = await resolve_model_for_key(api_key)
+        model = genai.GenerativeModel(model_name)
+        
+        import asyncio as _asyncio
+        response = await _asyncio.to_thread(
+            lambda: model.generate_content(
+                prompt,
+                generation_config=genai.GenerationConfig(
+                    temperature=0.1,  # Low temperature for consistent grading
+                    max_output_tokens=10,
+                ),
+            )
+        )
+        
+        result = response.text.strip().upper()
+        return "CORRECT" in result
+        
+    except Exception as e:
+        print(f"[AI Validation] Error: {e}")
+        return False  # Err on side of marking incorrect
 
 
 async def generate_performance_insights(

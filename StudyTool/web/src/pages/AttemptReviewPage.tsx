@@ -22,6 +22,11 @@ export default function AttemptReviewPage() {
   const [overriddenAnswers, setOverriddenAnswers] = useState<Set<number>>(
     new Set()
   );
+  const [expandedExplanations, setExpandedExplanations] = useState<Set<number>>(
+    new Set()
+  );
+  const [pendingCount, setPendingCount] = useState(0);
+  const [currentScore, setCurrentScore] = useState(0);
 
   // Helper function to check if answer is empty/unanswered
   const isAnswerEmpty = (answer: any): boolean => {
@@ -38,6 +43,67 @@ export default function AttemptReviewPage() {
       loadAttemptDetail(parseInt(attemptId));
     }
   }, [attemptId]);
+
+  // Poll for validation status updates
+  useEffect(() => {
+    if (!attempt || !attemptId) return;
+
+    // Count pending questions
+    const pending = attempt.questions.filter(
+      (q) => q.is_correct === null
+    ).length;
+    setPendingCount(pending);
+    setCurrentScore(attempt.score_pct);
+
+    // Start polling if there are pending validations
+    if (pending > 0) {
+      const interval = setInterval(() => {
+        checkValidationStatus(parseInt(attemptId));
+      }, 2000); // Poll every 2 seconds
+
+      return () => clearInterval(interval);
+    }
+  }, [attempt, attemptId]);
+
+  const checkValidationStatus = async (attemptId: number) => {
+    try {
+      const res = await axios.get(
+        `http://localhost:8000/api/attempts/${attemptId}/validation-status`
+      );
+      const data = res.data;
+
+      setCurrentScore(data.currentScore);
+      setPendingCount(data.pendingCount);
+
+      // Update questions with validated answers
+      if (data.validatedQuestions.length > 0 && attempt) {
+        const updated = attempt.questions.map((q) => {
+          const val = data.validatedQuestions.find(
+            (v: any) => v.questionId === q.question.id
+          );
+          return val ? { ...q, is_correct: val.correct } : q;
+        });
+
+        setAttempt({
+          ...attempt,
+          questions: updated,
+          score_pct: data.currentScore,
+        });
+      }
+
+      // Show toast when all complete
+      if (data.allComplete && pendingCount > 0) {
+        showToast(
+          `✓ All answers validated! Final score: ${data.currentScore.toFixed(
+            1
+          )}%`,
+          "success"
+        );
+      }
+    } catch (e) {
+      console.error("Polling failed:", e);
+    }
+  };
 
   const loadAttemptDetail = async (id: number) => {
     try {
@@ -218,7 +284,17 @@ export default function AttemptReviewPage() {
               : "rgba(220, 53, 69, 0.12)";
           }}
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 8 }}>
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            style={{ marginRight: 8 }}
+          >
             <polyline points="15 18 9 12 15 6"></polyline>
           </svg>
           Back to Dashboard
@@ -232,12 +308,44 @@ export default function AttemptReviewPage() {
           </h3>
           <div
             style={{
-              fontSize: "24px",
-              fontWeight: "bold",
-              color: getScoreColor(attempt.score_pct),
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
             }}
           >
-            {Math.round(attempt.score_pct)}%
+            <div
+              style={{
+                fontSize: "24px",
+                fontWeight: "bold",
+                color: getScoreColor(currentScore),
+              }}
+            >
+              {Math.round(currentScore)}%
+            </div>
+            {pendingCount > 0 && (
+              <div
+                style={{
+                  fontSize: 14,
+                  fontWeight: 500,
+                  color: theme.textSecondary,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                }}
+              >
+                <div
+                  style={{
+                    width: 12,
+                    height: 12,
+                    border: `2px solid ${theme.glassBorder}`,
+                    borderTop: `2px solid ${theme.crimson}`,
+                    borderRadius: "50%",
+                    animation: "spin 1s linear infinite",
+                  }}
+                />
+                <span>{pendingCount} validating...</span>
+              </div>
+            )}
           </div>
           <div style={{ fontSize: "14px", color: theme.textSecondary }}>
             {correctCount} / {totalCount} correct
@@ -358,7 +466,13 @@ export default function AttemptReviewPage() {
       </aside>
 
       {/* Main Content */}
-      <main style={{ overflow: "auto", padding: "16px" }}>
+      <main
+        style={{
+          flex: "1",
+          overflow: "auto",
+          padding: "16px",
+        }}
+      >
         {/* Questions */}
         <div
           style={{
@@ -371,13 +485,17 @@ export default function AttemptReviewPage() {
           {displayedQuestions.map((questionReview, displayIdx) => {
             const actualIndex = allQuestions.indexOf(questionReview);
             const question = questionReview.question;
-            const isShortAnswer =
-              question.type === "short";
+            const isShortAnswer = question.type === "short";
             const isCloze = question.type === "cloze";
             const isCorrect = questionReview.is_correct;
+            const isPending = isCorrect === null;
 
-            // Determine border color (green for correct, red for incorrect)
-            let borderColor = isCorrect ? "#28a745" : "#dc3545";
+            // Determine border color (green for correct, red for incorrect, yellow for pending)
+            let borderColor = isPending
+              ? "#ffc107"
+              : isCorrect
+              ? "#28a745"
+              : "#dc3545";
 
             return (
               <div
@@ -387,7 +505,11 @@ export default function AttemptReviewPage() {
                   border: `2px solid ${borderColor}`,
                   borderRadius: 8,
                   padding: 16,
-                  backgroundColor: isCorrect
+                  backgroundColor: isPending
+                    ? darkMode
+                      ? "#2a2a1a"
+                      : "#fffbf0"
+                    : isCorrect
                     ? darkMode
                       ? "#1e2e1e"
                       : "#f8fff9"
@@ -443,31 +565,67 @@ export default function AttemptReviewPage() {
                   <div
                     style={{ display: "flex", alignItems: "center", gap: 8 }}
                   >
-                    <div
-                      style={{
-                        padding: "4px 12px",
-                        borderRadius: 4,
-                        fontWeight: "bold",
-                        fontSize: "14px",
-                        backgroundColor: isCorrect ? "#28a745" : "#dc3545",
-                        color: "white",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        lineHeight: "1.2",
-                        boxSizing: "border-box",
-                      }}
-                    >
-                      {isCorrect ? "Correct" : "Incorrect"}
-                    </div>
-                    {/* Toggle Grade Button - allow for all types */}
+                    {isPending ? (
+                      <div
+                        style={{
+                          padding: "6px 12px",
+                          borderRadius: 4,
+                          fontWeight: "bold",
+                          fontSize: "13px",
+                          backgroundColor: "rgba(255, 193, 7, 0.15)",
+                          color: "#ffc107",
+                          border: "1px solid rgba(255, 193, 7, 0.3)",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 6,
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: 12,
+                            height: 12,
+                            border: "2px solid rgba(255, 193, 7, 0.3)",
+                            borderTop: "2px solid #ffc107",
+                            borderRadius: "50%",
+                            animation: "spin 1s linear infinite",
+                          }}
+                        />
+                        Validating...
+                      </div>
+                    ) : (
+                      <div
+                        style={{
+                          padding: "4px 12px",
+                          borderRadius: 4,
+                          fontWeight: "bold",
+                          fontSize: "14px",
+                          backgroundColor: isCorrect ? "#28a745" : "#dc3545",
+                          color: "white",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          lineHeight: "1.2",
+                          boxSizing: "border-box",
+                        }}
+                      >
+                        {isCorrect ? "Correct" : "Incorrect"}
+                      </div>
+                    )}
+                    {/* Toggle Grade Button - allow for all types (disabled for pending) */}
                     <button
                       onClick={() =>
                         handleGradeOverride(question.id, isCorrect)
                       }
-                      title="Toggle grade (toggle correct/incorrect)"
+                      disabled={isPending}
+                      title={
+                        isPending
+                          ? "Cannot override while validating"
+                          : "Toggle grade (toggle correct/incorrect)"
+                      }
                       style={{
                         padding: "4px 12px",
+                        opacity: isPending ? 0.5 : 1,
+                        cursor: isPending ? "not-allowed" : "pointer",
                         backgroundColor: darkMode ? "#4d4d4d" : "#e0e0e0",
                         border: `1px solid ${theme.border}`,
                         borderRadius: 4,
@@ -506,44 +664,85 @@ export default function AttemptReviewPage() {
 
                 {/* Cloze Rendering */}
                 {isCloze && (
-                  <div style={{ marginBottom: 16, fontSize: "16px", lineHeight: "2.5", color: theme.text }}>
+                  <div
+                    style={{
+                      marginBottom: 16,
+                      fontSize: "16px",
+                      lineHeight: "2.5",
+                      color: theme.text,
+                    }}
+                  >
                     {(() => {
                       const parts = question.stem.split(CLOZE_REGEX);
                       // Normalize answers to arrays
-                      const userAnswers = Array.isArray(questionReview.user_answer) 
-                        ? questionReview.user_answer 
-                        : (questionReview.user_answer ? [questionReview.user_answer] : []);
-                      
-                      const correctAnswers = Array.isArray(questionReview.correct_answer)
+                      const userAnswers = Array.isArray(
+                        questionReview.user_answer
+                      )
+                        ? questionReview.user_answer
+                        : questionReview.user_answer
+                        ? [questionReview.user_answer]
+                        : [];
+
+                      const correctAnswers = Array.isArray(
+                        questionReview.correct_answer
+                      )
                         ? questionReview.correct_answer
-                        : (questionReview.correct_answer ? [questionReview.correct_answer] : []);
+                        : questionReview.correct_answer
+                        ? [questionReview.correct_answer]
+                        : [];
 
                       return parts.map((part, i) => {
                         const isBlank = i < parts.length - 1;
                         const userVal = userAnswers[i] || "";
                         const correctVal = correctAnswers[i] || "";
-                        const isCorrectBlank = String(userVal).trim().toLowerCase() === String(correctVal).trim().toLowerCase();
-                        
+                        const isCorrectBlank =
+                          String(userVal).trim().toLowerCase() ===
+                          String(correctVal).trim().toLowerCase();
+
                         return (
                           <React.Fragment key={i}>
-                            <span dangerouslySetInnerHTML={{ __html: parseSimpleMarkdown(part) }} />
+                            <span
+                              dangerouslySetInnerHTML={{
+                                __html: parseSimpleMarkdown(part),
+                              }}
+                            />
                             {isBlank && (
-                              <span style={{ display: "inline-block", margin: "0 4px" }}>
+                              <span
+                                style={{
+                                  display: "inline-block",
+                                  margin: "0 4px",
+                                }}
+                              >
                                 <input
                                   readOnly
                                   value={userVal}
                                   style={{
                                     padding: "6px",
-                                    border: `2px solid ${isCorrectBlank ? "#28a745" : "#dc3545"}`,
+                                    border: `2px solid ${
+                                      isCorrectBlank ? "#28a745" : "#dc3545"
+                                    }`,
                                     borderRadius: "4px",
-                                    background: isCorrectBlank ? (darkMode ? "#1a3d1a" : "#d4edda") : (darkMode ? "#3d1a1a" : "#f8d7da"),
+                                    background: isCorrectBlank
+                                      ? darkMode
+                                        ? "#1a3d1a"
+                                        : "#d4edda"
+                                      : darkMode
+                                      ? "#3d1a1a"
+                                      : "#f8d7da",
                                     color: theme.text,
                                     maxWidth: "120px",
-                                    fontWeight: "bold"
+                                    fontWeight: "bold",
                                   }}
                                 />
                                 {!isCorrectBlank && (
-                                  <span style={{ marginLeft: 8, fontSize: 14, color: "#28a745", fontWeight: "bold" }}>
+                                  <span
+                                    style={{
+                                      marginLeft: 8,
+                                      fontSize: 14,
+                                      color: "#28a745",
+                                      fontWeight: "bold",
+                                    }}
+                                  >
                                     ({correctVal})
                                   </span>
                                 )}
@@ -837,6 +1036,184 @@ export default function AttemptReviewPage() {
                     </div>
                   </div>
                 )}
+
+                {/* Explanation/AI Section - Conditional */}
+                {question.explanation ? (
+                  /* WITH explanation: Show dropdown */
+                  <div
+                    style={{
+                      marginTop: 16,
+                      border: `1px solid ${theme.glassBorder}`,
+                      borderRadius: 8,
+                      overflow: "hidden",
+                    }}
+                  >
+                    <button
+                      onClick={() => {
+                        const newSet = new Set(expandedExplanations);
+                        if (newSet.has(question.id)) {
+                          newSet.delete(question.id);
+                        } else {
+                          newSet.add(question.id);
+                        }
+                        setExpandedExplanations(newSet);
+                      }}
+                      style={{
+                        width: "100%",
+                        padding: "10px 12px",
+                        background: darkMode
+                          ? "rgba(255,255,255,0.03)"
+                          : "rgba(0,0,0,0.02)",
+                        color: theme.text,
+                        border: "none",
+                        cursor: "pointer",
+                        fontSize: 13,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        fontWeight: 500,
+                        textAlign: "left",
+                      }}
+                    >
+                      <svg
+                        width="12"
+                        height="12"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="3"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        style={{
+                          transform: expandedExplanations.has(question.id)
+                            ? "rotate(90deg)"
+                            : "rotate(0deg)",
+                          transition: "transform 0.2s ease",
+                        }}
+                      >
+                        <polyline points="9 18 15 12 9 6" />
+                      </svg>
+                      <span>Explanation</span>
+                    </button>
+
+                    {expandedExplanations.has(question.id) && (
+                      <div
+                        style={{
+                          padding: 16,
+                          background: darkMode
+                            ? "rgba(212, 166, 80, 0.08)"
+                            : "rgba(196, 30, 58, 0.05)",
+                          borderTop: `1px solid ${theme.glassBorder}`,
+                          animation: "expandDown 0.2s ease",
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontSize: 13,
+                            lineHeight: 1.6,
+                            color: theme.text,
+                            marginBottom: 12,
+                          }}
+                        >
+                          {question.explanation}
+                        </div>
+
+                        {/* Further Explanation Button */}
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "flex-end",
+                          }}
+                        >
+                          <button
+                            onClick={() => {
+                              (window as any).openAIChatWithQuestion({
+                                questionId: question.id,
+                                stem: question.stem,
+                                correctAnswer: questionReview.correct_answer,
+                                userAnswer: questionReview.user_answer,
+                                explanation: question.explanation,
+                              });
+                            }}
+                            style={{
+                              padding: "6px 12px",
+                              background: theme.crimson,
+                              color: "#fff",
+                              border: "none",
+                              borderRadius: 6,
+                              cursor: "pointer",
+                              fontSize: 12,
+                              fontWeight: 600,
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 6,
+                            }}
+                          >
+                            <svg
+                              width="14"
+                              height="14"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <path d="M12 2l2.5 7.5L22 12l-7.5 2.5L12 22l-2.5-7.5L2 12l7.5-2.5L12 2z" />
+                              <path d="M19 3l1 3 3 1-3 1-1 3-1-3-3-1 3-1 1-3z" />
+                            </svg>
+                            Further Explanation
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  /* WITHOUT explanation: Show direct AI button */
+                  <div style={{ marginTop: 16 }}>
+                    <button
+                      onClick={() => {
+                        (window as any).openAIChatWithQuestion({
+                          questionId: question.id,
+                          stem: question.stem,
+                          correctAnswer: questionReview.correct_answer,
+                          userAnswer: questionReview.user_answer,
+                          explanation: null,
+                        });
+                      }}
+                      style={{
+                        padding: "8px 14px",
+                        background: darkMode
+                          ? "rgba(212, 166, 80, 0.15)"
+                          : "rgba(196, 30, 58, 0.08)",
+                        color: theme.crimson,
+                        border: `1px solid ${theme.crimson}`,
+                        borderRadius: 6,
+                        cursor: "pointer",
+                        fontSize: 13,
+                        fontWeight: 600,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 6,
+                      }}
+                    >
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M12 2l2.5 7.5L22 12l-7.5 2.5L12 22l-2.5-7.5L2 12l7.5-2.5L12 2z" />
+                        <path d="M19 3l1 3 3 1-3 1-1 3-1-3-3-1 3-1 1-3z" />
+                      </svg>
+                      Ask AI for Explanation
+                    </button>
+                  </div>
+                )}
               </div>
             );
           })}
@@ -861,7 +1238,25 @@ export default function AttemptReviewPage() {
           </div>
         )}
       </main>
+
+      {/* CSS for animations */}
+      <style>{`
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+        
+        @keyframes expandDown {
+          from {
+            opacity: 0;
+            max-height: 0;
+          }
+          to {
+            opacity: 1;
+            max-height: 500px;
+          }
+        }
+      `}</style>
     </div>
   );
 }
-

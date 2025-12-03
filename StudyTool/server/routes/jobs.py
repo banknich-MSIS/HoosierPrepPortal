@@ -62,6 +62,7 @@ async def start_exam_generation_job(
     exam_name: Optional[str] = Form(None),
     exam_mode: Optional[str] = Form("exam"),
     generation_mode: Optional[str] = Form("strict"),
+    include_explanations: bool = Form(False),
     class_id: Optional[int] = Form(None),
     x_gemini_api_key: str = Header(..., alias="X-Gemini-API-Key"),
 ):
@@ -108,6 +109,7 @@ async def start_exam_generation_job(
                 content=content,
                 config=config,
                 api_key=x_gemini_api_key,
+                include_explanations=include_explanations,
             )
 
             # Top-up logic to ensure requested count
@@ -195,6 +197,7 @@ async def start_exam_generation_job(
                     qtype=q_data.type,
                     options=options_dict,
                     answer=answer_dict,
+                    explanation=q_data.explanation if include_explanations else None,
                     concept_ids=concept_ids if concept_ids else None,
                 )
                 db.add(question)

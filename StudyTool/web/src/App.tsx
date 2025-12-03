@@ -1,6 +1,7 @@
 import { useNavigate, useLocation, Outlet } from "react-router-dom";
 import { useState, useEffect } from "react";
 import TutorialModal from "./components/TutorialModal";
+import AIChatWidget from "./components/AIChatWidget";
 import IURedLogo from "../../assets/IURedLogo.svg";
 import IUGreyLogo from "../../assets/IUGreyLogo.svg";
 import { ToastProvider } from "./contexts/ToastContext";
@@ -11,6 +12,17 @@ export default function App() {
   const location = useLocation();
   const [showTutorial, setShowTutorial] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
+  const [chatQuestionContext, setChatQuestionContext] = useState<any>(null);
+
+  // Expose global chat opener for other components
+  useEffect(() => {
+    (window as any).openAIChatWithQuestion = (questionData: any) => {
+      setChatQuestionContext(questionData);
+    };
+    (window as any).openAIChatGeneral = () => {
+      setChatQuestionContext(null);
+    };
+  }, []);
 
   useEffect(() => {
     // Load dark mode preference
@@ -429,13 +441,23 @@ export default function App() {
         {/* Background job toaster */}
         <JobToaster theme={theme} />
 
-        {/* Floating Dark Mode Toggle - Bottom Left - Glassmorphism */}
+        {/* AI Chat Widget - Hide during exam mode */}
+        {!location.pathname.match(/^\/exam\/\d+$/) && (
+          <AIChatWidget
+            darkMode={darkMode}
+            theme={theme}
+            questionContext={chatQuestionContext}
+            onClearContext={() => setChatQuestionContext(null)}
+          />
+        )}
+
+        {/* Floating Dark Mode Toggle - Bottom Right - Glassmorphism */}
         <div
           onClick={toggleDarkMode}
           style={{
             position: "fixed",
             bottom: 24,
-            left: 24,
+            right: 24,
             width: 60,
             height: 60,
             borderRadius: "50%",

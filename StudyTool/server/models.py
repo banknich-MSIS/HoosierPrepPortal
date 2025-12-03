@@ -77,6 +77,7 @@ class Question(Base):
     answer: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     concept_ids: Mapped[Optional[List[int]]] = mapped_column(JSON, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    explanation: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     upload: Mapped[Upload] = relationship(back_populates="questions")
 
