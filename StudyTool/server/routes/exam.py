@@ -472,6 +472,16 @@ def _normalize_text(value: Any) -> str:
     for word, digit in number_words.items():
         text = re.sub(rf'\b{word}\b', digit, text)
     
+    # Convert Roman numerals to digits (for statistics terms like "Type I Error")
+    roman_numerals = {
+        'i': '1', 'ii': '2', 'iii': '3', 'iv': '4', 'v': '5',
+        'vi': '6', 'vii': '7', 'viii': '8', 'ix': '9', 'x': '10'
+    }
+    
+    for roman, digit in roman_numerals.items():
+        # Only replace when it's a standalone word (not part of another word)
+        text = re.sub(rf'\b{roman}\b', digit, text)
+    
     return text
 
 

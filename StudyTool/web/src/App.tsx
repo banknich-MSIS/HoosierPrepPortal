@@ -48,9 +48,12 @@ export default function App() {
     };
   }, []);
 
-  // Update body class for dark/light mode
+  // Update body AND html class for dark/light mode
+  // (html element controls main page scrollbar)
   useEffect(() => {
-    document.body.className = darkMode ? "dark-mode" : "light-mode";
+    const modeClass = darkMode ? "dark-mode" : "light-mode";
+    document.documentElement.className = modeClass; // html element
+    document.body.className = modeClass; // body element
   }, [darkMode]);
 
   // Scroll to top on route change

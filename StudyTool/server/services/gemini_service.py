@@ -70,9 +70,15 @@ QUESTION TYPE DEFINITIONS:
 - cloze: Fill-in-the-blank question with one or more blanks
 
 QUESTION DIFFICULTY GUIDELINES:
-- Easy: Focus on definitions, basic concepts, direct recall. Use straightforward language and obvious distractors.
-- Medium: Require application of concepts, comparison, analysis. Use scenarios and require understanding beyond memorization.
-- Hard: Multi-step reasoning, edge cases, synthesis of multiple concepts. Use subtle distractors and complex scenarios.
+
+**{difficulty_level} DIFFICULTY - {difficulty_description}**
+
+{difficulty_specific_guidance}
+
+GENERAL DIFFICULTY PRINCIPLES:
+- Easy: Direct recall, definitions, basic facts. Questions like "What is X?", "Define Y"
+- Medium: Application, analysis, comparison. Questions like "How does X relate to Y?", "What happens when...?"
+- Hard: Synthesis, evaluation, multi-step reasoning. Questions like "Compare and contrast...", "What would happen if X and Y...?"
 
 IMPORTANT RULES:
 1. For MCQ questions, provide exactly 4 options with the correct answer as ONE of them
@@ -157,8 +163,144 @@ def configure_gemini(api_key: str) -> None:
         raise ValueError(f"Failed to configure Gemini API: {str(e)}")
 
 
+def get_difficulty_config(difficulty: str) -> Dict[str, Any]:
+    """
+    Get difficulty-specific configuration including prompt guidance and generation parameters.
+    
+    Returns:
+        Dictionary with difficulty_level, difficulty_description, difficulty_specific_guidance,
+        temperature, top_p, top_k, and estimated_minutes_per_question.
+    """
+    difficulty_lower = difficulty.lower()
+    
+    if difficulty_lower == "easy":
+        return {
+            "difficulty_level": "EASY",
+            "difficulty_description": "Basic Recall & Recognition",
+            "difficulty_specific_guidance": """
+EASY DIFFICULTY REQUIREMENTS:
+1. QUESTION COMPLEXITY:
+   - Test basic recall, definitions, and simple identification
+   - Use straightforward language (8th-10th grade reading level)
+   - Ask "what", "who", "when", "which" questions
+   - Focus on single concepts at a time
+   
+2. MCQ DISTRACTOR QUALITY:
+   - Include 1-2 obviously wrong answers (unrelated terms, wrong categories)
+   - Include 1-2 plausible but clearly incorrect options
+   - Correct answer should be recognizable with basic knowledge
+   - Example: If answer is "Python", distractors could be "Java" (plausible), "HTML" (plausible), "Microsoft Word" (obviously wrong)
+   
+3. QUESTION EXAMPLES:
+   - "What is the definition of photosynthesis?"
+   - "Which of the following is a programming language?"
+   - "Who wrote Romeo and Juliet?"
+   - "In which year did World War II end?"
+   
+4. VOCABULARY & LANGUAGE:
+   - Use common, everyday terminology
+   - Avoid jargon unless it's being defined
+   - Keep sentences short and direct
+   - No compound or complex scenarios
+""",
+            "temperature": 0.5,  # More predictable, less creative
+            "top_p": 0.9,
+            "top_k": 30,
+            "estimated_minutes_per_question": 0.75,  # 45 seconds per question
+        }
+    elif difficulty_lower == "hard":
+        return {
+            "difficulty_level": "HARD",
+            "difficulty_description": "Advanced Analysis & Synthesis",
+            "difficulty_specific_guidance": """
+HARD DIFFICULTY REQUIREMENTS:
+1. QUESTION COMPLEXITY:
+   - Require multi-step reasoning and synthesis of 2+ concepts
+   - Present complex scenarios or edge cases
+   - Ask "why", "how would", "compare", "evaluate", "predict" questions
+   - Test ability to apply knowledge in novel situations
+   - Include conditions, constraints, or multiple variables
+   
+2. MCQ DISTRACTOR QUALITY:
+   - ALL options must be highly plausible and conceptually related
+   - Include common expert-level misconceptions
+   - Distractors should be partially correct or context-dependent
+   - Correct answer requires careful analysis to identify
+   - Example: If testing algorithm efficiency, all options should be valid algorithms with subtle differences
+   
+3. QUESTION EXAMPLES:
+   - "Given constraints X and Y, which approach would be most efficient and why?"
+   - "Compare the advantages and disadvantages of A vs B in scenario C"
+   - "If condition X changes to Y, how would this affect the relationship between A and B?"
+   - "Which combination of factors would lead to outcome Z?"
+   
+4. VOCABULARY & LANGUAGE:
+   - Use technical terminology appropriately
+   - Include nuanced language and qualifiers
+   - Present multi-clause sentences with conditions
+   - Embed context and scenarios within questions
+   
+5. COGNITIVE DEMANDS:
+   - Require evaluation of tradeoffs
+   - Test understanding of relationships between concepts
+   - Include "best practice" or "most appropriate" judgments
+   - Demand explanation of mechanisms, not just outcomes
+""",
+            "temperature": 0.8,  # More creative, complex generation
+            "top_p": 0.95,
+            "top_k": 50,
+            "estimated_minutes_per_question": 2.0,  # 2 minutes per question
+        }
+    else:  # medium (default)
+        return {
+            "difficulty_level": "MEDIUM",
+            "difficulty_description": "Application & Analysis",
+            "difficulty_specific_guidance": """
+MEDIUM DIFFICULTY REQUIREMENTS:
+1. QUESTION COMPLEXITY:
+   - Test application of concepts, not just recall
+   - Present scenarios requiring analysis or comparison
+   - Ask "how", "why", "what would happen if" questions
+   - Combine 1-2 related concepts
+   - Require understanding of cause-and-effect
+   
+2. MCQ DISTRACTOR QUALITY:
+   - All options should be plausible and related to the topic
+   - Include common misconceptions or partially correct answers
+   - Avoid obviously wrong options
+   - Require understanding, not just recognition
+   - Example: If testing sorting algorithms, all options should be actual algorithms with realistic performance characteristics
+   
+3. QUESTION EXAMPLES:
+   - "How does X affect Y in the context of Z?"
+   - "What would be the result of applying process A to input B?"
+   - "Which approach is most appropriate for solving problem X?"
+   - "Why does phenomenon A occur when condition B is present?"
+   
+4. VOCABULARY & LANGUAGE:
+   - Use grade-appropriate technical terms with context
+   - Include scenarios or brief case descriptions
+   - Mix simple and complex sentence structures
+   - Provide enough context for application
+   
+5. COGNITIVE DEMANDS:
+   - Test understanding of processes and mechanisms
+   - Require comparison or categorization
+   - Include cause-effect relationships
+   - Test ability to predict outcomes from given conditions
+""",
+            "temperature": 0.7,  # Balanced creativity and consistency
+            "top_p": 0.95,
+            "top_k": 40,
+            "estimated_minutes_per_question": 1.25,  # 75 seconds per question
+        }
+
+
 def build_exam_prompt(content: str, config: ExamConfig, include_explanations: bool = False) -> str:
     """Build the prompt for Gemini based on content and configuration."""
+    
+    # Get difficulty-specific configuration
+    difficulty_config = get_difficulty_config(config.difficulty)
     
     # Build focus concepts section if provided
     focus_concepts_section = ""
@@ -231,6 +373,11 @@ DISTRIBUTION VERIFICATION:
 - Aim for balanced representation across all source materials
 """
     
+    # Calculate suggested time based on difficulty and question count
+    minutes_per_question = difficulty_config["estimated_minutes_per_question"]
+    suggested_time = int(config.question_count * minutes_per_question)
+    time_guidance = f"\n- For estimated_time_minutes: Use approximately {suggested_time} minutes (based on {config.question_count} questions at {difficulty_config['difficulty_level']} difficulty)"
+    
     # Format question types for display
     question_types_str = ", ".join(config.question_types)
     
@@ -238,9 +385,12 @@ DISTRIBUTION VERIFICATION:
         content=content[:500000],  # Increased cap
         question_count=config.question_count,
         difficulty=config.difficulty,
+        difficulty_level=difficulty_config["difficulty_level"],
+        difficulty_description=difficulty_config["difficulty_description"],
+        difficulty_specific_guidance=difficulty_config["difficulty_specific_guidance"],
         question_types=question_types_str,
         focus_concepts_section=f"{focus_concepts_section}\n{source_strategy}",
-        distribution_guidance=f"{distribution_guidance}\n{explanation_requirement}"
+        distribution_guidance=f"{distribution_guidance}\n{explanation_requirement}{time_guidance}"
     )
     
     return prompt
@@ -520,18 +670,21 @@ async def generate_exam_from_content(
         # Build prompt
         prompt = build_exam_prompt(content, config, include_explanations)
         
+        # Get difficulty-specific generation parameters
+        difficulty_config = get_difficulty_config(config.difficulty)
+        
         # Resolve and initialize Gemini model
         model_name = await resolve_model_for_key(api_key)
         model = genai.GenerativeModel(model_name)
         
-        # Generate content (run in a worker thread to avoid blocking event loop)
+        # Generate content with difficulty-specific parameters (run in a worker thread to avoid blocking event loop)
         def _gen(prompt_text: str):
             return model.generate_content(
                 prompt_text,
                 generation_config=genai.GenerationConfig(
-                    temperature=0.7,
-                    top_p=0.95,
-                    top_k=40,
+                    temperature=difficulty_config["temperature"],
+                    top_p=difficulty_config["top_p"],
+                    top_k=difficulty_config["top_k"],
                     max_output_tokens=65536,
                 ),
             )
@@ -653,6 +806,10 @@ async def generate_additional_questions(
     try:
         configure_gemini(api_key)
         prompt = build_additional_prompt(content, base_config, missing_count, existing_stems)
+        
+        # Get difficulty-specific generation parameters
+        difficulty_config = get_difficulty_config(base_config.difficulty)
+        
         model_name = await resolve_model_for_key(api_key)
         model = genai.GenerativeModel(model_name)
 
@@ -660,9 +817,9 @@ async def generate_additional_questions(
             return model.generate_content(
                 prompt_text,
                 generation_config=genai.GenerationConfig(
-                    temperature=0.7,
-                    top_p=0.95,
-                    top_k=40,
+                    temperature=difficulty_config["temperature"],
+                    top_p=difficulty_config["top_p"],
+                    top_k=difficulty_config["top_k"],
                     max_output_tokens=65536,
                 ),
             )

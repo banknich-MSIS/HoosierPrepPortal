@@ -472,10 +472,61 @@ export default function SmartExamCreator() {
                   fontSize: 16,
                 }}
               >
-                <option value="easy">Easy</option>
-                <option value="medium">Medium</option>
-                <option value="hard">Hard</option>
+                <option value="easy">Easy - Basic Recall</option>
+                <option value="medium">Medium - Application</option>
+                <option value="hard">Hard - Advanced Analysis</option>
               </select>
+              <div
+                style={{
+                  marginTop: 8,
+                  padding: 10,
+                  background: darkMode
+                    ? "rgba(212, 166, 80, 0.08)"
+                    : "rgba(212, 166, 80, 0.12)",
+                  borderRadius: 6,
+                  border: `1px solid ${
+                    darkMode
+                      ? "rgba(212, 166, 80, 0.2)"
+                      : "rgba(212, 166, 80, 0.3)"
+                  }`,
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 13,
+                    color: theme.text,
+                    lineHeight: 1.5,
+                  }}
+                >
+                  {difficulty === "easy" && (
+                    <>
+                      <strong style={{ color: theme.amber }}>
+                        Easy Mode:
+                      </strong>{" "}
+                      Simple recall questions with straightforward distractors.
+                      ~45 sec/question ({Math.round(questionCount * 0.75)} min
+                      total).
+                    </>
+                  )}
+                  {difficulty === "medium" && (
+                    <>
+                      <strong style={{ color: theme.amber }}>
+                        Medium Mode:
+                      </strong>{" "}
+                      Application questions with plausible distractors. ~75
+                      sec/question ({Math.round(questionCount * 1.25)} min
+                      total).
+                    </>
+                  )}
+                  {difficulty === "hard" && (
+                    <>
+                      <strong style={{ color: theme.amber }}>Hard Mode:</strong>{" "}
+                      Complex analysis with subtle distractors. ~2 min/question
+                      ({Math.round(questionCount * 2)} min total).
+                    </>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
 

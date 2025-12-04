@@ -21,6 +21,27 @@ const QUESTION_TYPE_LABELS: Record<string, string> = {
   cloze: "Fill in the Blank",
 };
 
+const DIFFICULTY_INFO: Record<
+  string,
+  { label: string; description: string; color: string }
+> = {
+  easy: {
+    label: "Easy",
+    description: "Basic recall & recognition (~45s per question)",
+    color: "#28a745",
+  },
+  medium: {
+    label: "Medium",
+    description: "Application & analysis (~75s per question)",
+    color: "#fd7e14",
+  },
+  hard: {
+    label: "Hard",
+    description: "Advanced synthesis (~2min per question)",
+    color: "#dc3545",
+  },
+};
+
 // Available color options for classes
 const CLASS_COLORS: { name: string; value: string }[] = [
   { name: "Blue", value: "#007bff" },

@@ -344,33 +344,6 @@ export default function ExamHistory({
             style={{
               fontSize: 32,
               fontWeight: 700,
-              color: theme.crimson,
-            }}
-          >
-            {totalAttempts}
-          </div>
-          <div
-            style={{ fontSize: 14, color: theme.textSecondary, marginTop: 4 }}
-          >
-            Recent Exams
-          </div>
-        </div>
-        <div
-          style={{
-            padding: 20,
-            background: theme.cardBg,
-            backdropFilter: theme.glassBlur,
-            WebkitBackdropFilter: theme.glassBlur,
-            borderRadius: 12,
-            textAlign: "center",
-            border: `1px solid ${theme.glassBorder}`,
-            boxShadow: theme.glassShadow,
-          }}
-        >
-          <div
-            style={{
-              fontSize: 32,
-              fontWeight: 700,
               color: theme.btnSuccess,
             }}
           >
@@ -1186,6 +1159,13 @@ export default function ExamHistory({
                     paddingLeft: 8,
                     fontWeight: 500,
                   }}
+                  title={
+                    (attempt.difficulty || "Medium").toLowerCase() === "easy"
+                      ? "Easy: Basic recall (~45s per question)"
+                      : (attempt.difficulty || "Medium").toLowerCase() === "hard"
+                      ? "Hard: Advanced analysis (~2min per question)"
+                      : "Medium: Application (~75s per question)"
+                  }
                 >
                   {attempt.difficulty || "Medium"}
                 </div>

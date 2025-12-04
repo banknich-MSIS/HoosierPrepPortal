@@ -175,25 +175,37 @@ body.dark-mode {
 }
 
 /* Dark mode scrollbars - Burgundy track + Muted Amber thumb */
-.dark-mode ::-webkit-scrollbar-track {
-  background: #2d1819;
+/* Apply to html (main page scroll), body, and all inner scrollbars */
+html.dark-mode::-webkit-scrollbar-track,
+body.dark-mode::-webkit-scrollbar-track,
+body.dark-mode ::-webkit-scrollbar-track {
+  background: #2d1819 !important;
   border-radius: 5px;
 }
 
-.dark-mode ::-webkit-scrollbar-thumb {
-  background: rgba(194, 155, 74, 0.6);
+html.dark-mode::-webkit-scrollbar-thumb,
+body.dark-mode::-webkit-scrollbar-thumb,
+body.dark-mode ::-webkit-scrollbar-thumb {
+  background: rgba(194, 155, 74, 0.6) !important;
 }
 
-.dark-mode ::-webkit-scrollbar-thumb:hover {
-  background: rgba(194, 155, 74, 0.9);
+html.dark-mode::-webkit-scrollbar-thumb:hover,
+body.dark-mode::-webkit-scrollbar-thumb:hover,
+body.dark-mode ::-webkit-scrollbar-thumb:hover {
+  background: rgba(194, 155, 74, 0.9) !important;
 }
 
-.dark-mode ::-webkit-scrollbar-thumb:active {
-  background: #c29b4a;
+html.dark-mode::-webkit-scrollbar-thumb:active,
+body.dark-mode::-webkit-scrollbar-thumb:active,
+body.dark-mode ::-webkit-scrollbar-thumb:active {
+  background: #c29b4a !important;
 }
 
-.dark-mode * {
-  scrollbar-color: rgba(194, 155, 74, 0.6) #2d1819;
+/* Firefox scrollbar colors for dark mode */
+html.dark-mode,
+body.dark-mode,
+body.dark-mode * {
+  scrollbar-color: rgba(194, 155, 74, 0.6) #2d1819 !important;
 }
 
 /* ALTERNATIVE COLORS (uncomment to test):

@@ -126,8 +126,54 @@ export interface SourceMaterialStats {
   };
 }
 
+export interface WeakArea {
+  concept_id: number;
+  concept_name: string;
+  accuracy_pct: number;
+  correct_attempts: number;
+  total_attempts: number;
+  last_seen_at: string | null;
+}
+
+export interface TimeManagementAttempt {
+  attempt_id: number;
+  finished_at: string;
+  score_pct: number;
+  duration_seconds: number;
+  question_count: number;
+  avg_time_per_question_seconds: number;
+}
+
+export interface TimeManagement {
+  summary: {
+    overall_avg_time_per_question_seconds: number | null;
+    recommended_range_seconds: [number, number];
+  };
+  attempts: TimeManagementAttempt[];
+}
+
+export interface MomentumWindow {
+  exams_count: number;
+  avg_score_pct: number | null;
+}
+
+export interface Momentum {
+  recent_window_days: number;
+  previous_window_days: number;
+  recent: MomentumWindow;
+  previous: MomentumWindow;
+  deltas: {
+    score_change_pct_points: number | null;
+    exams_change: number;
+  };
+  momentum: "improving" | "declining" | "flat";
+}
+
 export interface DetailedAnalytics {
   timeline_data: TimelineDataPoint[];
   question_type_stats: QuestionTypeStats;
   source_material_stats: SourceMaterialStats;
+  weak_areas: WeakArea[];
+  time_management: TimeManagement;
+  momentum: Momentum;
 }

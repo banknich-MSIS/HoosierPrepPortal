@@ -199,7 +199,8 @@ export default function Dashboard() {
   const handleDeleteAttempt = async (attemptId: number) => {
     try {
       await deleteAttempt(attemptId);
-      setAttempts(attempts.filter((a) => a.id !== attemptId));
+      // Reload all dashboard data to backfill deleted exams and update analytics
+      await loadDashboardData();
       // Trigger insights refresh on exam deletion
       window.dispatchEvent(new CustomEvent("exam-deleted"));
     } catch (e: any) {
@@ -222,8 +223,8 @@ export default function Dashboard() {
     try {
       // Delete all attempts in parallel
       await Promise.all(attemptIds.map((id) => deleteAttempt(id)));
-      // Update state once with all deletions
-      setAttempts(attempts.filter((a) => !attemptIds.includes(a.id)));
+      // Reload all dashboard data to backfill deleted exams and update analytics
+      await loadDashboardData();
       // Trigger insights refresh on exam deletion
       window.dispatchEvent(new CustomEvent("exam-deleted"));
     } catch (e: any) {
@@ -499,6 +500,10 @@ export default function Dashboard() {
   const hasInProgressExams =
     inProgressAttempts && inProgressAttempts.length > 0;
 
+  // Separate analytics from other sections to ensure it loads first (prevents layout shifts)
+  const analyticsSection = visibleSections.find((s) => s.id === "analytics");
+  const otherSections = visibleSections.filter((s) => s.id !== "analytics");
+
   return (
     <>
       <div style={{ display: "grid", gap: 24 }}>
@@ -553,7 +558,10 @@ export default function Dashboard() {
           </button>
         </div>
 
-        {/* Automatically show Exams in Progress at top when there are paused exams */}
+        {/* ALWAYS render Performance Analytics first (if visible) to prevent layout shifts */}
+        {analyticsSection && renderSection("analytics")}
+
+        {/* Automatically show Exams in Progress when there are paused exams */}
         {hasInProgressExams && (
           <section key="in_progress">
             <h2
@@ -576,8 +584,8 @@ export default function Dashboard() {
           </section>
         )}
 
-        {/* Render other sections dynamically based on user settings */}
-        {visibleSections.map((section) => renderSection(section.id))}
+        {/* Render other sections based on user settings */}
+        {otherSections.map((section) => renderSection(section.id))}
       </div>
 
       {/* Layout Settings Modal */}

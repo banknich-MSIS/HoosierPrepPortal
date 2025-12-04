@@ -352,6 +352,42 @@ export default function AttemptReviewPage() {
           </div>
         </div>
 
+        {/* Manual Review Notice */}
+        <div
+          style={{
+            fontSize: 12,
+            color: theme.textSecondary,
+            padding: "10px 12px",
+            backgroundColor: darkMode ? "#2a2a1a" : "#fff8dc",
+            border: `1px solid ${theme.glassBorder}`,
+            borderRadius: 6,
+            marginBottom: 12,
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+          }}
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            style={{ flexShrink: 0 }}
+          >
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="16" x2="12" y2="12"></line>
+            <line x1="12" y1="8" x2="12.01" y2="8"></line>
+          </svg>
+          <span style={{ fontStyle: "italic" }}>
+            Short answer and fill-in-the-blank questions are graded using AI and
+            fuzzy matching, but may not be perfect. Please verify your answers.
+          </span>
+        </div>
+
         {/* Show Wrong Only Toggle */}
         <div
           style={{
@@ -1020,20 +1056,6 @@ export default function AttemptReviewPage() {
                           </div>
                         </div>
                       )}
-
-                    <div
-                      style={{
-                        fontSize: "13px",
-                        color: theme.textSecondary,
-                        fontStyle: "italic",
-                        padding: "8px",
-                        backgroundColor: darkMode ? "#2a2a1a" : "#fff8dc",
-                        borderRadius: 4,
-                      }}
-                    >
-                      ℹ️ Please manually review if your answer matches the
-                      expected answer.
-                    </div>
                   </div>
                 )}
 
@@ -1159,8 +1181,8 @@ export default function AttemptReviewPage() {
                               strokeLinecap="round"
                               strokeLinejoin="round"
                             >
-                              <path d="M12 2l2.5 7.5L22 12l-7.5 2.5L12 22l-2.5-7.5L2 12l7.5-2.5L12 2z" />
-                              <path d="M19 3l1 3 3 1-3 1-1 3-1-3-3-1 3-1 1-3z" />
+                              <path d="M12 3l1.5 5.5L19 10.5l-5.5 1.5L12 18l-1.5-5.5L5 10.5l5.5-1.5L12 3z" />
+                              <path d="M18 5l0.75 2.25L21 8l-2.25 0.75L18 11l-0.75-2.25L15 8l2.25-0.75L18 5z" />
                             </svg>
                             Further Explanation
                           </button>
@@ -1183,11 +1205,9 @@ export default function AttemptReviewPage() {
                       }}
                       style={{
                         padding: "8px 14px",
-                        background: darkMode
-                          ? "rgba(212, 166, 80, 0.15)"
-                          : "rgba(196, 30, 58, 0.08)",
-                        color: theme.crimson,
-                        border: `1px solid ${theme.crimson}`,
+                        background: theme.crimson,
+                        color: "#fff",
+                        border: "none",
                         borderRadius: 6,
                         cursor: "pointer",
                         fontSize: 13,
@@ -1207,8 +1227,8 @@ export default function AttemptReviewPage() {
                         strokeLinecap="round"
                         strokeLinejoin="round"
                       >
-                        <path d="M12 2l2.5 7.5L22 12l-7.5 2.5L12 22l-2.5-7.5L2 12l7.5-2.5L12 2z" />
-                        <path d="M19 3l1 3 3 1-3 1-1 3-1-3-3-1 3-1 1-3z" />
+                        <path d="M12 3l1.5 5.5L19 10.5l-5.5 1.5L12 18l-1.5-5.5L5 10.5l5.5-1.5L12 3z" />
+                        <path d="M18 5l0.75 2.25L21 8l-2.25 0.75L18 11l-0.75-2.25L15 8l2.25-0.75L18 5z" />
                       </svg>
                       Ask AI for Explanation
                     </button>
