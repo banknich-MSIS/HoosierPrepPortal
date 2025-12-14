@@ -216,3 +216,4 @@ Uses Recharts for visualization
 - Tables use proper thead/tbody structure
 - Contrast ratios meet WCAG standards
 
+

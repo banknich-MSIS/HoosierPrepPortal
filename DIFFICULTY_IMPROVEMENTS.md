@@ -143,3 +143,4 @@ These parameters affect the AI's creativity and response variety, making hard qu
 - `StudyTool/web/src/utils/difficulty.ts` (utility functions)
 - `StudyTool/web/src/components/DifficultyBadge.tsx` (reusable component)
 
+

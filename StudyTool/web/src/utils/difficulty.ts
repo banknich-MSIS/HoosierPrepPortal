@@ -78,3 +78,4 @@ export function getDifficultyColor(difficulty?: string, darkMode?: boolean): str
   return darkMode ? info.colorDark : info.color;
 }
 
+
