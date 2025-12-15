@@ -1,0 +1,64 @@
+# Project name for Docker Desktop display
+name: hoosier-prep-portal
+
+services:
+  backend:
+    build:
+      context: ./StudyTool
+      dockerfile: server/Dockerfile
+    container_name: hoosier-prep-backend
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"  # Use BACKEND_PORT env var or default to 8000
+    environment:
+      - DB_DIR=/app/data
+      - FRONTEND_URL=http://localhost
+      - PYTHONUNBUFFERED=1
+    volumes:
+      # Persist database
+      - ./data/backend:/app/data
+      # Persist uploads
+      - ./data/uploads:/app/uploads
+      # Persist logs
+      - ./data/logs:/app/logs
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - hoosier-network
+    labels:
+      - "com.docker.compose.project=hoosier-prep-portal"
+      - "com.docker.desktop.service=backend"
+      - "description=Hoosier Prep Portal - FastAPI Backend Server"
+
+  frontend:
+    build:
+      context: ./StudyTool
+      dockerfile: web/Dockerfile
+      args:
+        - VITE_API_URL=${VITE_API_URL:-http://localhost:8000/api}
+    container_name: hoosier-prep-frontend
+    ports:
+      - "${FRONTEND_PORT:-80}:80"  # Use FRONTEND_PORT env var or default to 80
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - hoosier-network
+    labels:
+      - "com.docker.compose.project=hoosier-prep-portal"
+      - "com.docker.desktop.service=frontend"
+      - "description=Hoosier Prep Portal - React Frontend with Nginx"
+
+networks:
+  hoosier-network:
+    driver: bridge
+
+volumes:
+  backend-data:
+  uploads-data:
+

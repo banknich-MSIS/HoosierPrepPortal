@@ -14,7 +14,24 @@ import type {
  * Get the backend URL for the current environment
  */
 function getBackendURL(): string {
-  // Browser mode - use default port
+  // Check for environment variable first (Docker/production)
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL;
+  }
+  
+  // Check for window location (browser context)
+  if (typeof window !== 'undefined') {
+    // In Docker, backend is on same host, different port
+    const protocol = window.location.protocol;
+    const hostname = window.location.hostname;
+    
+    // If running in container, backend is likely on same host
+    if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
+      return `${protocol}//${hostname}:8000/api`;
+    }
+  }
+  
+  // Fallback to default (development)
   return "http://127.0.0.1:8000/api";
 }
 

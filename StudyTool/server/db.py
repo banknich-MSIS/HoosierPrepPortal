@@ -1,13 +1,19 @@
 from __future__ import annotations
 
+import os
 from contextlib import contextmanager
+from pathlib import Path
 from typing import Generator
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker, Session
 
 
-SQLALCHEMY_DATABASE_URL = "sqlite:///./exam.db"
+# Use environment variable for database path, fallback to current directory
+DB_DIR = os.getenv("DB_DIR", ".")
+Path(DB_DIR).mkdir(parents=True, exist_ok=True)
+
+SQLALCHEMY_DATABASE_URL = f"sqlite:///{DB_DIR}/exam.db"
 
 # For SQLite + FastAPI threads
 engine = create_engine(

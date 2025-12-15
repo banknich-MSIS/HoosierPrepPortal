@@ -23,10 +23,22 @@ def calculate_weak_areas(attempts: List[Attempt], db: Session) -> List[Dict[str,
     """
     Calculate concept-level performance across all completed attempts.
     Returns a list of concepts sorted by accuracy (worst to best).
+    Includes tags from uploads where concepts appeared.
     """
     concept_stats = {}
     
     for attempt in attempts:
+        exam = db.get(Exam, attempt.exam_id)
+        if not exam:
+            continue
+        
+        upload = db.get(Upload, exam.upload_id)
+        if not upload:
+            continue
+        
+        # Get class tags from upload
+        upload_tags = [cls.name for cls in upload.classes] if upload.classes else []
+        
         answers = db.query(AttemptAnswer).filter(AttemptAnswer.attempt_id == attempt.id).all()
         
         for answer in answers:
@@ -40,7 +52,8 @@ def calculate_weak_areas(attempts: List[Attempt], db: Session) -> List[Dict[str,
                     concept_stats[concept_id] = {
                         "total_attempts": 0,
                         "correct_attempts": 0,
-                        "last_seen_at": None
+                        "last_seen_at": None,
+                        "tags": set()  # Use set to collect unique tags
                     }
                 
                 concept_stats[concept_id]["total_attempts"] += 1
@@ -52,6 +65,9 @@ def calculate_weak_areas(attempts: List[Attempt], db: Session) -> List[Dict[str,
                     if (concept_stats[concept_id]["last_seen_at"] is None or 
                         attempt.finished_at > concept_stats[concept_id]["last_seen_at"]):
                         concept_stats[concept_id]["last_seen_at"] = attempt.finished_at
+                
+                # Add tags from this upload
+                concept_stats[concept_id]["tags"].update(upload_tags)
     
     # Build the result list
     weak_areas = []
@@ -73,7 +89,8 @@ def calculate_weak_areas(attempts: List[Attempt], db: Session) -> List[Dict[str,
             "accuracy_pct": round(accuracy_pct, 1),
             "correct_attempts": stats["correct_attempts"],
             "total_attempts": stats["total_attempts"],
-            "last_seen_at": stats["last_seen_at"].isoformat() if stats["last_seen_at"] else None
+            "last_seen_at": stats["last_seen_at"].isoformat() if stats["last_seen_at"] else None,
+            "tags": sorted(list(stats["tags"]))  # Convert set to sorted list
         })
     
     # Sort by accuracy (worst first)

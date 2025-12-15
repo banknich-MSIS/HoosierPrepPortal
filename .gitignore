@@ -253,3 +253,7 @@ StudyTool/uploads/**
 .frontend.pid
 StudyTool/server/.backend.pid
 StudyTool/web/.frontend.pid
+
+# Docker data directories (contain databases, uploads, logs)
+data/
+!data/.gitkeep

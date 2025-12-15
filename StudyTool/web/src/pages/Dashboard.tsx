@@ -500,10 +500,6 @@ export default function Dashboard() {
   const hasInProgressExams =
     inProgressAttempts && inProgressAttempts.length > 0;
 
-  // Separate analytics from other sections to ensure it loads first (prevents layout shifts)
-  const analyticsSection = visibleSections.find((s) => s.id === "analytics");
-  const otherSections = visibleSections.filter((s) => s.id !== "analytics");
-
   return (
     <>
       <div style={{ display: "grid", gap: 24 }}>
@@ -558,9 +554,6 @@ export default function Dashboard() {
           </button>
         </div>
 
-        {/* ALWAYS render Performance Analytics first (if visible) to prevent layout shifts */}
-        {analyticsSection && renderSection("analytics")}
-
         {/* Automatically show Exams in Progress when there are paused exams */}
         {hasInProgressExams && (
           <section key="in_progress">
@@ -584,8 +577,8 @@ export default function Dashboard() {
           </section>
         )}
 
-        {/* Render other sections based on user settings */}
-        {otherSections.map((section) => renderSection(section.id))}
+        {/* Render all sections based on user settings in their saved order */}
+        {visibleSections.map((section) => renderSection(section.id))}
       </div>
 
       {/* Layout Settings Modal */}

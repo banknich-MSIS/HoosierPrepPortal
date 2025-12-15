@@ -1,0 +1,22 @@
+# Root level dockerignore to prevent unnecessary files in build context
+.git
+.gitignore
+*.md
+!DOCKER.md
+!CLASSMATE_QUICK_START.md
+!SHARING_WITH_CLASSMATES.md
+data/
+*.log
+.DS_Store
+.vscode/
+.idea/
+*.pid
+node_modules/
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.db
+.env
+.env.local
+

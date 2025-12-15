@@ -133,6 +133,7 @@ export interface WeakArea {
   correct_attempts: number;
   total_attempts: number;
   last_seen_at: string | null;
+  tags?: string[];
 }
 
 export interface TimeManagementAttempt {

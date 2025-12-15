@@ -30,7 +30,12 @@ def setup_logging():
     Captures all logs, errors, and stack traces for debugging.
     """
     # Determine log file path
-    log_dir = Path(__file__).parent
+    # In Docker, use /app/logs, otherwise use the server directory
+    if os.getenv("DB_DIR"):  # Docker environment
+        log_dir = Path("/app/logs")
+    else:
+        log_dir = Path(__file__).parent
+    log_dir.mkdir(parents=True, exist_ok=True)
     log_file = log_dir / "backend.log"
     
     # Create a logger
@@ -87,11 +92,17 @@ def create_app() -> FastAPI:
             content={"detail": exc.errors(), "body": str(exc.body)},
         )
 
-    # CORS for Vite dev server
+    # CORS for Vite dev server and Docker
     origins = [
         "http://localhost:5173",
         "http://127.0.0.1:5173",
+        "http://localhost:80",      # Docker nginx
+        "http://localhost",          # Docker nginx (no port)
+        os.getenv("FRONTEND_URL", ""),  # Environment variable override
     ]
+    # Filter out empty strings
+    origins = [o for o in origins if o]
+    
     app.add_middleware(
         CORSMiddleware,
         allow_origins=origins,
@@ -170,13 +181,18 @@ if __name__ == "__main__":
                     except (ValueError, IndexError):
                         pass
     
-    # Determine database path
-    if getattr(sys, 'frozen', False):
-        # Running as packaged executable
-        db_dir = os.path.dirname(sys.executable)
-    else:
-        # Running as script
-        db_dir = os.path.dirname(os.path.dirname(__file__))
+    # Determine database path - use environment variable for Docker, otherwise default
+    db_dir = os.getenv("DB_DIR")
+    if not db_dir:
+        if getattr(sys, 'frozen', False):
+            # Running as packaged executable
+            db_dir = os.path.dirname(sys.executable)
+        else:
+            # Running as script
+            db_dir = os.path.dirname(os.path.dirname(__file__))
+    
+    # Ensure directory exists
+    os.makedirs(db_dir, exist_ok=True)
     
     # Set database path if needed
     os.environ.setdefault('DB_PATH', os.path.join(db_dir, 'exam.db'))

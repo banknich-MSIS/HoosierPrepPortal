@@ -5,8 +5,6 @@ import {
   PieChart,
   Pie,
   Cell,
-  BarChart,
-  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -47,6 +45,10 @@ const PerformanceAnalytics = React.memo(({
   const [availableClasses, setAvailableClasses] = useState<string[]>([]);
   const [showStaleDataNotice, setShowStaleDataNotice] = useState(false);
   const [hoveredButton, setHoveredButton] = useState<string | null>(null);
+  const [weakAreasExpanded, setWeakAreasExpanded] = useState(true);
+  const [dateFilter, setDateFilter] = useState<string>("all");
+  const [accuracyFilter, setAccuracyFilter] = useState<string>("all");
+  const [tagFilter, setTagFilter] = useState<string>("all");
 
   useEffect(() => {
     loadAnalytics();
@@ -308,10 +310,6 @@ const PerformanceAnalytics = React.memo(({
     }))
     .sort((a, b) => b.accuracy - a.accuracy);
 
-  // Momentum data
-  const momentum = analytics.momentum;
-  const hasMomentumData = momentum && (momentum.recent.exams_count > 0 || momentum.previous.exams_count > 0);
-  
   return (
     <div
       style={{
@@ -325,159 +323,6 @@ const PerformanceAnalytics = React.memo(({
       }}
     >
       {/* Heading removed per request */}
-
-      {/* Recent Performance Momentum Hero Card */}
-      {momentum && (
-        <div
-          style={{
-            marginBottom: 24,
-            padding: 20,
-            background: darkMode
-              ? "rgba(212, 166, 80, 0.08)"
-              : "rgba(196, 30, 58, 0.05)",
-            backdropFilter: "blur(8px)",
-            WebkitBackdropFilter: "blur(8px)",
-            borderRadius: 10,
-            border: `1px solid ${theme.glassBorder}`,
-          }}
-        >
-          <div
-            style={{
-              fontSize: 16,
-              fontWeight: 700,
-              color: theme.crimson,
-              marginBottom: 12,
-            }}
-          >
-            Recent Performance (Last {momentum.recent_window_days} Days vs Previous {momentum.previous_window_days})
-          </div>
-          
-          {!hasMomentumData ? (
-            <div
-              style={{
-                fontSize: 14,
-                color: theme.textSecondary,
-                fontStyle: "italic",
-              }}
-            >
-              Keep taking exams to unlock momentum insights.
-            </div>
-          ) : (
-            <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
-              {/* Score Comparison */}
-              <div style={{ flex: 1 }}>
-                <div
-                  style={{
-                    fontSize: 12,
-                    color: theme.textSecondary,
-                    marginBottom: 6,
-                  }}
-                >
-                  Score
-                </div>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                    fontSize: 20,
-                    fontWeight: 700,
-                    color: theme.text,
-                  }}
-                >
-                  {momentum.previous.avg_score_pct !== null ? (
-                    <>
-                      <span>{momentum.previous.avg_score_pct}%</span>
-                      <span style={{ fontSize: 16, color: theme.textSecondary }}>→</span>
-                      <span>{momentum.recent.avg_score_pct}%</span>
-                      {momentum.deltas.score_change_pct_points !== null && (
-                        <span
-                          style={{
-                            fontSize: 14,
-                            fontWeight: 600,
-                            color:
-                              momentum.deltas.score_change_pct_points > 0
-                                ? "#10b981"
-                                : momentum.deltas.score_change_pct_points < 0
-                                ? "#ef4444"
-                                : theme.textSecondary,
-                          }}
-                        >
-                          ({momentum.deltas.score_change_pct_points > 0 ? "+" : ""}
-                          {momentum.deltas.score_change_pct_points} pts)
-                        </span>
-                      )}
-                    </>
-                  ) : momentum.recent.avg_score_pct !== null ? (
-                    <span>{momentum.recent.avg_score_pct}%</span>
-                  ) : (
-                    <span style={{ fontSize: 14, color: theme.textSecondary }}>
-                      No data
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {/* Exams Count */}
-              <div style={{ flex: 1 }}>
-                <div
-                  style={{
-                    fontSize: 12,
-                    color: theme.textSecondary,
-                    marginBottom: 6,
-                  }}
-                >
-                  Exams
-                </div>
-                <div
-                  style={{
-                    fontSize: 20,
-                    fontWeight: 700,
-                    color: theme.text,
-                  }}
-                >
-                  {momentum.previous.exams_count} → {momentum.recent.exams_count}
-                </div>
-              </div>
-
-              {/* Momentum Chip */}
-              <div
-                style={{
-                  padding: "8px 16px",
-                  borderRadius: 20,
-                  fontSize: 14,
-                  fontWeight: 700,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.5px",
-                  background:
-                    momentum.momentum === "improving"
-                      ? "rgba(16, 185, 129, 0.15)"
-                      : momentum.momentum === "declining"
-                      ? "rgba(239, 68, 68, 0.15)"
-                      : "rgba(156, 163, 175, 0.15)",
-                  color:
-                    momentum.momentum === "improving"
-                      ? "#10b981"
-                      : momentum.momentum === "declining"
-                      ? "#ef4444"
-                      : theme.textSecondary,
-                  border: `1px solid ${
-                    momentum.momentum === "improving"
-                      ? "rgba(16, 185, 129, 0.3)"
-                      : momentum.momentum === "declining"
-                      ? "rgba(239, 68, 68, 0.3)"
-                      : theme.glassBorder
-                  }`,
-                }}
-              >
-                {momentum.momentum === "improving" && "📈 Improving"}
-                {momentum.momentum === "declining" && "📉 Declining"}
-                {momentum.momentum === "flat" && "➡️ Steady"}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
 
       {/* AI Insights Card - Temporarily Hidden */}
       {false && (
@@ -1010,15 +855,45 @@ const PerformanceAnalytics = React.memo(({
             border: `1px solid ${theme.glassBorder}`,
           }}
         >
+          {/* Collapsible Header */}
           <div
             style={{
-              fontSize: 16,
-              fontWeight: 700,
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
               marginBottom: 16,
-              color: theme.text,
+              cursor: "pointer",
             }}
+            onClick={() => setWeakAreasExpanded(!weakAreasExpanded)}
           >
-            Weak Areas Deep Dive
+            <div
+              style={{
+                fontSize: 16,
+                fontWeight: 700,
+                color: theme.text,
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+              }}
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                style={{
+                  transform: weakAreasExpanded ? "rotate(90deg)" : "rotate(0deg)",
+                  transition: "transform 0.3s ease-in-out",
+                }}
+              >
+                <polyline points="9 18 15 12 9 6"></polyline>
+              </svg>
+              Weak Areas Deep Dive
+            </div>
           </div>
 
           {analytics.weak_areas.length === 0 ? (
@@ -1034,512 +909,457 @@ const PerformanceAnalytics = React.memo(({
               tagged with concepts.
             </div>
           ) : (
-            <>
-              {/* Summary */}
+            <div
+              style={{
+                maxHeight: weakAreasExpanded ? "3000px" : "0",
+                overflow: "hidden",
+                transition: "max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease-in-out",
+                opacity: weakAreasExpanded ? 1 : 0,
+              }}
+            >
+              {weakAreasExpanded && (
+                <>
+                  {/* Filter Controls */}
               <div
                 style={{
-                  fontSize: 13,
-                  color: theme.text,
+                  display: "flex",
+                  gap: 12,
                   marginBottom: 16,
-                  padding: 10,
-                  background: darkMode
-                    ? "rgba(255, 255, 255, 0.05)"
-                    : "rgba(0, 0, 0, 0.03)",
-                  borderRadius: 6,
-                  border: `1px solid ${theme.glassBorder}`,
+                  flexWrap: "wrap",
+                  alignItems: "flex-start",
                 }}
               >
-                <strong>Top 3 weak areas:</strong>{" "}
-                {analytics.weak_areas
-                  .slice(0, 3)
-                  .map((area) => area.concept_name)
-                  .join(", ")}
+                {/* Date Filter */}
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <label
+                    style={{
+                      fontSize: 13,
+                      color: theme.textSecondary,
+                      fontWeight: 500,
+                    }}
+                  >
+                    Date Filter:
+                  </label>
+                  <select
+                    value={dateFilter}
+                    onChange={(e) => setDateFilter(e.target.value)}
+                    onClick={(e) => e.stopPropagation()}
+                    style={{
+                      padding: "6px 12px",
+                      background: darkMode
+                        ? "rgba(255, 255, 255, 0.05)"
+                        : "rgba(0, 0, 0, 0.05)",
+                      color: theme.text,
+                      border: `1px solid ${theme.glassBorder}`,
+                      borderRadius: 6,
+                      cursor: "pointer",
+                      fontSize: 13,
+                      fontWeight: 500,
+                      outline: "none",
+                    }}
+                  >
+                    <option value="all">All Time</option>
+                    <option value="60">Last 60 Days</option>
+                    <option value="30">Last 30 Days</option>
+                    <option value="14">Last 14 Days</option>
+                    <option value="7">Last 7 Days</option>
+                    <option value="1">Last Day</option>
+                  </select>
+                </div>
+
+                {/* Accuracy Filter */}
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <label
+                    style={{
+                      fontSize: 13,
+                      color: theme.textSecondary,
+                      fontWeight: 500,
+                    }}
+                  >
+                    Accuracy:
+                  </label>
+                  <select
+                    value={accuracyFilter}
+                    onChange={(e) => setAccuracyFilter(e.target.value)}
+                    onClick={(e) => e.stopPropagation()}
+                    style={{
+                      padding: "6px 12px",
+                      background: darkMode
+                        ? "rgba(255, 255, 255, 0.05)"
+                        : "rgba(0, 0, 0, 0.05)",
+                      color: theme.text,
+                      border: `1px solid ${theme.glassBorder}`,
+                      borderRadius: 6,
+                      cursor: "pointer",
+                      fontSize: 13,
+                      fontWeight: 500,
+                      outline: "none",
+                    }}
+                  >
+                    <option value="all">All</option>
+                    <option value="60">Under 60%</option>
+                    <option value="75">Under 75%</option>
+                    <option value="90">Under 90%</option>
+                  </select>
+                </div>
+
+                {/* Tag Filter */}
+                {(() => {
+                  // Extract unique tags from all weak areas
+                  const allTags = new Set<string>();
+                  analytics.weak_areas.forEach((area) => {
+                    if (area.tags && area.tags.length > 0) {
+                      area.tags.forEach((tag) => allTags.add(tag));
+                    }
+                  });
+                  const uniqueTags = Array.from(allTags).sort();
+
+                  return uniqueTags.length > 0 ? (
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <label
+                        style={{
+                          fontSize: 13,
+                          color: theme.textSecondary,
+                          fontWeight: 500,
+                        }}
+                      >
+                        Tag:
+                      </label>
+                      <select
+                        value={tagFilter}
+                        onChange={(e) => setTagFilter(e.target.value)}
+                        onClick={(e) => e.stopPropagation()}
+                        style={{
+                          padding: "6px 12px",
+                          background: darkMode
+                            ? "rgba(255, 255, 255, 0.05)"
+                            : "rgba(0, 0, 0, 0.05)",
+                          color: theme.text,
+                          border: `1px solid ${theme.glassBorder}`,
+                          borderRadius: 6,
+                          cursor: "pointer",
+                          fontSize: 13,
+                          fontWeight: 500,
+                          outline: "none",
+                        }}
+                      >
+                        <option value="all">All Tags</option>
+                        {uniqueTags.map((tag) => (
+                          <option key={tag} value={tag}>
+                            {tag}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  ) : null;
+                })()}
               </div>
 
-              {/* Bar Chart for Worst 5 Concepts */}
-              {analytics.weak_areas.length > 0 && (
-                <ResponsiveContainer width="100%" height={200}>
-                  <BarChart
-                    data={analytics.weak_areas.slice(0, 5)}
-                    layout="vertical"
-                    margin={{ top: 5, right: 30, left: 120, bottom: 5 }}
-                  >
-                    <CartesianGrid
-                      strokeDasharray="3 3"
-                      stroke={theme.glassBorder}
-                    />
-                    <XAxis
-                      type="number"
-                      domain={[0, 100]}
-                      stroke={theme.textSecondary}
-                      style={{ fontSize: 11 }}
-                    />
-                    <YAxis
-                      type="category"
-                      dataKey="concept_name"
-                      stroke={theme.textSecondary}
-                      style={{ fontSize: 11 }}
-                      width={110}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: darkMode ? "#2d1819" : "#fff",
-                        border: `1px solid ${theme.glassBorder}`,
-                        borderRadius: 6,
-                        fontSize: 12,
-                        color: darkMode ? "#fff" : "#000",
-                      }}
-                      formatter={(value: any, name: string, props: any) => [
-                        `${value}% (${props.payload.correct_attempts}/${props.payload.total_attempts})`,
-                        "Accuracy",
-                      ]}
-                    />
-                    <Bar dataKey="accuracy_pct" fill={theme.crimson} />
-                  </BarChart>
-                </ResponsiveContainer>
-              )}
+              {/* Filter Logic */}
+              {(() => {
+                const filterByDate = (concept: typeof analytics.weak_areas[0]) => {
+                  if (dateFilter === "all") return true;
+                  if (!concept.last_seen_at) return false;
+                  
+                  const lastSeen = new Date(concept.last_seen_at);
+                  const now = new Date();
+                  const daysAgo = {
+                    "1": 1,
+                    "7": 7,
+                    "14": 14,
+                    "30": 30,
+                    "60": 60
+                  }[dateFilter] || 0;
+                  
+                  return (now.getTime() - lastSeen.getTime()) <= (daysAgo * 24 * 60 * 60 * 1000);
+                };
 
-              {/* Detailed Table */}
-              <div style={{ marginTop: 16, overflowX: "auto" }}>
-                <table
-                  style={{
-                    width: "100%",
-                    borderCollapse: "collapse",
-                    fontSize: 13,
-                  }}
-                >
-                  <thead>
-                    <tr
-                      style={{
-                        borderBottom: `1px solid ${theme.glassBorder}`,
-                      }}
-                    >
-                      <th
+                const filterByAccuracy = (concept: typeof analytics.weak_areas[0]) => {
+                  if (accuracyFilter === "all") return true;
+                  const threshold = {
+                    "60": 60,
+                    "75": 75,
+                    "90": 90
+                  }[accuracyFilter] || 100;
+                  return concept.accuracy_pct < threshold;
+                };
+
+                const filterByTag = (concept: typeof analytics.weak_areas[0]) => {
+                  if (tagFilter === "all") return true;
+                  if (!concept.tags || concept.tags.length === 0) return false;
+                  return concept.tags.includes(tagFilter);
+                };
+
+                const filteredAreas = analytics.weak_areas.filter(
+                  (area) => filterByDate(area) && filterByAccuracy(area) && filterByTag(area)
+                );
+
+                return (
+                  <>
+                    {/* Top Items to Review */}
+                    {filteredAreas.length > 0 && (
+                      <div
                         style={{
-                          textAlign: "left",
+                          marginBottom: 12,
                           padding: "8px 12px",
-                          color: theme.textSecondary,
-                          fontWeight: 600,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                          background: darkMode
+                            ? "rgba(212, 166, 80, 0.15)"
+                            : "rgba(196, 30, 58, 0.12)",
+                          borderRadius: 6,
+                          border: `1px solid ${theme.glassBorder}`,
                         }}
                       >
-                        Concept
-                      </th>
-                      <th
-                        style={{
-                          textAlign: "right",
-                          padding: "8px 12px",
-                          color: theme.textSecondary,
-                          fontWeight: 600,
-                        }}
-                      >
-                        Accuracy
-                      </th>
-                      <th
-                        style={{
-                          textAlign: "right",
-                          padding: "8px 12px",
-                          color: theme.textSecondary,
-                          fontWeight: 600,
-                        }}
-                      >
-                        Correct/Total
-                      </th>
-                      <th
-                        style={{
-                          textAlign: "right",
-                          padding: "8px 12px",
-                          color: theme.textSecondary,
-                          fontWeight: 600,
-                        }}
-                      >
-                        Last Seen
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {analytics.weak_areas.map((area, idx) => (
-                      <tr
-                        key={area.concept_id}
-                        style={{
-                          borderBottom: `1px solid ${theme.glassBorder}`,
-                          background:
-                            idx % 2 === 0
-                              ? darkMode
-                                ? "rgba(255, 255, 255, 0.02)"
-                                : "rgba(0, 0, 0, 0.02)"
-                              : "transparent",
-                        }}
-                      >
-                        <td
+                        <svg
+                          width="18"
+                          height="18"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          xmlns="http://www.w3.org/2000/svg"
                           style={{
-                            padding: "10px 12px",
+                            color: darkMode ? theme.amber : theme.crimson,
+                            flexShrink: 0,
+                          }}
+                        >
+                          <path
+                            d="M9 12L11 14L15 10M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                        <span
+                          style={{
+                            fontSize: 13,
+                            fontWeight: 600,
                             color: theme.text,
                           }}
                         >
-                          {area.concept_name}
-                        </td>
-                        <td
-                          style={{
-                            padding: "10px 12px",
-                            textAlign: "right",
-                            fontWeight: 600,
-                            color:
-                              area.accuracy_pct < 60
-                                ? "#ef4444"
-                                : area.accuracy_pct < 75
-                                ? "#f59e0b"
-                                : "#10b981",
-                          }}
-                        >
-                          {area.accuracy_pct}%
-                        </td>
-                        <td
-                          style={{
-                            padding: "10px 12px",
-                            textAlign: "right",
-                            color: theme.textSecondary,
-                          }}
-                        >
-                          {area.correct_attempts}/{area.total_attempts}
-                        </td>
-                        <td
-                          style={{
-                            padding: "10px 12px",
-                            textAlign: "right",
-                            color: theme.textSecondary,
-                            fontSize: 12,
-                          }}
-                        >
-                          {area.last_seen_at
-                            ? new Date(area.last_seen_at).toLocaleDateString(
-                                "en-US",
-                                { month: "short", day: "numeric" }
-                              )
-                            : "N/A"}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </>
-          )}
-        </div>
-      )}
+                          Top items to review
+                        </span>
+                      </div>
+                    )}
 
-      {/* Time Management Dashboard Section */}
-      {analytics.time_management && (
-        <div
-          style={{
-            marginBottom: 24,
-            padding: 18,
-            background: "rgba(255, 255, 255, 0.03)",
-            backdropFilter: "blur(8px)",
-            WebkitBackdropFilter: "blur(8px)",
-            borderRadius: 10,
-            border: `1px solid ${theme.glassBorder}`,
-          }}
-        >
-          <div
-            style={{
-              fontSize: 16,
-              fontWeight: 700,
-              marginBottom: 16,
-              color: theme.text,
-            }}
-          >
-            Time Management
-          </div>
-
-          {analytics.time_management.attempts.length === 0 ? (
-            <div
-              style={{
-                fontSize: 14,
-                color: theme.textSecondary,
-                fontStyle: "italic",
-                padding: "12px 0",
-              }}
-            >
-              No timing data yet. Complete an exam with a recorded duration to
-              unlock time insights.
-            </div>
-          ) : (
-            <>
-              {/* Summary Cards */}
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr 1fr",
-                  gap: 12,
-                  marginBottom: 16,
-                }}
-              >
-                <div
-                  style={{
-                    padding: 12,
-                    background: darkMode
-                      ? "rgba(255, 255, 255, 0.05)"
-                      : "rgba(0, 0, 0, 0.03)",
-                    borderRadius: 6,
-                    border: `1px solid ${theme.glassBorder}`,
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 11,
-                      color: theme.textSecondary,
-                      marginBottom: 4,
-                    }}
-                  >
-                    Average Time per Question
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 20,
-                      fontWeight: 700,
-                      color: theme.text,
-                    }}
-                  >
-                    {analytics.time_management.summary
-                      .overall_avg_time_per_question_seconds !== null
-                      ? `${analytics.time_management.summary.overall_avg_time_per_question_seconds}s`
-                      : "N/A"}
-                  </div>
-                </div>
-                <div
-                  style={{
-                    padding: 12,
-                    background: darkMode
-                      ? "rgba(255, 255, 255, 0.05)"
-                      : "rgba(0, 0, 0, 0.03)",
-                    borderRadius: 6,
-                    border: `1px solid ${theme.glassBorder}`,
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 11,
-                      color: theme.textSecondary,
-                      marginBottom: 4,
-                    }}
-                  >
-                    Recommended Range
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 20,
-                      fontWeight: 700,
-                      color: theme.text,
-                    }}
-                  >
-                    {analytics.time_management.summary.recommended_range_seconds[0]}
-                    –
-                    {analytics.time_management.summary.recommended_range_seconds[1]}
-                    s
-                  </div>
-                </div>
-              </div>
-
-              {/* Time per Question Over Time Chart */}
-              <div style={{ marginBottom: 16 }}>
-                <div
-                  style={{
-                    fontSize: 13,
-                    fontWeight: 600,
-                    color: theme.text,
-                    marginBottom: 8,
-                  }}
-                >
-                  Time per Question Over Time
-                </div>
-                <ResponsiveContainer width="100%" height={180}>
-                  <LineChart
-                    data={analytics.time_management.attempts.map((att, idx) => ({
-                      index: idx,
-                      date: new Date(att.finished_at).toLocaleDateString(
-                        "en-US",
-                        { month: "short", day: "numeric" }
-                      ),
-                      avg_time: att.avg_time_per_question_seconds,
-                    }))}
-                  >
-                    <CartesianGrid
-                      strokeDasharray="3 3"
-                      stroke={theme.glassBorder}
-                    />
-                    <XAxis
-                      dataKey="index"
-                      stroke={theme.textSecondary}
-                      style={{ fontSize: 11 }}
-                      tickFormatter={(val) => {
-                        const item = analytics.time_management.attempts[val];
-                        return item
-                          ? new Date(item.finished_at).toLocaleDateString(
-                              "en-US",
-                              { month: "short", day: "numeric" }
-                            )
-                          : "";
+                    {/* Detailed Table */}
+                    <div
+                      className="weak-areas-table-scroll"
+                      style={{
+                        overflowX: "auto",
+                        overflowY: "auto",
+                        maxHeight: "500px",
+                        position: "relative",
                       }}
-                      type="number"
-                      domain={["dataMin", "dataMax"]}
-                    />
-                    <YAxis
-                      stroke={theme.textSecondary}
-                      style={{ fontSize: 11 }}
-                      label={{
-                        value: "Seconds",
-                        angle: -90,
-                        position: "insideLeft",
-                        style: { fontSize: 11, fill: theme.textSecondary },
-                      }}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: darkMode ? "#2d1819" : "#fff",
-                        border: `1px solid ${theme.glassBorder}`,
-                        borderRadius: 6,
-                        fontSize: 12,
-                        color: darkMode ? "#fff" : "#000",
-                      }}
-                      formatter={(value: any) => [`${value}s`, "Avg Time"]}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="avg_time"
-                      stroke={theme.amber}
-                      strokeWidth={2}
-                      dot={{ fill: theme.amber, r: 3 }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-
-              {/* Speed vs Accuracy Scatter Plot */}
-              <div style={{ marginBottom: 16 }}>
-                <div
-                  style={{
-                    fontSize: 13,
-                    fontWeight: 600,
-                    color: theme.text,
-                    marginBottom: 8,
-                  }}
-                >
-                  Speed vs Accuracy
-                </div>
-                <ResponsiveContainer width="100%" height={200}>
-                  <BarChart
-                    data={analytics.time_management.attempts.map((att) => ({
-                      time: att.avg_time_per_question_seconds,
-                      score: att.score_pct,
-                      date: new Date(att.finished_at).toLocaleDateString(
-                        "en-US",
-                        { month: "short", day: "numeric" }
-                      ),
-                    }))}
-                  >
-                    <CartesianGrid
-                      strokeDasharray="3 3"
-                      stroke={theme.glassBorder}
-                    />
-                    <XAxis
-                      dataKey="time"
-                      stroke={theme.textSecondary}
-                      style={{ fontSize: 11 }}
-                      label={{
-                        value: "Avg Time per Question (s)",
-                        position: "insideBottom",
-                        offset: -5,
-                        style: { fontSize: 11, fill: theme.textSecondary },
-                      }}
-                    />
-                    <YAxis
-                      dataKey="score"
-                      stroke={theme.textSecondary}
-                      style={{ fontSize: 11 }}
-                      domain={[0, 100]}
-                      label={{
-                        value: "Score %",
-                        angle: -90,
-                        position: "insideLeft",
-                        style: { fontSize: 11, fill: theme.textSecondary },
-                      }}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: darkMode ? "#2d1819" : "#fff",
-                        border: `1px solid ${theme.glassBorder}`,
-                        borderRadius: 6,
-                        fontSize: 12,
-                        color: darkMode ? "#fff" : "#000",
-                      }}
-                      formatter={(value: any, name: string, props: any) => {
-                        if (name === "score") return [`${value}%`, "Score"];
-                        if (name === "time") return [`${value}s`, "Avg Time"];
-                        return [value, name];
-                      }}
-                      labelFormatter={(label, payload) => {
-                        if (payload && payload[0]) {
-                          return payload[0].payload.date;
+                    >
+                      <style>{`
+                        /* Custom scrollbar styling */
+                        .weak-areas-table-scroll::-webkit-scrollbar {
+                          width: 8px;
+                          height: 8px;
                         }
-                        return label;
-                      }}
-                    />
-                    <Bar dataKey="score" fill={theme.crimson} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-
-              {/* Text Interpretation */}
-              {(() => {
-                const recentAttempts = analytics.time_management.attempts.slice(-5);
-                if (recentAttempts.length === 0) return null;
-
-                const avgTime =
-                  recentAttempts.reduce(
-                    (sum, att) => sum + att.avg_time_per_question_seconds,
-                    0
-                  ) / recentAttempts.length;
-                const avgScore =
-                  recentAttempts.reduce((sum, att) => sum + att.score_pct, 0) /
-                  recentAttempts.length;
-
-                const [lowerBound, upperBound] =
-                  analytics.time_management.summary.recommended_range_seconds;
-
-                let interpretation = "";
-                if (avgTime < lowerBound && avgScore < 75) {
-                  interpretation =
-                    "You're working very fast and missing more than you should. Try slowing down slightly on each question.";
-                } else if (avgTime > upperBound && avgScore >= 80) {
-                  interpretation =
-                    "You're accurate but slow. Practice answering slightly faster to avoid running out of time.";
-                } else {
-                  interpretation =
-                    "Your speed and accuracy are reasonably balanced. Keep practicing at this pace.";
-                }
-
-                return (
-                  <div
-                    style={{
-                      padding: 12,
-                      background: darkMode
-                        ? "rgba(212, 166, 80, 0.08)"
-                        : "rgba(196, 30, 58, 0.05)",
-                      borderRadius: 6,
-                      border: `1px solid ${theme.glassBorder}`,
-                      fontSize: 13,
-                      color: theme.text,
-                      lineHeight: 1.5,
-                    }}
-                  >
-                    <strong>💡 Insight:</strong> {interpretation}
-                  </div>
+                        .weak-areas-table-scroll::-webkit-scrollbar-track {
+                          background: ${darkMode ? "rgba(255, 255, 255, 0.05)" : "rgba(0, 0, 0, 0.05)"};
+                          border-radius: 4px;
+                        }
+                        .weak-areas-table-scroll::-webkit-scrollbar-thumb {
+                          background: ${theme.glassBorder};
+                          border-radius: 4px;
+                        }
+                        .weak-areas-table-scroll::-webkit-scrollbar-thumb:hover {
+                          background: ${theme.crimson};
+                        }
+                      `}</style>
+                      <table
+                        style={{
+                          width: "100%",
+                          borderCollapse: "collapse",
+                          fontSize: 13,
+                        }}
+                      >
+                        <thead
+                          style={{
+                            position: "sticky",
+                            top: 0,
+                            background: darkMode
+                              ? "rgba(45, 24, 25, 1)"
+                              : "rgba(255, 255, 255, 1)",
+                            backdropFilter: "blur(20px)",
+                            WebkitBackdropFilter: "blur(20px)",
+                            zIndex: 10,
+                          }}
+                        >
+                          <tr
+                            style={{
+                              borderBottom: `1px solid ${theme.glassBorder}`,
+                            }}
+                          >
+                            <th
+                              style={{
+                                textAlign: "left",
+                                padding: "8px 12px",
+                                color: theme.crimson,
+                                fontWeight: 700,
+                                fontSize: 14,
+                              }}
+                            >
+                              Concept
+                            </th>
+                            <th
+                              style={{
+                                textAlign: "right",
+                                padding: "8px 12px",
+                                color: theme.crimson,
+                                fontWeight: 700,
+                                fontSize: 14,
+                              }}
+                            >
+                              Accuracy
+                            </th>
+                            <th
+                              style={{
+                                textAlign: "right",
+                                padding: "8px 12px",
+                                color: theme.crimson,
+                                fontWeight: 700,
+                                fontSize: 14,
+                              }}
+                            >
+                              Correct/Total
+                            </th>
+                            <th
+                              style={{
+                                textAlign: "right",
+                                padding: "8px 12px",
+                                color: theme.crimson,
+                                fontWeight: 700,
+                                fontSize: 14,
+                              }}
+                            >
+                              Last Seen
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filteredAreas.map((area, idx) => (
+                            <tr
+                              key={area.concept_id}
+                              style={{
+                                borderBottom: `1px solid ${theme.glassBorder}`,
+                                background:
+                                  idx % 2 === 0
+                                    ? darkMode
+                                      ? "rgba(255, 255, 255, 0.02)"
+                                      : "rgba(0, 0, 0, 0.02)"
+                                    : "transparent",
+                              }}
+                            >
+                              <td
+                                style={{
+                                  padding: "10px 12px",
+                                  color: theme.text,
+                                  fontWeight: idx < 5 ? 700 : 400,
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 8,
+                                  }}
+                                >
+                                  <span>{area.concept_name}</span>
+                                  {idx < 5 && (
+                                    <svg
+                                      width="16"
+                                      height="16"
+                                      viewBox="0 0 24 24"
+                                      fill="none"
+                                      xmlns="http://www.w3.org/2000/svg"
+                                      style={{
+                                        color: darkMode ? theme.amber : theme.crimson,
+                                        flexShrink: 0,
+                                      }}
+                                    >
+                                      <path
+                                        d="M9 12L11 14L15 10M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z"
+                                        stroke="currentColor"
+                                        strokeWidth="2"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                      />
+                                    </svg>
+                                  )}
+                                </div>
+                              </td>
+                                <td
+                                  style={{
+                                    padding: "10px 12px",
+                                    textAlign: "right",
+                                    fontWeight: 600,
+                                    color:
+                                      area.accuracy_pct < 60
+                                        ? "#ef4444"
+                                        : area.accuracy_pct < 75
+                                        ? "#f59e0b"
+                                        : "#10b981",
+                                  }}
+                                >
+                                  {area.accuracy_pct}%
+                                </td>
+                                <td
+                                  style={{
+                                    padding: "10px 12px",
+                                    textAlign: "right",
+                                    color: theme.textSecondary,
+                                  }}
+                                >
+                                  {area.correct_attempts}/{area.total_attempts}
+                                </td>
+                                <td
+                                  style={{
+                                    padding: "10px 12px",
+                                    textAlign: "right",
+                                    color: theme.textSecondary,
+                                    fontSize: 12,
+                                  }}
+                                >
+                                  {area.last_seen_at
+                                    ? new Date(area.last_seen_at).toLocaleDateString(
+                                        "en-US",
+                                        { month: "short", day: "numeric" }
+                                      )
+                                    : "N/A"}
+                                </td>
+                              </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      {filteredAreas.length === 0 && (
+                        <div
+                          style={{
+                            padding: "20px 0",
+                            textAlign: "center",
+                            fontSize: 14,
+                            color: theme.textSecondary,
+                            fontStyle: "italic",
+                          }}
+                        >
+                          No concepts match the selected filters.
+                        </div>
+                      )}
+                    </div>
+                  </>
                 );
               })()}
-            </>
+                </>
+              )}
+            </div>
           )}
         </div>
       )}
+
 
       {/* Source Material Insights Removed per request */}
       

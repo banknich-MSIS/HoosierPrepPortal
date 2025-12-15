@@ -665,7 +665,6 @@ export default function AttemptReviewPage() {
                         backgroundColor: darkMode ? "#4d4d4d" : "#e0e0e0",
                         border: `1px solid ${theme.border}`,
                         borderRadius: 4,
-                        cursor: "pointer",
                         fontSize: "14px",
                         color: theme.text,
                         fontWeight: "bold",
