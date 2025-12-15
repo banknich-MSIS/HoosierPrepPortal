@@ -1161,10 +1161,10 @@ export default function ExamHistory({
                   }}
                   title={
                     (attempt.difficulty || "Medium").toLowerCase() === "easy"
-                      ? "Easy: Basic recall (~45s per question)"
+                      ? "Easy: Basic Recall & Recognition"
                       : (attempt.difficulty || "Medium").toLowerCase() === "hard"
-                      ? "Hard: Advanced analysis (~2min per question)"
-                      : "Medium: Application (~75s per question)"
+                      ? "Hard: Advanced Synthesis & Evaluation"
+                      : "Medium: Application & Analysis"
                   }
                 >
                   {attempt.difficulty || "Medium"}

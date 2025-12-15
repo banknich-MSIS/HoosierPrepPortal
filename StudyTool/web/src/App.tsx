@@ -39,7 +39,7 @@ export default function App() {
       setShowTutorial(true);
     }
 
-    // Listen for custom event from UploadPage
+    // Listen for custom event to show tutorial
     const handleShowTutorial = () => setShowTutorial(true);
     window.addEventListener("showTutorial", handleShowTutorial);
 

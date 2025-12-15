@@ -1168,6 +1168,13 @@ export default function AttemptReviewPage() {
                               display: "flex",
                               alignItems: "center",
                               gap: 6,
+                              transition: "all 0.2s ease",
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.background = theme.crimsonDark;
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.background = theme.crimson;
                             }}
                           >
                             <svg
@@ -1180,8 +1187,7 @@ export default function AttemptReviewPage() {
                               strokeLinecap="round"
                               strokeLinejoin="round"
                             >
-                              <path d="M12 3l1.5 5.5L19 10.5l-5.5 1.5L12 18l-1.5-5.5L5 10.5l5.5-1.5L12 3z" />
-                              <path d="M18 5l0.75 2.25L21 8l-2.25 0.75L18 11l-0.75-2.25L15 8l2.25-0.75L18 5z" />
+                              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
                             </svg>
                             Further Explanation
                           </button>
@@ -1214,6 +1220,13 @@ export default function AttemptReviewPage() {
                         display: "flex",
                         alignItems: "center",
                         gap: 6,
+                        transition: "all 0.2s ease",
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = theme.crimsonDark;
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = theme.crimson;
                       }}
                     >
                       <svg
@@ -1226,8 +1239,7 @@ export default function AttemptReviewPage() {
                         strokeLinecap="round"
                         strokeLinejoin="round"
                       >
-                        <path d="M12 3l1.5 5.5L19 10.5l-5.5 1.5L12 18l-1.5-5.5L5 10.5l5.5-1.5L12 3z" />
-                        <path d="M18 5l0.75 2.25L21 8l-2.25 0.75L18 11l-0.75-2.25L15 8l2.25-0.75L18 5z" />
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
                       </svg>
                       Ask AI for Explanation
                     </button>

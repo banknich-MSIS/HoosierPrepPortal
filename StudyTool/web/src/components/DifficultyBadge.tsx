@@ -42,7 +42,7 @@ export default function DifficultyBadge({
   const style = sizeStyles[size];
 
   const tooltip = showTooltip
-    ? `${info.description}\n~${Math.round(info.timePerQuestion * 60)}s per question\n\nCharacteristics:\n${info.characteristics.map(c => `• ${c}`).join('\n')}`
+    ? `${info.description}\n\nCharacteristics:\n${info.characteristics.map(c => `• ${c}`).join('\n')}`
     : undefined;
 
   return (
@@ -72,11 +72,6 @@ export default function DifficultyBadge({
         }}
       />
       {info.label}
-      {showTime && (
-        <span style={{ fontWeight: 400, opacity: 0.8, marginLeft: 2 }}>
-          ({Math.round(info.timePerQuestion * 60)}s)
-        </span>
-      )}
     </span>
   );
 }

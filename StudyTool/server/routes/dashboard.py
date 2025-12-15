@@ -20,19 +20,6 @@ from ..schemas import (
 router = APIRouter(tags=["dashboard"])
 
 
-@router.get("/debug/routes")
-def debug_routes():
-    """Debug endpoint to see all registered routes"""
-    routes_info = []
-    for route in router.routes:
-        routes_info.append({
-            "path": route.path,
-            "methods": list(route.methods) if hasattr(route, 'methods') else [],
-            "name": route.name
-        })
-    return {"routes": routes_info}
-
-
 @router.get("/uploads", response_model=List[UploadSummary])
 def get_all_uploads(archived: bool = False, db: Session = Depends(get_db)) -> List[UploadSummary]:
     """Return all uploaded CSVs with question counts and metadata"""
@@ -454,63 +441,6 @@ def get_attempt_detail(attempt_id: int, db: Session = Depends(get_db)) -> Attemp
         finished_at=attempt.finished_at or attempt.started_at,
         questions=question_reviews,
     )
-
-
-@router.get("/export/data")
-def export_performance_data(db: Session = Depends(get_db)) -> Dict[str, Any]:
-    """Export user's performance data and analytics as JSON"""
-    # Get all attempts
-    attempts = (
-        db.query(Attempt)
-        .filter(Attempt.finished_at.isnot(None))
-        .order_by(Attempt.finished_at.desc())
-        .all()
-    )
-    
-    # Build export data
-    export_attempts = []
-    total_correct = 0
-    total_questions = 0
-    
-    for attempt in attempts:
-        exam = db.get(Exam, attempt.exam_id)
-        if not exam:
-            continue
-        
-        upload = db.get(Upload, exam.upload_id)
-        if not upload:
-            continue
-        
-        # Count correct answers
-        correct_count = sum(1 for ans in attempt.answers if ans.correct) if attempt.answers else 0
-        question_count = len(exam.question_ids)
-        
-        total_correct += correct_count
-        total_questions += question_count
-        
-        export_attempts.append({
-            "id": attempt.id,
-            "exam_name": upload.filename,
-            "finished_at": attempt.finished_at.isoformat() if attempt.finished_at else None,
-            "score_pct": round(attempt.score_pct or 0.0, 2),
-            "correct_count": correct_count,
-            "question_count": question_count,
-        })
-    
-    # Calculate summary statistics
-    avg_score = sum(a["score_pct"] for a in export_attempts) / len(export_attempts) if export_attempts else 0.0
-    
-    return {
-        "version": "1.0",
-        "exported_at": datetime.utcnow().isoformat(),
-        "summary": {
-            "total_attempts": len(export_attempts),
-            "total_questions_answered": total_questions,
-            "total_correct": total_correct,
-            "avg_score": round(avg_score, 2),
-        },
-        "attempts": export_attempts,
-    }
 
 
 @router.delete("/uploads/{upload_id}")
